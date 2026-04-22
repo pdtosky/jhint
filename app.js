@@ -3,10 +3,6 @@ const API_STATE_URL = "/api/state";
 const POLL_INTERVAL_MS = 5000;
 const APP_CONFIG = window.APP_CONFIG || {};
 const BACKEND_MODE = APP_CONFIG.backend || "api";
-const ADMIN_CREDENTIALS = {
-  id: "jhint",
-  password: "jhint2233"
-};
 
 const TEXT = {
   admin: "\uAD00\uB9AC\uC790",
@@ -108,7 +104,7 @@ const seedOrders = [
 const state = createEmptyState();
 let dashboardFilter = "all";
 let dashboardTimerId = null;
-let isAdminLoggedIn = loadAdminSession();
+let isAdminLoggedIn = false;
 let isDashboardListOpen = false;
 let calendarCursor = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 let adminMonthFilter = toMonthKey(new Date());
@@ -117,11 +113,13 @@ let shippingFilter = "all";
 let shippingSearchKeyword = "";
 let lastStateSnapshot = "";
 let syncTimerId = null;
+let currentAdminEmail = "";
 
 const adminLoginForm = document.getElementById("adminLoginForm");
 const adminPageLoginForm = document.getElementById("adminPageLoginForm");
 const adminLoginPanel = document.getElementById("adminLoginPanel");
 const adminSessionPanel = document.getElementById("adminSessionPanel");
+const adminSessionUser = document.getElementById("adminSessionUser");
 const adminLogoutBtn = document.getElementById("adminLogoutBtn");
 const resetOrdersBtn = document.getElementById("resetOrdersBtn");
 const ordersLockedNotice = document.getElementById("ordersLockedNotice");
@@ -191,6 +189,7 @@ let pendingCompletionWorkerName = "";
 let pendingPauseOrderId = "";
 let pendingPauseWorkerName = "";
 let selectedCalendarDateKey = "";
+const supabaseAuthClient = createSupabaseAuthClient();
 
 bindEvents();
 initializeApp();
@@ -216,9 +215,7 @@ function bindEvents() {
   });
 
   adminLogoutBtn.addEventListener("click", () => {
-    isAdminLoggedIn = false;
-    persistAdminSession();
-    renderAdminSession();
+    handleAdminLogout();
   });
 
   resetOrdersBtn.addEventListener("click", () => {
@@ -627,9 +624,11 @@ async function initializeApp() {
   if (location.protocol === "file:" || (isSupabaseBackend() && !hasSupabaseConfig())) {
     serverModeNotice.hidden = false;
   }
+  await restoreAdminSession();
   await loadRemoteState();
   render();
   startStatePolling();
+  bindAdminAuthListener();
 }
 
 async function loadRemoteState() {
@@ -661,6 +660,45 @@ function isSupabaseBackend() {
 
 function hasSupabaseConfig() {
   return Boolean(APP_CONFIG.supabaseUrl && APP_CONFIG.supabaseAnonKey);
+}
+
+function createSupabaseAuthClient() {
+  if (!isSupabaseBackend() || !hasSupabaseConfig() || !window.supabase?.createClient) {
+    return null;
+  }
+
+  return window.supabase.createClient(APP_CONFIG.supabaseUrl, APP_CONFIG.supabaseAnonKey);
+}
+
+function getAdminEmailAllowlist() {
+  return (APP_CONFIG.adminEmails || []).map((email) => String(email || "").trim().toLowerCase()).filter(Boolean);
+}
+
+function isAllowedAdminEmail(email) {
+  const normalizedEmail = String(email || "").trim().toLowerCase();
+  const allowlist = getAdminEmailAllowlist();
+  if (!normalizedEmail) return false;
+  if (!allowlist.length) return true;
+  return allowlist.includes(normalizedEmail);
+}
+
+function setAdminSession(email) {
+  currentAdminEmail = String(email || "").trim().toLowerCase();
+  isAdminLoggedIn = isAllowedAdminEmail(currentAdminEmail);
+}
+
+async function restoreAdminSession() {
+  if (!supabaseAuthClient) return;
+  const { data } = await supabaseAuthClient.auth.getSession();
+  setAdminSession(data?.session?.user?.email || "");
+}
+
+function bindAdminAuthListener() {
+  if (!supabaseAuthClient) return;
+  supabaseAuthClient.auth.onAuthStateChange((_event, session) => {
+    setAdminSession(session?.user?.email || "");
+    renderAdminSession();
+  });
 }
 
 async function fetchApiState() {
@@ -788,14 +826,6 @@ function persist() {
   });
 }
 
-function loadAdminSession() {
-  return localStorage.getItem(ADMIN_SESSION_KEY) === "true";
-}
-
-function persistAdminSession() {
-  localStorage.setItem(ADMIN_SESSION_KEY, String(isAdminLoggedIn));
-}
-
 function startStatePolling() {
   if (syncTimerId) {
     clearInterval(syncTimerId);
@@ -814,16 +844,44 @@ function startStatePolling() {
   }, POLL_INTERVAL_MS);
 }
 
-function handleAdminLogin(formElement) {
+async function handleAdminLogin(formElement) {
   const formData = new FormData(formElement);
-  const adminId = String(formData.get("adminId") || "").trim();
+  const adminEmail = String(formData.get("adminEmail") || "").trim().toLowerCase();
   const adminPassword = String(formData.get("adminPassword") || "").trim();
-  if (adminId !== ADMIN_CREDENTIALS.id || adminPassword !== ADMIN_CREDENTIALS.password) return;
+  if (!supabaseAuthClient) {
+    window.alert("관리자 인증 설정이 아직 연결되지 않았습니다.");
+    return;
+  }
+  if (!adminEmail || !adminPassword) return;
 
-  isAdminLoggedIn = true;
-  persistAdminSession();
+  const { data, error } = await supabaseAuthClient.auth.signInWithPassword({
+    email: adminEmail,
+    password: adminPassword
+  });
+
+  if (error) {
+    window.alert("로그인에 실패했습니다. 이메일 또는 비밀번호를 확인해 주세요.");
+    return;
+  }
+
+  const sessionEmail = data?.user?.email || data?.session?.user?.email || adminEmail;
+  if (!isAllowedAdminEmail(sessionEmail)) {
+    await supabaseAuthClient.auth.signOut({ scope: "local" });
+    window.alert("이 계정은 관리자 권한이 없습니다.");
+    return;
+  }
+
+  setAdminSession(sessionEmail);
   adminLoginForm.reset();
   adminPageLoginForm.reset();
+  renderAdminSession();
+}
+
+async function handleAdminLogout() {
+  if (supabaseAuthClient) {
+    await supabaseAuthClient.auth.signOut({ scope: "local" });
+  }
+  setAdminSession("");
   renderAdminSession();
 }
 
@@ -943,6 +1001,7 @@ function getSortedOrders(orders) {
 function renderAdminSession() {
   adminLoginPanel.hidden = isAdminLoggedIn;
   adminSessionPanel.hidden = !isAdminLoggedIn;
+  adminSessionUser.textContent = currentAdminEmail || "admin";
   ordersLockedNotice.hidden = isAdminLoggedIn;
   ordersContent.hidden = !isAdminLoggedIn;
   Array.from(orderForm.elements).forEach((element) => {
