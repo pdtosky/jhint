@@ -181,7 +181,6 @@ const calendarDetailModal = document.getElementById("calendarDetailModal");
 const calendarDetailTitle = document.getElementById("calendarDetailTitle");
 const calendarDetailBody = document.getElementById("calendarDetailBody");
 const calendarDetailCloseBtn = document.getElementById("calendarDetailCloseBtn");
-const serverModeNotice = document.getElementById("serverModeNotice");
 const tabButtons = document.querySelectorAll(".page-tabs .tab-btn[data-view-target]");
 const viewPanels = document.querySelectorAll(".view-panel");
 let pendingCompletionOrderId = "";
@@ -621,9 +620,6 @@ function createEmptyState() {
 }
 
 async function initializeApp() {
-  if (location.protocol === "file:" || (isSupabaseBackend() && !hasSupabaseConfig())) {
-    serverModeNotice.hidden = false;
-  }
   await restoreAdminSession();
   await loadRemoteState();
   render();
