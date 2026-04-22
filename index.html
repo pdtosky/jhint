@@ -98,8 +98,8 @@
             </div>
             <form id="adminLoginForm" class="order-form">
               <label>
-                ID
-                <input type="text" name="adminId" id="adminId" autocomplete="username" />
+                Email
+                <input type="email" name="adminEmail" id="adminEmail" autocomplete="username" />
               </label>
               <label>
                 Password
@@ -112,7 +112,7 @@
           <div id="adminSessionPanel" class="admin-session-panel" hidden>
             <div class="session-box">
               <div>
-                <strong>jhint</strong>
+                <strong id="adminSessionUser">admin</strong>
                 <p class="progress-meta">&#44288;&#47532;&#51088; &#47196;&#44536;&#51064; &#49345;&#53468;</p>
               </div>
               <div class="session-actions">
@@ -301,8 +301,8 @@
               <p>&#44288;&#47532;&#51088; &#54168;&#51060;&#51648;&#45716; &#47196;&#44536;&#51064; &#54980; &#54869;&#51064;&#54624; &#49688; &#51080;&#49845;&#45768;&#45796;.</p>
               <form id="adminPageLoginForm" class="order-form compact-form">
                 <label>
-                  ID
-                  <input type="text" name="adminId" autocomplete="username" />
+                  Email
+                  <input type="email" name="adminEmail" autocomplete="username" />
                 </label>
                 <label>
                   Password
@@ -432,6 +432,7 @@
     </div>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="config.js"></script>
   <script src="app.js"></script>
 </body>
