@@ -1,15 +1,15 @@
 :root {
-  --bg: #f3efe7;
-  --paper: rgba(255, 251, 245, 0.88);
-  --line: rgba(110, 95, 75, 0.18);
-  --ink: #2f241b;
-  --sub: #6d6258;
+  --bg: #e8f1fb;
+  --paper: rgba(248, 252, 255, 0.9);
+  --line: rgba(75, 104, 146, 0.18);
+  --ink: #1f2e45;
+  --sub: #5f7088;
   --brand: #0d6b5f;
   --brand-soft: #d8f1e9;
   --danger: #d83a34;
   --danger-soft: #fde3e0;
   --amber: #f2a93b;
-  --shadow: 0 24px 70px rgba(78, 56, 30, 0.12);
+  --shadow: 0 24px 70px rgba(36, 64, 110, 0.12);
 }
 
 * {
@@ -21,9 +21,9 @@ body {
   font-family: "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", "Segoe UI", sans-serif;
   color: var(--ink);
   background:
-    radial-gradient(circle at top left, rgba(13, 107, 95, 0.18), transparent 28%),
-    radial-gradient(circle at bottom right, rgba(242, 169, 59, 0.22), transparent 30%),
-    linear-gradient(135deg, #f7f1e7 0%, #ece2d4 100%);
+    radial-gradient(circle at top left, rgba(79, 140, 255, 0.2), transparent 30%),
+    radial-gradient(circle at bottom right, rgba(115, 198, 255, 0.22), transparent 32%),
+    linear-gradient(135deg, #eef6ff 0%, #dbeaff 100%);
   word-break: keep-all;
   line-break: strict;
   text-rendering: optimizeLegibility;
@@ -43,6 +43,36 @@ body {
   align-items: end;
   margin-bottom: 24px;
   text-align: center;
+}
+
+.hero-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+}
+
+.hero-brand > .company-logo {
+  display: none;
+}
+
+.company-logo {
+  display: block;
+  width: min(420px, 72vw);
+  height: auto;
+  object-fit: contain;
+  mix-blend-mode: multiply;
+}
+
+.page-footer {
+  display: flex;
+  justify-content: center;
+  margin-top: 28px;
+  padding-bottom: 8px;
+}
+
+.footer-logo {
+  width: min(420px, 72vw);
 }
 
 .eyebrow,
@@ -714,6 +744,10 @@ tbody tr:last-child td {
 @media (max-width: 760px) {
   .page-shell {
     padding: 16px;
+  }
+
+  .company-logo {
+    width: min(280px, 78vw);
   }
 
   .hero,
