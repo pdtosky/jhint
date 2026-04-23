@@ -345,6 +345,8 @@ button {
   border-radius: 22px;
   padding: 16px;
   background: rgba(255, 255, 255, 0.72);
+  overflow-x: auto;
+  overflow-y: hidden;
 }
 
 .calendar-head {
@@ -360,6 +362,7 @@ button {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 8px;
+  min-width: 640px;
 }
 
 .calendar-weekdays {
@@ -374,11 +377,13 @@ button {
 }
 
 .calendar-day {
+  aspect-ratio: 0.78 / 1;
   min-height: 104px;
   border: 1px solid var(--line);
   border-radius: 16px;
   padding: 10px;
   background: rgba(255, 255, 255, 0.82);
+  overflow: hidden;
 }
 
 .calendar-day.muted {
@@ -408,21 +413,34 @@ button {
   display: grid;
   gap: 6px;
   margin-top: 8px;
+  min-width: 0;
 }
 
 .calendar-pill {
   display: block;
   width: 100%;
+  max-width: 100%;
+  min-height: 0 !important;
+  height: auto !important;
   border: 0;
   text-align: left;
   padding: 6px 8px;
   border-radius: 12px;
   background: var(--brand-soft);
   color: var(--brand);
-  font-size: 0.75rem;
+  font-size: clamp(0.64rem, 1.6vw, 0.75rem);
   font-weight: 700;
   line-height: 1.2;
   cursor: pointer;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: keep-all;
+  box-sizing: border-box;
+  align-self: start;
+}
+
+.calendar-pill-text-short {
+  display: none;
 }
 
 .calendar-pill.urgent {
@@ -807,8 +825,39 @@ tbody tr:last-child td {
   }
 
   .calendar-day {
-    min-height: 86px;
+    aspect-ratio: 0.78 / 1;
+    min-height: 104px;
     padding: 8px;
+  }
+
+  .calendar-date {
+    font-size: 0.85rem;
+  }
+
+  .calendar-items {
+    gap: 4px;
+    margin-top: 6px;
+  }
+
+  .calendar-pill {
+    min-height: 0 !important;
+    height: auto !important;
+    padding: 5px 6px;
+    border-radius: 10px;
+    font-size: 0.63rem;
+    line-height: 1.15;
+  }
+
+  .calendar-pill-text-long {
+    display: none;
+  }
+
+  .calendar-pill-text-short {
+    display: inline;
+  }
+
+  .calendar-wrap {
+    padding-bottom: 12px;
   }
 
   .panel {
