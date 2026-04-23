@@ -355,19 +355,22 @@ function bindEvents() {
     renderActivities();
   });
 
-  shippingFilterAllBtn.addEventListener("click", () => {
-    shippingFilter = "all";
+  function openShippingList(filter) {
+    shippingFilter = filter;
     renderShippingPage();
+    shippingSummary.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  shippingFilterAllBtn.addEventListener("click", () => {
+    openShippingList("all");
   });
 
   shippingFilterPendingBtn.addEventListener("click", () => {
-    shippingFilter = "pending";
-    renderShippingPage();
+    openShippingList("pending");
   });
 
   shippingFilterDoneBtn.addEventListener("click", () => {
-    shippingFilter = "done";
-    renderShippingPage();
+    openShippingList("done");
   });
 
   shippingSearchInput.addEventListener("input", () => {
@@ -398,8 +401,8 @@ function updateWorkState(nextStatus) {
       (item) => item.machineName === machineName && item.status === "working" && item.id !== orderId
     );
     if (hasBusyMachine) {
-      showWorkerAlert("입력한 장비명은 현재 다른 작업에서 사용 중입니다.");
-      window.alert("입력한 장비명은 현재 다른 작업에서 사용 중입니다.");
+      showWorkerAlert("입력한 장비명이 현재 다른 작업에서 사용 중입니다.");
+      window.alert("입력한 장비명이 현재 다른 작업에서 사용 중입니다.");
       disableWorkerStartInputs();
       return;
     }
@@ -521,7 +524,7 @@ function finalizePause() {
     workerName: pendingPauseWorkerName,
     orderId: pendingPauseOrderId,
     timestamp: now.toISOString(),
-    message: `작업을 중지했습니다. / 사유 ${pauseReason}${workQty ? ` / 작업수량 ${workQty}` : ""}`
+    message: `?묒뾽??以묒??덉뒿?덈떎. / ?ъ쑀 ${pauseReason}${workQty ? ` / ?묒뾽?섎웾 ${workQty}` : ""}`
   });
 
   persist();
@@ -573,7 +576,7 @@ function finalizeCompletion() {
     workerName: pendingCompletionWorkerName,
     orderId: pendingCompletionOrderId,
     timestamp: new Date().toISOString(),
-    message: `${TEXT.endMessage} / 오늘 작업수량 ${productionQty}${totalHitQty ? ` / 오늘 작업타수 ${totalHitQty}` : ""} / ${TEXT.productionQty} ${order.productionQty}${order.totalHitQty ? ` / ${TEXT.totalHitQty} ${order.totalHitQty}` : ""}`
+    message: `${TEXT.endMessage} / ?ㅻ뒛 ?묒뾽?섎웾 ${productionQty}${totalHitQty ? ` / ?ㅻ뒛 ?묒뾽???${totalHitQty}` : ""} / ${TEXT.productionQty} ${order.productionQty}${order.totalHitQty ? ` / ${TEXT.totalHitQty} ${order.totalHitQty}` : ""}`
   });
 
   persist();
@@ -796,6 +799,7 @@ function normalizeOrderRecord(order) {
     shippedDate: order.shippedDate || "",
     shippingNote: order.shippingNote || "",
     shippingNoteLocked: Boolean(order.shippingNoteLocked),
+    shipments: Array.isArray(order.shipments) ? order.shipments : [],
     elapsedMs: Number(order.elapsedMs || 0)
   };
 }
@@ -818,7 +822,7 @@ function persist() {
   lastStateSnapshot = payload;
   const request = isSupabaseBackend() ? saveSupabaseState(normalizeAppState(state)) : saveApiState(payload);
   return request.catch(() => {
-    window.alert("서버 저장에 실패했습니다. 서버 연결 상태를 확인해 주세요.");
+    window.alert("서버 저장에 실패했습니다. 네트워크 연결 상태를 확인해 주세요.");
   });
 }
 
@@ -926,7 +930,7 @@ function renderCalendar() {
                 `<button type="button" class="calendar-pill ${daysUntil(order.dueDate) <= 3 && order.status !== "complete" ? "urgent" : ""}" data-date-key="${dateKey}">${escapeHtml(order.company)}</button>`
             )
             .join("")}
-          ${orders.length > 2 ? `<div class="calendar-pill">+${orders.length - 2}건</div>` : ""}
+          ${orders.length > 2 ? `<div class="calendar-pill">+${orders.length - 2}嫄?/div>` : ""}
         </div>
       </div>
     `;
@@ -949,10 +953,10 @@ function renderCalendarDetail() {
   if (!selectedCalendarDateKey) return;
 
   const orders = getSortedOrders(state.orders.filter((order) => order.dueDate === selectedCalendarDateKey));
-  calendarDetailTitle.textContent = `${formatDate(selectedCalendarDateKey)} 납기 상세`;
+  calendarDetailTitle.textContent = `${formatDate(selectedCalendarDateKey)} ?⑷린 ?곸꽭`;
 
   if (!orders.length) {
-    calendarDetailBody.innerHTML = `<div class="empty-state">해당 날짜의 납기 데이터가 없습니다.</div>`;
+    calendarDetailBody.innerHTML = `<div class="empty-state">?대떦 ?좎쭨???⑷린 ?곗씠?곌? ?놁뒿?덈떎.</div>`;
     return;
   }
 
@@ -965,15 +969,15 @@ function renderCalendarDetail() {
             ${statusBadge(order, order.status !== "complete" && daysUntil(order.dueDate) <= 3)}
           </div>
           <div class="detail-lines">
-            <p class="detail-line"><strong>제품명</strong> ${escapeHtml(order.product)}</p>
-            <p class="detail-line"><strong>상태</strong> ${getOrderStatusText(order)}</p>
-            <p class="detail-line"><strong>납기일</strong> ${formatDate(order.dueDate)}</p>
-            <p class="detail-line"><strong>장비</strong> ${escapeHtml(order.machineName || "-")}</p>
-            <p class="detail-line"><strong>수량</strong> ${escapeHtml(order.quantity || "-")}</p>
-            <p class="detail-line"><strong>구분</strong> ${getPaymentLabel(order)} · ${getDeliveryLabel(order)}</p>
-            <p class="detail-line"><strong>작업시간</strong> ${getWorkTimeLabel(order).replace(/^작업시간 /, "").replace(/^누적 작업시간 /, "").replace(/^총 작업시간 /, "")}</p>
-            <p class="detail-line"><strong>총생산수</strong> ${getProductionQtyLabel(order).replace(`${TEXT.productionQty} `, "")}</p>
-            <p class="detail-line"><strong>총타발수</strong> ${getTotalHitQtyLabel(order).replace(`${TEXT.totalHitQty} `, "")}</p>
+            <p class="detail-line"><strong>?쒗뭹紐?/strong> ${escapeHtml(order.product)}</p>
+            <p class="detail-line"><strong>?곹깭</strong> ${getOrderStatusText(order)}</p>
+            <p class="detail-line"><strong>?⑷린??/strong> ${formatDate(order.dueDate)}</p>
+            <p class="detail-line"><strong>?λ퉬</strong> ${escapeHtml(order.machineName || "-")}</p>
+            <p class="detail-line"><strong>?섎웾</strong> ${escapeHtml(order.quantity || "-")}</p>
+            <p class="detail-line"><strong>援щ텇</strong> ${getPaymentLabel(order)} / ${getDeliveryLabel(order)}</p>
+            <p class="detail-line"><strong>작업시간</strong> ${getCleanWorkTimeValue(order)}</p>
+            <p class="detail-line"><strong>珥앹깮?곗닔</strong> ${getProductionQtyLabel(order).replace(`${TEXT.productionQty} `, "")}</p>
+            <p class="detail-line"><strong>珥앺?諛쒖닔</strong> ${getTotalHitQtyLabel(order).replace(`${TEXT.totalHitQty} `, "")}</p>
           </div>
         </article>
       `;
@@ -1091,11 +1095,11 @@ function renderProgress() {
           <div class="bar-track">
             <div class="bar-fill" style="width: ${percent}%"></div>
           </div>
-          <p class="progress-meta">${TEXT.dueDate} ${formatDate(order.dueDate)}${order.workerName ? ` · ${TEXT.worker} ${escapeHtml(order.workerName)}` : ""}</p>
+          <p class="progress-meta">${TEXT.dueDate} ${formatDate(order.dueDate)}${order.workerName ? ` 쨌 ${TEXT.worker} ${escapeHtml(order.workerName)}` : ""}</p>
           <p class="progress-meta">${order.machineName ? `장비 ${escapeHtml(order.machineName)}` : "장비 미지정"}</p>
           <p class="progress-meta">수량 ${escapeHtml(order.quantity || "-")}</p>
-          <p class="progress-meta">${getPaymentLabel(order)} · ${getDeliveryLabel(order)}</p>
-          ${order.status === "paused" ? `<div class="paused-flag">작업 중지 · ${escapeHtml(order.pauseReason || "사유 미입력")}</div>` : ""}
+          <p class="progress-meta">${getPaymentLabel(order)} / ${getDeliveryLabel(order)}</p>
+          ${order.status === "paused" ? `<div class="paused-flag">작업 중지 / ${escapeHtml(order.pauseReason || "사유 미입력")}</div>` : ""}
           <p class="progress-meta">${getWorkTimeLabel(order)}</p>
           <p class="progress-meta">${getProductionQtyLabel(order)}</p>
           <p class="progress-meta">${getTotalHitQtyLabel(order)}</p>
@@ -1110,7 +1114,7 @@ function renderDashboardFilteredList() {
   dashboardListTitle.textContent = getDashboardFilterTitle();
 
   if (!isDashboardListOpen) {
-    dashboardFilteredList.innerHTML = `<div class="empty-state">카드를 누르면 해당 리스트가 표시됩니다.</div>`;
+    dashboardFilteredList.innerHTML = `<div class="empty-state">移대뱶瑜??꾨Ⅴ硫??대떦 由ъ뒪?멸? ?쒖떆?⑸땲??</div>`;
     return;
   }
 
@@ -1131,11 +1135,11 @@ function renderDashboardFilteredList() {
             </div>
             ${statusBadge(order, urgent)}
           </div>
-          <p class="progress-meta">${TEXT.orderDate} ${formatDate(order.orderDate)} · ${TEXT.dueDate} ${formatDate(order.dueDate)}</p>
+          <p class="progress-meta">${TEXT.orderDate} ${formatDate(order.orderDate)} 쨌 ${TEXT.dueDate} ${formatDate(order.dueDate)}</p>
           <p class="progress-meta">${order.machineName ? `장비 ${escapeHtml(order.machineName)}` : "장비 미지정"}</p>
           <p class="progress-meta">수량 ${escapeHtml(order.quantity || "-")}</p>
-          <p class="progress-meta">${getPaymentLabel(order)} · ${getDeliveryLabel(order)}</p>
-          ${order.status === "paused" ? `<div class="paused-flag">작업 중지 · ${escapeHtml(order.pauseReason || "사유 미입력")}</div>` : ""}
+          <p class="progress-meta">${getPaymentLabel(order)} / ${getDeliveryLabel(order)}</p>
+          ${order.status === "paused" ? `<div class="paused-flag">작업 중지 / ${escapeHtml(order.pauseReason || "사유 미입력")}</div>` : ""}
           <p class="progress-meta">${order.workerName ? `${TEXT.worker} ${escapeHtml(order.workerName)}` : TEXT.unassigned}</p>
           <p class="progress-meta">${getWorkTimeLabel(order)}</p>
           <p class="progress-meta">${getProductionQtyLabel(order)}</p>
@@ -1161,11 +1165,11 @@ function renderOrdersTable() {
           <td>${escapeHtml(order.company)}</td>
           <td>${escapeHtml(order.product)}</td>
           <td>${escapeHtml(order.quantity || "-")}</td>
-          <td>${order.paymentRequested ? "요청" : "-"}</td>
+          <td>${order.paymentRequested ? "?붿껌" : "-"}</td>
           <td>${escapeHtml(order.deliveryType || "-")}</td>
           <td class="${urgent ? "danger-text" : ""}">${formatDate(order.dueDate)}</td>
           <td>${statusBadge(order, urgent)}</td>
-          <td><button type="button" class="tab-btn edit-order-btn" data-order-id="${order.id}">수정</button></td>
+          <td><button type="button" class="tab-btn edit-order-btn" data-order-id="${order.id}">?섏젙</button></td>
         </tr>
       `;
     })
@@ -1228,13 +1232,13 @@ function renderShippingPage() {
           <td>${order.shippedDate ? formatDate(order.shippedDate) : "-"}</td>
           <td>
             <div class="shipping-note-wrap">
-              <input type="text" value="${escapeHtml(order.shippingNote || "")}" placeholder="출하 메모 입력" data-note-order-id="${order.id}" />
-              <button type="button" class="tab-btn shipping-note-save-btn" data-order-id="${order.id}">메모 저장</button>
+              <input type="text" value="${escapeHtml(order.shippingNote || "")}" placeholder="異쒗븯 硫붾え ?낅젰" data-note-order-id="${order.id}" />
+              <button type="button" class="tab-btn shipping-note-save-btn" data-order-id="${order.id}">硫붾え ???/button>
             </div>
           </td>
           <td>
             <button type="button" class="tab-btn shipping-action-btn" data-order-id="${order.id}" data-action="${order.shipped ? "locked" : "ship"}" ${order.shipped ? "disabled" : ""}>
-              ${order.shipped ? "출하 완료" : "출하 완료"}
+              ${order.shipped ? "異쒗븯 ?꾨즺" : "異쒗븯 ?꾨즺"}
             </button>
           </td>
         </tr>
@@ -1271,7 +1275,7 @@ function renderShippingPage() {
           workerName: TEXT.admin,
           orderId: order.id,
           timestamp: new Date().toISOString(),
-          message: "출하 완료 처리되었습니다."
+          message: "異쒗븯 ?꾨즺 泥섎━?섏뿀?듬땲??"
         });
       } else {
         order.shipped = false;
@@ -1282,7 +1286,7 @@ function renderShippingPage() {
           workerName: TEXT.admin,
           orderId: order.id,
           timestamp: new Date().toISOString(),
-          message: "출하 완료가 취소되었습니다."
+          message: "異쒗븯 ?꾨즺媛 痍⑥냼?섏뿀?듬땲??"
         });
       }
 
@@ -1310,6 +1314,256 @@ function renderShippingPage() {
   });
 }
 
+function getOrderStatusTextClean(order) {
+  if (order.status === "complete") return "작업 완료";
+  if (order.status === "working") return "작업 중";
+  if (order.status === "paused") return "작업 중지";
+  return "작업 대기";
+}
+
+function statusBadgeClean(order, urgent = false) {
+  const map = {
+    complete: { label: "작업 완료", className: "status-complete" },
+    working: { label: "작업 중", className: "status-working" },
+    paused: { label: "작업 중지", className: "status-warning" },
+    ready: { label: urgent ? "납기 임박" : "작업 대기", className: urgent ? "status-warning" : "status-ready" }
+  };
+  const item = map[order.status] || map.ready;
+  return `<span class="status-badge ${item.className}">${item.label}</span>`;
+}
+
+function renderCalendarDetail() {
+  if (!selectedCalendarDateKey) return;
+
+  const orders = getSortedOrders(state.orders.filter((order) => order.dueDate === selectedCalendarDateKey));
+  calendarDetailTitle.textContent = `${formatDate(selectedCalendarDateKey)} 납기 상세`;
+
+  if (!orders.length) {
+    calendarDetailBody.innerHTML = `<div class="empty-state">해당 날짜의 납기 데이터가 없습니다.</div>`;
+    return;
+  }
+
+  calendarDetailBody.innerHTML = orders
+    .map((order) => {
+      const urgent = order.status !== "complete" && daysUntil(order.dueDate) <= 3;
+      return `
+        <article class="feed-item">
+          <div class="feed-item-top">
+            <strong>${escapeHtml(order.company)}</strong>
+            ${statusBadgeClean(order, urgent)}
+          </div>
+          <div class="detail-lines">
+            <p class="detail-line"><strong>제품명</strong> ${escapeHtml(order.product)}</p>
+            <p class="detail-line"><strong>상태</strong> ${getOrderStatusTextClean(order)}</p>
+            <p class="detail-line"><strong>납기일</strong> ${formatDate(order.dueDate)}</p>
+            <p class="detail-line"><strong>장비</strong> ${escapeHtml(order.machineName || "-")}</p>
+            <p class="detail-line"><strong>수량</strong> ${escapeHtml(order.quantity || "-")}</p>
+            <p class="detail-line"><strong>구분</strong> ${getPaymentLabel(order)} / ${getDeliveryLabel(order)}</p>
+            <p class="detail-line"><strong>작업시간</strong> ${getCleanWorkTimeValue(order) || "-"}</p>
+            <p class="detail-line"><strong>총생산수</strong> ${String(order.productionQty || "-")}</p>
+            <p class="detail-line"><strong>총타발수</strong> ${String(order.totalHitQty || "-")}</p>
+          </div>
+        </article>
+      `;
+    })
+    .join("");
+}
+
+function renderProgress() {
+  const filteredOrders = getSortedOrders(getDashboardFilteredOrders());
+  const titleMap = {
+    all: "전체 발주 진행률",
+    ready: "작업 대기 진행률",
+    working: "작업 중 진행률",
+    urgent: "납기 임박 진행률"
+  };
+  progressTitle.textContent = titleMap[dashboardFilter] || "전체 발주 진행률";
+
+  if (filteredOrders.length === 0) {
+    progressBoard.innerHTML = `<div class="empty-state">진행 중인 생산 데이터가 없습니다.</div>`;
+    return;
+  }
+
+  progressBoard.innerHTML = filteredOrders
+    .map((order) => {
+      const percent = getProgressPercent(order);
+      const urgent = order.status !== "complete" && daysUntil(order.dueDate) <= 3;
+      return `
+        <article class="progress-card ${order.status === "paused" ? "paused-card" : ""}">
+          <div class="progress-top">
+            <div>
+              <strong>${escapeHtml(order.product)}</strong>
+              <p class="progress-meta">${escapeHtml(order.company)}</p>
+            </div>
+            ${statusBadgeClean(order, urgent)}
+          </div>
+          <div class="bar-track">
+            <div class="bar-fill" style="width: ${percent}%"></div>
+          </div>
+          <p class="progress-meta">납기일 ${formatDate(order.dueDate)}${order.workerName ? ` / 작업자 ${escapeHtml(order.workerName)}` : ""}</p>
+          <p class="progress-meta">${order.machineName ? `장비 ${escapeHtml(order.machineName)}` : "장비 미지정"}</p>
+          <p class="progress-meta">수량 ${escapeHtml(order.quantity || "-")}</p>
+          <p class="progress-meta">${getPaymentLabel(order)} / ${getDeliveryLabel(order)}</p>
+          ${order.status === "paused" ? `<div class="paused-flag">작업 중지 / ${escapeHtml(order.pauseReason || "사유 미입력")}</div>` : ""}
+          <p class="progress-meta">${getWorkTimeLabel(order)}</p>
+          <p class="progress-meta">${getProductionQtyLabel(order)}</p>
+          <p class="progress-meta">${getTotalHitQtyLabel(order)}</p>
+        </article>
+      `;
+    })
+    .join("");
+}
+
+function renderDashboardFilteredList() {
+  const filteredOrders = getSortedOrders(getDashboardFilteredOrders());
+  const titleMap = {
+    all: "전체 발주 리스트",
+    ready: "작업 대기 리스트",
+    working: "작업 중 리스트",
+    urgent: "납기 임박 리스트"
+  };
+  dashboardListTitle.textContent = titleMap[dashboardFilter] || "전체 발주 리스트";
+
+  if (!isDashboardListOpen) {
+    dashboardFilteredList.innerHTML = `<div class="empty-state">카드를 누르면 해당 리스트가 표시됩니다.</div>`;
+    return;
+  }
+
+  if (filteredOrders.length === 0) {
+    dashboardFilteredList.innerHTML = `<div class="empty-state">표시할 발주가 없습니다.</div>`;
+    return;
+  }
+
+  dashboardFilteredList.innerHTML = filteredOrders
+    .map((order) => {
+      const urgent = order.status !== "complete" && daysUntil(order.dueDate) <= 3;
+      return `
+        <article class="progress-card ${order.status === "paused" ? "paused-card" : ""}">
+          <div class="progress-top">
+            <div>
+              <strong>${escapeHtml(order.product)}</strong>
+              <p class="progress-meta">${escapeHtml(order.company)}</p>
+            </div>
+            ${statusBadgeClean(order, urgent)}
+          </div>
+          <p class="progress-meta">발주일 ${formatDate(order.orderDate)} / 납기일 ${formatDate(order.dueDate)}</p>
+          <p class="progress-meta">${order.machineName ? `장비 ${escapeHtml(order.machineName)}` : "장비 미지정"}</p>
+          <p class="progress-meta">수량 ${escapeHtml(order.quantity || "-")}</p>
+          <p class="progress-meta">${getPaymentLabel(order)} / ${getDeliveryLabel(order)}</p>
+          ${order.status === "paused" ? `<div class="paused-flag">작업 중지 / ${escapeHtml(order.pauseReason || "사유 미입력")}</div>` : ""}
+          <p class="progress-meta">${order.workerName ? `담당 작업자 ${escapeHtml(order.workerName)}` : "담당 작업자 미지정"}</p>
+          <p class="progress-meta">${getWorkTimeLabel(order)}</p>
+          <p class="progress-meta">${getProductionQtyLabel(order)}</p>
+          <p class="progress-meta">${getTotalHitQtyLabel(order)}</p>
+        </article>
+      `;
+    })
+    .join("");
+}
+
+function renderActivities() {
+  const sortedOrders = getSortedOrders(state.orders);
+
+  historyToggleBtn.textContent = isActivityFeedOpen ? "작업 이력 닫기" : "작업 이력 보기";
+
+  if (!isActivityFeedOpen) {
+    activityFeed.innerHTML = `<div class="empty-state">버튼을 누르면 작업 이력이 표시됩니다.</div>`;
+    return;
+  }
+
+  if (sortedOrders.length === 0) {
+    activityFeed.innerHTML = `<div class="empty-state">등록된 작업 이력이 없습니다.</div>`;
+    return;
+  }
+
+  const grouped = new Map();
+  sortedOrders.forEach((order) => {
+    const workerKey = order.workerName || "관리자";
+    if (!grouped.has(workerKey)) grouped.set(workerKey, []);
+    grouped.get(workerKey).push(order);
+  });
+
+  activityFeed.innerHTML = [...grouped.entries()]
+    .map(([workerName, orders]) => {
+      const items = orders
+        .map((order) => {
+          const latestActivity = state.activities.find((activity) => activity.orderId === order.id);
+          const badgeClass = order.status === "complete" ? "status-complete" : order.status === "working" ? "status-working" : order.status === "paused" ? "status-warning" : "status-ready";
+          const badgeText = getOrderStatusTextClean(order);
+          const activityMessage = latestActivity ? latestActivity.message : "발주 등록";
+          const activityTime = latestActivity ? formatDateTime(latestActivity.timestamp) : formatDateTime(order.orderDate);
+          return `
+            <article class="feed-item ${order.status === "paused" ? "paused-card" : ""}">
+              <div class="feed-item-top">
+                <strong>${escapeHtml(order.company)} / ${escapeHtml(order.product)}</strong>
+                <span class="status-badge ${badgeClass}">${badgeText}</span>
+              </div>
+              <p class="feed-meta">${escapeHtml(activityMessage)} / ${activityTime}</p>
+              <p class="feed-meta">납기일 ${formatDate(order.dueDate)} / 장비 ${escapeHtml(order.machineName || "-")} / 수량 ${escapeHtml(order.quantity || "-")} / ${getPaymentLabel(order)} / ${getDeliveryLabel(order)}</p>
+              ${order.pauseReason ? `<p class="feed-meta">중지 사유 ${escapeHtml(order.pauseReason)}${order.workQty ? ` / 작업수량 ${escapeHtml(order.workQty)}` : ""}</p>` : ""}
+            </article>
+          `;
+        })
+        .join("");
+
+      return `
+        <section class="activity-group">
+          <div class="section-head compact">
+            <h3>${escapeHtml(workerName)}</h3>
+            <p>작업 건수 ${orders.length}</p>
+          </div>
+          <div class="activity-feed">
+            ${items}
+          </div>
+        </section>
+      `;
+    })
+    .join("");
+}
+
+function renderWorkerLiveStatus() {
+  const workingOrders = getSortedOrders(state.orders.filter((order) => order.status === "working" || order.status === "paused"));
+
+  if (workingOrders.length === 0) {
+    workerLiveStatus.innerHTML = `<div class="empty-state">작업시간 없음</div>`;
+    return;
+  }
+
+  workerLiveStatus.innerHTML = workingOrders
+    .map((order) => {
+      return `
+        <article class="progress-card">
+          <div class="progress-top">
+            <div>
+              <strong>${escapeHtml(order.product)}</strong>
+              <p class="progress-meta">${escapeHtml(order.company)}</p>
+            </div>
+            <span class="status-badge ${order.status === "paused" ? "status-warning" : "status-working"}">${order.status === "paused" ? "작업 중지" : "작업 중"}</span>
+          </div>
+          <p class="progress-meta">${order.workerName ? `작업자 ${escapeHtml(order.workerName)}` : "담당 작업자 미지정"}</p>
+          <p class="progress-meta">${order.machineName ? `장비 ${escapeHtml(order.machineName)}` : "장비 미지정"}</p>
+          <p class="progress-meta">${getWorkTimeLabel(order)}</p>
+          ${order.pauseReason ? `<p class="progress-meta">중지 사유 ${escapeHtml(order.pauseReason)}${order.workQty ? ` / 작업수량 ${escapeHtml(order.workQty)}` : ""}</p>` : ""}
+          <div class="feed-actions">
+            ${order.status === "working" ? `<button type="button" class="tab-btn live-action-btn" data-order-id="${order.id}" data-action="pause">작업중지</button>` : ""}
+            <button type="button" class="tab-btn live-action-btn" data-order-id="${order.id}" data-action="complete">작업종료</button>
+          </div>
+        </article>
+      `;
+    })
+    .join("");
+
+  workerLiveStatus.querySelectorAll(".live-action-btn").forEach((button) => {
+    button.addEventListener("click", () => {
+      const order = state.orders.find((item) => item.id === (button.dataset.orderId || ""));
+      if (!order) return;
+      populateWorkerFormFromOrder(order);
+      if (button.dataset.action === "pause") preparePause();
+      if (button.dataset.action === "complete") prepareCompletion();
+    });
+  });
+}
+
 function renderOrderOptions() {
   const selectableOrders = getSortedOrders(
     state.orders.filter((order) => order.status === "ready" || order.status === "paused")
@@ -1321,17 +1575,17 @@ function renderOrderOptions() {
   }
 
   orderSelect.innerHTML = selectableOrders
-    .map((order) => `<option value="${order.id}">${escapeHtml(order.company)} · ${escapeHtml(order.product)}</option>`)
+    .map((order) => `<option value="${order.id}">${escapeHtml(order.company)} 쨌 ${escapeHtml(order.product)}</option>`)
     .join("");
 }
 
 function renderActivities() {
   const sortedOrders = getSortedOrders(state.orders);
 
-  historyToggleBtn.textContent = isActivityFeedOpen ? "작업 이력 닫기" : "작업 이력 보기";
+  historyToggleBtn.textContent = isActivityFeedOpen ? "?묒뾽 ?대젰 ?リ린" : "?묒뾽 ?대젰 蹂닿린";
 
   if (!isActivityFeedOpen) {
-    activityFeed.innerHTML = `<div class="empty-state">버튼을 누르면 작업 이력이 표시됩니다.</div>`;
+    activityFeed.innerHTML = `<div class="empty-state">踰꾪듉???꾨Ⅴ硫??묒뾽 ?대젰???쒖떆?⑸땲??</div>`;
     return;
   }
 
@@ -1366,9 +1620,9 @@ function renderActivities() {
                 <strong>${escapeHtml(orderText)}</strong>
                 <span class="status-badge ${badgeClass}">${badgeText}</span>
               </div>
-              <p class="feed-meta">${escapeHtml(activityMessage)} · ${activityTime}</p>
-              <p class="feed-meta">납기일 ${formatDate(order.dueDate)} · 장비 ${escapeHtml(order.machineName || "-")} · 수량 ${escapeHtml(order.quantity || "-")} · ${getPaymentLabel(order)} · ${getDeliveryLabel(order)}</p>
-              ${order.pauseReason ? `<p class="feed-meta">중지사유 ${escapeHtml(order.pauseReason)}${order.workQty ? ` · 작업수량 ${escapeHtml(order.workQty)}` : ""}</p>` : ""}
+              <p class="feed-meta">${escapeHtml(activityMessage)} 쨌 ${activityTime}</p>
+              <p class="feed-meta">?⑷린??${formatDate(order.dueDate)} 쨌 ?λ퉬 ${escapeHtml(order.machineName || "-")} 쨌 수량 ${escapeHtml(order.quantity || "-")} 쨌 ${getPaymentLabel(order)} / ${getDeliveryLabel(order)}</p>
+              ${order.pauseReason ? `<p class="feed-meta">중지 사유 ${escapeHtml(order.pauseReason)}${order.workQty ? ` / 작업수량 ${escapeHtml(order.workQty)}` : ""}</p>` : ""}
             </article>
           `;
         })
@@ -1378,7 +1632,7 @@ function renderActivities() {
         <section class="activity-group">
           <div class="section-head compact">
             <h3>${escapeHtml(workerName)}</h3>
-            <p>작업 건수 ${orders.length}</p>
+            <p>?묒뾽 嫄댁닔 ${orders.length}</p>
           </div>
           <div class="activity-feed">
             ${items}
@@ -1405,7 +1659,7 @@ function populateWorkerFormFromOrder(order) {
   if (!option) {
     option = document.createElement("option");
     option.value = order.id;
-    option.textContent = `${order.company} · ${order.product}`;
+    option.textContent = `${order.company} 쨌 ${order.product}`;
     orderSelect.prepend(option);
   }
   orderSelect.value = order.id;
@@ -1433,10 +1687,10 @@ function renderWorkerLiveStatus() {
           <p class="progress-meta">${order.workerName ? `${TEXT.worker} ${escapeHtml(order.workerName)}` : TEXT.unassigned}</p>
           <p class="progress-meta">${order.machineName ? `장비 ${escapeHtml(order.machineName)}` : "장비 미지정"}</p>
           <p class="progress-meta">${getWorkTimeLabel(order)}</p>
-          ${order.pauseReason ? `<p class="progress-meta">중지사유 ${escapeHtml(order.pauseReason)}${order.workQty ? ` · 작업수량 ${escapeHtml(order.workQty)}` : ""}</p>` : ""}
+          ${order.pauseReason ? `<p class="progress-meta">중지 사유 ${escapeHtml(order.pauseReason)}${order.workQty ? ` / 작업수량 ${escapeHtml(order.workQty)}` : ""}</p>` : ""}
           <div class="feed-actions">
-            ${order.status === "working" ? `<button type="button" class="tab-btn live-action-btn" data-order-id="${order.id}" data-action="pause">작업중지</button>` : ""}
-            <button type="button" class="tab-btn live-action-btn" data-order-id="${order.id}" data-action="complete">작업종료</button>
+            ${order.status === "working" ? `<button type="button" class="tab-btn live-action-btn" data-order-id="${order.id}" data-action="pause">?묒뾽以묒?</button>` : ""}
+            <button type="button" class="tab-btn live-action-btn" data-order-id="${order.id}" data-action="complete">?묒뾽醫낅즺</button>
           </div>
         </article>
       `;
@@ -1462,7 +1716,7 @@ function renderWorkerLiveStatus() {
 function renderEquipmentList() {
   const rows = buildEquipmentSummary();
   if (!rows.length) {
-    equipmentList.innerHTML = `<div class="empty-state">작업자 입력 기반 장비 가동 데이터가 없습니다.</div>`;
+    equipmentList.innerHTML = `<div class="empty-state">?묒뾽???낅젰 湲곕컲 ?λ퉬 媛???곗씠?곌? ?놁뒿?덈떎.</div>`;
     return;
   }
 
@@ -1474,8 +1728,8 @@ function renderEquipmentList() {
             <strong>${escapeHtml(item.name)}</strong>
             <span class="status-badge ${item.percent >= 85 ? "status-working" : item.percent >= 60 ? "status-ready" : "status-warning"}">${item.percent}%</span>
           </div>
-          <p class="progress-meta">총 작업시간 ${formatElapsedMs(item.actualMs)} · 기준시간 ${formatElapsedMs(item.plannedMs)}</p>
-          <p class="progress-meta">작업건수 ${item.jobCount} · 작업자 ${item.workerCount}</p>
+          <p class="progress-meta">珥??묒뾽?쒓컙 ${formatElapsedMs(item.actualMs)} 쨌 湲곗??쒓컙 ${formatElapsedMs(item.plannedMs)}</p>
+          <p class="progress-meta">?묒뾽嫄댁닔 ${item.jobCount} 쨌 ?묒뾽??${item.workerCount}</p>
           <div class="bar-track"><div class="bar-fill" style="width:${Math.min(item.percent, 100)}%"></div></div>
         </article>
       `;
@@ -1486,7 +1740,7 @@ function renderEquipmentList() {
 function renderMoldList() {
   const rows = buildMoldSummary();
   if (!rows.length) {
-    moldList.innerHTML = `<div class="empty-state">작업자 입력 기반 타수 데이터가 없습니다.</div>`;
+    moldList.innerHTML = `<div class="empty-state">?묒뾽???낅젰 湲곕컲 ????곗씠?곌? ?놁뒿?덈떎.</div>`;
     return;
   }
 
@@ -1498,8 +1752,8 @@ function renderMoldList() {
             <strong>${escapeHtml(item.name)}</strong>
             <span class="status-badge ${item.percent >= 90 ? "status-warning" : "status-working"}">${item.percent}%</span>
           </div>
-          <p class="progress-meta">누적 타수 ${item.currentShots.toLocaleString()} · 목표 추정 ${item.targetShots.toLocaleString()}타</p>
-          <p class="progress-meta">완료수량 ${item.completedQty.toLocaleString()} · 진행수량 ${item.inProgressQty.toLocaleString()}</p>
+          <p class="progress-meta">?꾩쟻 ???${item.currentShots.toLocaleString()} 쨌 紐⑺몴 異붿젙 ${item.targetShots.toLocaleString()}?</p>
+          <p class="progress-meta">?꾨즺?섎웾 ${item.completedQty.toLocaleString()} 쨌 吏꾪뻾?섎웾 ${item.inProgressQty.toLocaleString()}</p>
           <div class="bar-track"><div class="bar-fill" style="width:${Math.min(item.percent, 100)}%"></div></div>
         </article>
       `;
@@ -1510,7 +1764,7 @@ function renderMoldList() {
 function renderJournalList() {
   const rows = buildProductionJournal();
   if (!rows.length) {
-    journalList.innerHTML = `<div class="empty-state">작업자 입력 기반 생산일지가 없습니다.</div>`;
+    journalList.innerHTML = `<div class="empty-state">?묒뾽???낅젰 湲곕컲 ?앹궛?쇱?媛 ?놁뒿?덈떎.</div>`;
     return;
   }
 
@@ -1522,8 +1776,8 @@ function renderJournalList() {
             <strong>${formatDate(item.date)}</strong>
             <span class="status-badge status-ready">${item.statusText}</span>
           </div>
-          <p class="feed-meta">${escapeHtml(item.orderText)} · 작업자 ${escapeHtml(item.workerName)} · 장비 ${escapeHtml(item.machineName || "-")}</p>
-          <p class="feed-meta">생산수량 ${Number(item.qty || 0).toLocaleString()} · 작업시간 ${formatElapsedMs(item.elapsedMs || 0)}</p>
+          <p class="feed-meta">${escapeHtml(item.orderText)} 쨌 ?묒뾽??${escapeHtml(item.workerName)} 쨌 ?λ퉬 ${escapeHtml(item.machineName || "-")}</p>
+          <p class="feed-meta">?앹궛?섎웾 ${Number(item.qty || 0).toLocaleString()} 쨌 ?묒뾽?쒓컙 ${formatElapsedMs(item.elapsedMs || 0)}</p>
           <p class="feed-meta">${escapeHtml(item.note)}</p>
         </article>
       `;
@@ -1555,7 +1809,7 @@ function renderWorkerEfficiency() {
 
   const rows = [...workerMap.values()];
   if (!rows.length) {
-    workerEfficiencyList.innerHTML = `<div class="empty-state">집계할 작업자 데이터가 없습니다.</div>`;
+    workerEfficiencyList.innerHTML = `<div class="empty-state">吏묎퀎???묒뾽???곗씠?곌? ?놁뒿?덈떎.</div>`;
     return;
   }
 
@@ -1568,10 +1822,10 @@ function renderWorkerEfficiency() {
         <article class="progress-card">
           <div class="progress-top">
             <strong>${escapeHtml(item.workerName)}</strong>
-            <span class="status-badge status-working">효율 ${efficiency}</span>
+            <span class="status-badge status-working">?⑥쑉 ${efficiency}</span>
           </div>
-          <p class="progress-meta">누적 생산수 ${item.totalQty.toLocaleString()} · 누적 작업시간 ${formatElapsedMs(item.totalMs)}</p>
-          <p class="progress-meta">완료건 ${item.completeCount} · 중지이력 ${item.pausedCount} · 시간당 생산 ${efficiency}</p>
+          <p class="progress-meta">?꾩쟻 ?앹궛??${item.totalQty.toLocaleString()} 쨌 ?꾩쟻 ?묒뾽?쒓컙 ${formatElapsedMs(item.totalMs)}</p>
+          <p class="progress-meta">?꾨즺嫄?${item.completeCount} 쨌 以묒??대젰 ${item.pausedCount} 쨌 ?쒓컙???앹궛 ${efficiency}</p>
         </article>
       `;
     })
@@ -1582,7 +1836,7 @@ function buildEquipmentSummary() {
   const equipmentMap = new Map();
 
   getAdminMonthOrders().forEach((order) => {
-    const name = order.machineName || "미지정 장비";
+    const name = order.machineName || "誘몄????λ퉬";
     if (!equipmentMap.has(name)) {
       equipmentMap.set(name, { name, actualMs: 0, jobCount: 0, workerSet: new Set() });
     }
@@ -1644,12 +1898,12 @@ function buildProductionJournal() {
       statusText: order.status === "complete" ? TEXT.complete : order.status === "paused" ? TEXT.paused : order.status === "working" ? TEXT.working : TEXT.waiting,
       orderText: `${order.company} / ${order.product}`,
       note: order.pauseReason
-        ? `중지사유: ${order.pauseReason}`
+        ? `以묒??ъ쑀: ${order.pauseReason}`
         : order.status === "complete"
-          ? "작업이 완료되었습니다."
+          ? "?묒뾽???꾨즺?섏뿀?듬땲??"
           : order.status === "working"
-            ? "작업 진행 중입니다."
-            : "작업 대기 상태입니다."
+            ? "?묒뾽 吏꾪뻾 以묒엯?덈떎."
+            : "?묒뾽 ?湲??곹깭?낅땲??"
     }));
 }
 
@@ -1779,18 +2033,18 @@ function getOrderStatusText(order) {
 
 function getWorkTimeLabel(order) {
   if (order.status === "working" && order.startTime) {
-    return `작업시간 ${formatElapsedMs(getAccumulatedElapsedMs(order, new Date().toISOString()))}`;
+    return `?묒뾽?쒓컙 ${formatElapsedMs(getAccumulatedElapsedMs(order, new Date().toISOString()))}`;
   }
   if (order.status === "paused") {
-    return `누적 작업시간 ${formatElapsedMs(order.elapsedMs || 0)}`;
+    return `?꾩쟻 ?묒뾽?쒓컙 ${formatElapsedMs(order.elapsedMs || 0)}`;
   }
   if (order.status === "complete") {
-    return `총 작업시간 ${formatElapsedMs(order.elapsedMs || 0)}`;
+    return `珥??묒뾽?쒓컙 ${formatElapsedMs(order.elapsedMs || 0)}`;
   }
   if (order.startTime) {
-    return `시작시간 ${formatDateTime(order.startTime)}`;
+    return `?쒖옉?쒓컙 ${formatDateTime(order.startTime)}`;
   }
-  return "작업시간 없음";
+  return "?묒뾽?쒓컙 ?놁쓬";
 }
 
 function getProductionQtyLabel(order) {
@@ -1904,15 +2158,15 @@ function escapeHtml(value) {
 }
 
 function handlePersistError() {
-  window.alert("서버 저장에 실패했습니다. 서버 연결 상태를 확인해 주세요.");
+  window.alert("?쒕쾭 ??μ뿉 ?ㅽ뙣?덉뒿?덈떎. ?쒕쾭 ?곌껐 ?곹깭瑜??뺤씤??二쇱꽭??");
 }
 
 function getCleanWorkTimeValue(order) {
-  return getWorkTimeLabel(order)
-    .replace(/^작업시간 /, "")
-    .replace(/^누적 작업시간 /, "")
-    .replace(/^총 작업시간 /, "")
-    .replace(/^시작시간 /, "");
+  return String(getWorkTimeLabel(order) || "")
+    .replace("작업시간 ", "")
+    .replace("누적 작업시간 ", "")
+    .replace("총 작업시간 ", "")
+    .replace("시작시간 ", "");
 }
 
 async function handleAdminLogin(formElement) {
@@ -1920,7 +2174,7 @@ async function handleAdminLogin(formElement) {
   const adminEmail = String(formData.get("adminEmail") || "").trim().toLowerCase();
   const adminPassword = String(formData.get("adminPassword") || "").trim();
   if (!supabaseAuthClient) {
-    window.alert("관리자 인증 설정이 아직 연결되지 않았습니다.");
+    window.alert("愿由ъ옄 ?몄쬆 ?ㅼ젙???꾩쭅 ?곌껐?섏? ?딆븯?듬땲??");
     return;
   }
   if (!adminEmail || !adminPassword) return;
@@ -1931,14 +2185,14 @@ async function handleAdminLogin(formElement) {
   });
 
   if (error) {
-    window.alert("로그인에 실패했습니다. 이메일 또는 비밀번호를 확인해 주세요.");
+    window.alert("濡쒓렇?몄뿉 ?ㅽ뙣?덉뒿?덈떎. ?대찓???먮뒗 鍮꾨?踰덊샇瑜??뺤씤??二쇱꽭??");
     return;
   }
 
   const sessionEmail = data?.user?.email || data?.session?.user?.email || adminEmail;
   if (!isAllowedAdminEmail(sessionEmail)) {
     await supabaseAuthClient.auth.signOut({ scope: "local" });
-    window.alert("이 계정은 관리자 권한이 없습니다.");
+    window.alert("??怨꾩젙? 愿由ъ옄 沅뚰븳???놁뒿?덈떎.");
     return;
   }
 
@@ -1978,7 +2232,7 @@ function renderCalendar() {
                 `<button type="button" class="calendar-pill ${daysUntil(order.dueDate) <= 3 && order.status !== "complete" ? "urgent" : ""}" data-date-key="${dateKey}">${escapeHtml(order.company)}</button>`
             )
             .join("")}
-          ${orders.length > 2 ? `<div class="calendar-pill">+${orders.length - 2}건</div>` : ""}
+          ${orders.length > 2 ? `<div class="calendar-pill">+${orders.length - 2}嫄?/div>` : ""}
         </div>
       </div>
     `;
@@ -1995,10 +2249,10 @@ function renderCalendarDetail() {
   if (!selectedCalendarDateKey) return;
 
   const orders = getSortedOrders(state.orders.filter((order) => order.dueDate === selectedCalendarDateKey));
-  calendarDetailTitle.textContent = `${formatDate(selectedCalendarDateKey)} 납기 상세`;
+  calendarDetailTitle.textContent = `${formatDate(selectedCalendarDateKey)} ?⑷린 ?곸꽭`;
 
   if (!orders.length) {
-    calendarDetailBody.innerHTML = `<div class="empty-state">해당 날짜의 납기 데이터가 없습니다.</div>`;
+    calendarDetailBody.innerHTML = `<div class="empty-state">?대떦 ?좎쭨???⑷린 ?곗씠?곌? ?놁뒿?덈떎.</div>`;
     return;
   }
 
@@ -2011,15 +2265,15 @@ function renderCalendarDetail() {
             ${statusBadge(order, order.status !== "complete" && daysUntil(order.dueDate) <= 3)}
           </div>
           <div class="detail-lines">
-            <p class="detail-line"><strong>제품명</strong> ${escapeHtml(order.product)}</p>
-            <p class="detail-line"><strong>상태</strong> ${getOrderStatusText(order)}</p>
-            <p class="detail-line"><strong>납기일</strong> ${formatDate(order.dueDate)}</p>
-            <p class="detail-line"><strong>장비</strong> ${escapeHtml(order.machineName || "-")}</p>
-            <p class="detail-line"><strong>수량</strong> ${escapeHtml(order.quantity || "-")}</p>
-            <p class="detail-line"><strong>구분</strong> ${getPaymentLabel(order)} · ${getDeliveryLabel(order)}</p>
-            <p class="detail-line"><strong>작업시간</strong> ${getCleanWorkTimeValue(order)}</p>
-            <p class="detail-line"><strong>총생산수</strong> ${getProductionQtyLabel(order).replace(`${TEXT.productionQty} `, "")}</p>
-            <p class="detail-line"><strong>총타발수</strong> ${getTotalHitQtyLabel(order).replace(`${TEXT.totalHitQty} `, "")}</p>
+            <p class="detail-line"><strong>?쒗뭹紐?/strong> ${escapeHtml(order.product)}</p>
+            <p class="detail-line"><strong>?곹깭</strong> ${getOrderStatusText(order)}</p>
+            <p class="detail-line"><strong>?⑷린??/strong> ${formatDate(order.dueDate)}</p>
+            <p class="detail-line"><strong>?λ퉬</strong> ${escapeHtml(order.machineName || "-")}</p>
+            <p class="detail-line"><strong>?섎웾</strong> ${escapeHtml(order.quantity || "-")}</p>
+            <p class="detail-line"><strong>援щ텇</strong> ${getPaymentLabel(order)} / ${getDeliveryLabel(order)}</p>
+            <p class="detail-line"><strong>?묒뾽?쒓컙</strong> ${getCleanWorkTimeValue(order)}</p>
+            <p class="detail-line"><strong>珥앹깮?곗닔</strong> ${getProductionQtyLabel(order).replace(`${TEXT.productionQty} `, "")}</p>
+            <p class="detail-line"><strong>珥앺?諛쒖닔</strong> ${getTotalHitQtyLabel(order).replace(`${TEXT.totalHitQty} `, "")}</p>
           </div>
         </article>
       `;
@@ -2052,11 +2306,11 @@ function renderProgress() {
           <div class="bar-track">
             <div class="bar-fill" style="width: ${percent}%"></div>
           </div>
-          <p class="progress-meta">${TEXT.dueDate} ${formatDate(order.dueDate)}${order.workerName ? ` · ${TEXT.worker} ${escapeHtml(order.workerName)}` : ""}</p>
+          <p class="progress-meta">${TEXT.dueDate} ${formatDate(order.dueDate)}${order.workerName ? ` 쨌 ${TEXT.worker} ${escapeHtml(order.workerName)}` : ""}</p>
           <p class="progress-meta">${order.machineName ? `장비 ${escapeHtml(order.machineName)}` : "장비 미지정"}</p>
           <p class="progress-meta">수량 ${escapeHtml(order.quantity || "-")}</p>
-          <p class="progress-meta">${getPaymentLabel(order)} · ${getDeliveryLabel(order)}</p>
-          ${order.status === "paused" ? `<div class="paused-flag">작업 중지 · ${escapeHtml(order.pauseReason || "사유 미입력")}</div>` : ""}
+          <p class="progress-meta">${getPaymentLabel(order)} / ${getDeliveryLabel(order)}</p>
+          ${order.status === "paused" ? `<div class="paused-flag">작업 중지 / ${escapeHtml(order.pauseReason || "사유 미입력")}</div>` : ""}
           <p class="progress-meta">${getWorkTimeLabel(order)}</p>
           <p class="progress-meta">${getProductionQtyLabel(order)}</p>
           <p class="progress-meta">${getTotalHitQtyLabel(order)}</p>
@@ -2071,7 +2325,7 @@ function renderDashboardFilteredList() {
   dashboardListTitle.textContent = getDashboardFilterTitle();
 
   if (!isDashboardListOpen) {
-    dashboardFilteredList.innerHTML = `<div class="empty-state">카드를 누르면 해당 리스트가 표시됩니다.</div>`;
+    dashboardFilteredList.innerHTML = `<div class="empty-state">移대뱶瑜??꾨Ⅴ硫??대떦 由ъ뒪?멸? ?쒖떆?⑸땲??</div>`;
     return;
   }
 
@@ -2092,11 +2346,11 @@ function renderDashboardFilteredList() {
             </div>
             ${statusBadge(order, urgent)}
           </div>
-          <p class="progress-meta">${TEXT.orderDate} ${formatDate(order.orderDate)} · ${TEXT.dueDate} ${formatDate(order.dueDate)}</p>
+          <p class="progress-meta">${TEXT.orderDate} ${formatDate(order.orderDate)} 쨌 ${TEXT.dueDate} ${formatDate(order.dueDate)}</p>
           <p class="progress-meta">${order.machineName ? `장비 ${escapeHtml(order.machineName)}` : "장비 미지정"}</p>
           <p class="progress-meta">수량 ${escapeHtml(order.quantity || "-")}</p>
-          <p class="progress-meta">${getPaymentLabel(order)} · ${getDeliveryLabel(order)}</p>
-          ${order.status === "paused" ? `<div class="paused-flag">작업 중지 · ${escapeHtml(order.pauseReason || "사유 미입력")}</div>` : ""}
+          <p class="progress-meta">${getPaymentLabel(order)} / ${getDeliveryLabel(order)}</p>
+          ${order.status === "paused" ? `<div class="paused-flag">작업 중지 / ${escapeHtml(order.pauseReason || "사유 미입력")}</div>` : ""}
           <p class="progress-meta">${order.workerName ? `${TEXT.worker} ${escapeHtml(order.workerName)}` : TEXT.unassigned}</p>
           <p class="progress-meta">${getWorkTimeLabel(order)}</p>
           <p class="progress-meta">${getProductionQtyLabel(order)}</p>
@@ -2122,11 +2376,11 @@ function renderOrdersTable() {
           <td>${escapeHtml(order.company)}</td>
           <td>${escapeHtml(order.product)}</td>
           <td>${escapeHtml(order.quantity || "-")}</td>
-          <td>${order.paymentRequested ? "요청" : "-"}</td>
+          <td>${order.paymentRequested ? "?붿껌" : "-"}</td>
           <td>${escapeHtml(order.deliveryType || "-")}</td>
           <td class="${urgent ? "danger-text" : ""}">${formatDate(order.dueDate)}</td>
           <td>${statusBadge(order, urgent)}</td>
-          <td><button type="button" class="tab-btn edit-order-btn" data-order-id="${order.id}">수정</button></td>
+          <td><button type="button" class="tab-btn edit-order-btn" data-order-id="${order.id}">?섏젙</button></td>
         </tr>
       `;
     })
@@ -2189,13 +2443,13 @@ function renderShippingPage() {
           <td>${order.shippedDate ? formatDate(order.shippedDate) : "-"}</td>
           <td>
             <div class="shipping-note-wrap">
-              <input type="text" value="${escapeHtml(order.shippingNote || "")}" placeholder="출하 메모 입력" data-note-order-id="${order.id}" />
-              <button type="button" class="tab-btn shipping-note-save-btn" data-order-id="${order.id}">메모 저장</button>
+              <input type="text" value="${escapeHtml(order.shippingNote || "")}" placeholder="異쒗븯 硫붾え ?낅젰" data-note-order-id="${order.id}" />
+              <button type="button" class="tab-btn shipping-note-save-btn" data-order-id="${order.id}">硫붾え ???/button>
             </div>
           </td>
           <td>
             <button type="button" class="tab-btn shipping-action-btn" data-order-id="${order.id}" data-action="${order.shipped ? "locked" : "ship"}" ${order.shipped ? "disabled" : ""}>
-              출하 완료
+              異쒗븯 ?꾨즺
             </button>
           </td>
         </tr>
@@ -2230,7 +2484,7 @@ function renderShippingPage() {
         workerName: TEXT.admin,
         orderId: order.id,
         timestamp: new Date().toISOString(),
-        message: "출하 완료 처리되었습니다."
+        message: "異쒗븯 ?꾨즺 泥섎━?섏뿀?듬땲??"
       });
 
       persist().catch(handlePersistError);
@@ -2259,10 +2513,10 @@ function renderShippingPage() {
 function renderActivities() {
   const sortedOrders = getSortedOrders(state.orders);
 
-  historyToggleBtn.textContent = isActivityFeedOpen ? "작업 이력 닫기" : "작업 이력 보기";
+  historyToggleBtn.textContent = isActivityFeedOpen ? "?묒뾽 ?대젰 ?リ린" : "?묒뾽 ?대젰 蹂닿린";
 
   if (!isActivityFeedOpen) {
-    activityFeed.innerHTML = `<div class="empty-state">버튼을 누르면 작업 이력이 표시됩니다.</div>`;
+    activityFeed.innerHTML = `<div class="empty-state">踰꾪듉???꾨Ⅴ硫??묒뾽 ?대젰???쒖떆?⑸땲??</div>`;
     return;
   }
 
@@ -2297,9 +2551,9 @@ function renderActivities() {
                 <strong>${escapeHtml(orderText)}</strong>
                 <span class="status-badge ${badgeClass}">${badgeText}</span>
               </div>
-              <p class="feed-meta">${escapeHtml(activityMessage)} · ${activityTime}</p>
-              <p class="feed-meta">납기일 ${formatDate(order.dueDate)} · 장비 ${escapeHtml(order.machineName || "-")} · 수량 ${escapeHtml(order.quantity || "-")} · ${getPaymentLabel(order)} · ${getDeliveryLabel(order)}</p>
-              ${order.pauseReason ? `<p class="feed-meta">중지사유 ${escapeHtml(order.pauseReason)}${order.workQty ? ` · 작업수량 ${escapeHtml(order.workQty)}` : ""}</p>` : ""}
+              <p class="feed-meta">${escapeHtml(activityMessage)} 쨌 ${activityTime}</p>
+              <p class="feed-meta">?⑷린??${formatDate(order.dueDate)} 쨌 ?λ퉬 ${escapeHtml(order.machineName || "-")} 쨌 수량 ${escapeHtml(order.quantity || "-")} 쨌 ${getPaymentLabel(order)} / ${getDeliveryLabel(order)}</p>
+              ${order.pauseReason ? `<p class="feed-meta">중지 사유 ${escapeHtml(order.pauseReason)}${order.workQty ? ` / 작업수량 ${escapeHtml(order.workQty)}` : ""}</p>` : ""}
             </article>
           `;
         })
@@ -2309,7 +2563,7 @@ function renderActivities() {
         <section class="activity-group">
           <div class="section-head compact">
             <h3>${escapeHtml(workerName)}</h3>
-            <p>작업 건수 ${orders.length}</p>
+            <p>?묒뾽 嫄댁닔 ${orders.length}</p>
           </div>
           <div class="activity-feed">
             ${items}
@@ -2342,10 +2596,10 @@ function renderWorkerLiveStatus() {
           <p class="progress-meta">${order.workerName ? `${TEXT.worker} ${escapeHtml(order.workerName)}` : TEXT.unassigned}</p>
           <p class="progress-meta">${order.machineName ? `장비 ${escapeHtml(order.machineName)}` : "장비 미지정"}</p>
           <p class="progress-meta">${getWorkTimeLabel(order)}</p>
-          ${order.pauseReason ? `<p class="progress-meta">중지사유 ${escapeHtml(order.pauseReason)}${order.workQty ? ` · 작업수량 ${escapeHtml(order.workQty)}` : ""}</p>` : ""}
+          ${order.pauseReason ? `<p class="progress-meta">중지 사유 ${escapeHtml(order.pauseReason)}${order.workQty ? ` / 작업수량 ${escapeHtml(order.workQty)}` : ""}</p>` : ""}
           <div class="feed-actions">
-            ${order.status === "working" ? `<button type="button" class="tab-btn live-action-btn" data-order-id="${order.id}" data-action="pause">작업중지</button>` : ""}
-            <button type="button" class="tab-btn live-action-btn" data-order-id="${order.id}" data-action="complete">작업종료</button>
+            ${order.status === "working" ? `<button type="button" class="tab-btn live-action-btn" data-order-id="${order.id}" data-action="pause">?묒뾽以묒?</button>` : ""}
+            <button type="button" class="tab-btn live-action-btn" data-order-id="${order.id}" data-action="complete">?묒뾽醫낅즺</button>
           </div>
         </article>
       `;
@@ -2371,7 +2625,7 @@ function renderWorkerLiveStatus() {
 function renderEquipmentList() {
   const rows = buildEquipmentSummary();
   if (!rows.length) {
-    equipmentList.innerHTML = `<div class="empty-state">작업자 입력 기반 장비 가동 데이터가 없습니다.</div>`;
+    equipmentList.innerHTML = `<div class="empty-state">?묒뾽???낅젰 湲곕컲 ?λ퉬 媛???곗씠?곌? ?놁뒿?덈떎.</div>`;
     return;
   }
 
@@ -2383,8 +2637,8 @@ function renderEquipmentList() {
             <strong>${escapeHtml(item.name)}</strong>
             <span class="status-badge ${item.percent >= 85 ? "status-working" : item.percent >= 60 ? "status-ready" : "status-warning"}">${item.percent}%</span>
           </div>
-          <p class="progress-meta">총 작업시간 ${formatElapsedMs(item.actualMs)} · 기준시간 ${formatElapsedMs(item.plannedMs)}</p>
-          <p class="progress-meta">작업건수 ${item.jobCount} · 작업자 ${item.workerCount}</p>
+          <p class="progress-meta">珥??묒뾽?쒓컙 ${formatElapsedMs(item.actualMs)} 쨌 湲곗??쒓컙 ${formatElapsedMs(item.plannedMs)}</p>
+          <p class="progress-meta">?묒뾽嫄댁닔 ${item.jobCount} 쨌 ?묒뾽??${item.workerCount}</p>
           <div class="bar-track"><div class="bar-fill" style="width:${Math.min(item.percent, 100)}%"></div></div>
         </article>
       `;
@@ -2395,7 +2649,7 @@ function renderEquipmentList() {
 function renderMoldList() {
   const rows = buildMoldSummary();
   if (!rows.length) {
-    moldList.innerHTML = `<div class="empty-state">작업자 입력 기반 타수 데이터가 없습니다.</div>`;
+    moldList.innerHTML = `<div class="empty-state">?묒뾽???낅젰 湲곕컲 ????곗씠?곌? ?놁뒿?덈떎.</div>`;
     return;
   }
 
@@ -2407,8 +2661,8 @@ function renderMoldList() {
             <strong>${escapeHtml(item.name)}</strong>
             <span class="status-badge ${item.percent >= 90 ? "status-warning" : "status-working"}">${item.percent}%</span>
           </div>
-          <p class="progress-meta">현재 타수 ${item.currentShots.toLocaleString()} · 목표 추정 ${item.targetShots.toLocaleString()}타</p>
-          <p class="progress-meta">완료수량 ${item.completedQty.toLocaleString()} · 진행수량 ${item.inProgressQty.toLocaleString()}</p>
+          <p class="progress-meta">?꾩옱 ???${item.currentShots.toLocaleString()} 쨌 紐⑺몴 異붿젙 ${item.targetShots.toLocaleString()}?</p>
+          <p class="progress-meta">?꾨즺?섎웾 ${item.completedQty.toLocaleString()} 쨌 吏꾪뻾?섎웾 ${item.inProgressQty.toLocaleString()}</p>
           <div class="bar-track"><div class="bar-fill" style="width:${Math.min(item.percent, 100)}%"></div></div>
         </article>
       `;
@@ -2419,7 +2673,7 @@ function renderMoldList() {
 function renderJournalList() {
   const rows = buildProductionJournal();
   if (!rows.length) {
-    journalList.innerHTML = `<div class="empty-state">작업자 입력 기반 생산일지가 없습니다.</div>`;
+    journalList.innerHTML = `<div class="empty-state">?묒뾽???낅젰 湲곕컲 ?앹궛?쇱?媛 ?놁뒿?덈떎.</div>`;
     return;
   }
 
@@ -2431,8 +2685,8 @@ function renderJournalList() {
             <strong>${formatDate(item.date)}</strong>
             <span class="status-badge status-ready">${item.statusText}</span>
           </div>
-          <p class="feed-meta">${escapeHtml(item.orderText)} · 작업자 ${escapeHtml(item.workerName)} · 장비 ${escapeHtml(item.machineName || "-")}</p>
-          <p class="feed-meta">생산수량 ${Number(item.qty || 0).toLocaleString()} · 작업시간 ${formatElapsedMs(item.elapsedMs || 0)}</p>
+          <p class="feed-meta">${escapeHtml(item.orderText)} 쨌 ?묒뾽??${escapeHtml(item.workerName)} 쨌 ?λ퉬 ${escapeHtml(item.machineName || "-")}</p>
+          <p class="feed-meta">?앹궛?섎웾 ${Number(item.qty || 0).toLocaleString()} 쨌 ?묒뾽?쒓컙 ${formatElapsedMs(item.elapsedMs || 0)}</p>
           <p class="feed-meta">${escapeHtml(item.note)}</p>
         </article>
       `;
@@ -2464,7 +2718,7 @@ function renderWorkerEfficiency() {
 
   const rows = [...workerMap.values()];
   if (!rows.length) {
-    workerEfficiencyList.innerHTML = `<div class="empty-state">집계할 작업자 데이터가 없습니다.</div>`;
+    workerEfficiencyList.innerHTML = `<div class="empty-state">吏묎퀎???묒뾽???곗씠?곌? ?놁뒿?덈떎.</div>`;
     return;
   }
 
@@ -2477,15 +2731,322 @@ function renderWorkerEfficiency() {
         <article class="progress-card">
           <div class="progress-top">
             <strong>${escapeHtml(item.workerName)}</strong>
-            <span class="status-badge status-working">효율 ${efficiency}</span>
+            <span class="status-badge status-working">?⑥쑉 ${efficiency}</span>
           </div>
-          <p class="progress-meta">누적 생산수 ${item.totalQty.toLocaleString()} · 누적 작업시간 ${formatElapsedMs(item.totalMs)}</p>
-          <p class="progress-meta">완료건 ${item.completeCount} · 중지이력 ${item.pausedCount} · 시간당 생산 ${efficiency}</p>
+          <p class="progress-meta">?꾩쟻 ?앹궛??${item.totalQty.toLocaleString()} 쨌 ?꾩쟻 ?묒뾽?쒓컙 ${formatElapsedMs(item.totalMs)}</p>
+          <p class="progress-meta">?꾨즺嫄?${item.completeCount} 쨌 以묒??대젰 ${item.pausedCount} 쨌 ?쒓컙???앹궛 ${efficiency}</p>
         </article>
       `;
     })
     .join("");
 }
+
+function getPaymentLabel(order) {
+  return order.paymentRequested ? "지급요청" : "지급요청 없음";
+}
+
+function getDeliveryLabel(order) {
+  return order.deliveryType ? `구분 ${escapeHtml(order.deliveryType)}` : "구분 없음";
+}
+
+function getWorkTimeLabel(order) {
+  if (order.status === "working" && order.startTime) {
+    return `?묒뾽?쒓컙 ${formatElapsedMs(getAccumulatedElapsedMs(order, new Date().toISOString()))}`;
+  }
+  if (order.status === "paused") {
+    return `?꾩쟻 ?묒뾽?쒓컙 ${formatElapsedMs(order.elapsedMs || 0)}`;
+  }
+  if (order.status === "complete") {
+    return `珥??묒뾽?쒓컙 ${formatElapsedMs(order.elapsedMs || 0)}`;
+  }
+  if (order.startTime) {
+    return `?쒖옉?쒓컙 ${formatDateTime(order.startTime)}`;
+  }
+  return "?묒뾽?쒓컙 ?놁쓬";
+}
+
+function normalizeShipmentRecord(record) {
+  return {
+    id: record?.id || crypto.randomUUID(),
+    qty: Number(record?.qty || 0),
+    date: record?.date || "",
+    note: String(record?.note || "").trim()
+  };
+}
+
+function getOrderQuantity(order) {
+  return Math.max(0, Number(order?.quantity || 0));
+}
+
+function getShipmentRecords(order) {
+  const shipments = Array.isArray(order?.shipments) ? order.shipments.map(normalizeShipmentRecord) : [];
+  if (shipments.length) {
+    return shipments.filter((item) => item.qty > 0);
+  }
+
+  if (order?.shipped) {
+    return [
+      {
+        id: crypto.randomUUID(),
+        qty: getOrderQuantity(order),
+        date: order.shippedDate || "",
+        note: String(order.shippingNote || "").trim()
+      }
+    ].filter((item) => item.qty > 0);
+  }
+
+  return [];
+}
+
+function getShippedQuantity(order) {
+  return getShipmentRecords(order).reduce((sum, item) => sum + Number(item.qty || 0), 0);
+}
+
+function getRemainingShippingQuantity(order) {
+  return Math.max(getOrderQuantity(order) - getShippedQuantity(order), 0);
+}
+
+function getLatestShipmentDate(order) {
+  const shipments = getShipmentRecords(order)
+    .filter((item) => item.date)
+    .sort((a, b) => String(b.date).localeCompare(String(a.date)));
+  return shipments[0]?.date || order.shippedDate || "";
+}
+
+function syncOrderShippingState(order) {
+  const shippedQty = getShippedQuantity(order);
+  const totalQty = getOrderQuantity(order);
+  order.shipments = getShipmentRecords(order);
+  order.shipped = totalQty > 0 && shippedQty >= totalQty;
+  order.shippedDate = getLatestShipmentDate(order);
+}
+
+function getShippingStatus(order) {
+  const totalQty = getOrderQuantity(order);
+  const shippedQty = getShippedQuantity(order);
+  const remainingQty = getRemainingShippingQuantity(order);
+  const latestShippedDate = getLatestShipmentDate(order);
+  const dueTime = new Date(order.dueDate).getTime();
+  const latestShippedTime = latestShippedDate ? new Date(latestShippedDate).getTime() : 0;
+
+  if (totalQty > 0 && shippedQty >= totalQty) {
+    if (latestShippedDate && latestShippedTime > dueTime) {
+      return { label: "지연 출하", badgeClass: "status-warning", rowClass: "", dueClass: "" };
+    }
+    return { label: "출하 완료", badgeClass: "status-complete", rowClass: "", dueClass: "" };
+  }
+
+  if (shippedQty > 0 && remainingQty > 0) {
+    if (daysUntil(order.dueDate) < 0) {
+      return { label: "부분 출하 · 납기 경과", badgeClass: "status-warning", rowClass: "danger-row", dueClass: "danger-text" };
+    }
+    return { label: "부분 출하", badgeClass: "status-working", rowClass: "", dueClass: "" };
+  }
+
+  if (daysUntil(order.dueDate) < 0) {
+    return { label: "납기 경과", badgeClass: "status-warning", rowClass: "danger-row", dueClass: "danger-text" };
+  }
+  if (daysUntil(order.dueDate) === 0) {
+    return { label: "오늘 출하 확인", badgeClass: "status-warning", rowClass: "danger-row", dueClass: "danger-text" };
+  }
+  return { label: "출하 대기", badgeClass: "status-ready", rowClass: "", dueClass: "" };
+}
+
+function getFilteredShippingOrders() {
+  return getSortedOrders(state.orders).filter((order) => {
+    const remainingQty = getRemainingShippingQuantity(order);
+    const matchesFilter =
+      shippingFilter === "done"
+        ? remainingQty === 0 && getShippedQuantity(order) > 0
+        : shippingFilter === "pending"
+          ? remainingQty > 0
+          : true;
+
+    const keyword = shippingSearchKeyword.trim();
+    const matchesKeyword =
+      !keyword ||
+      order.company.toLowerCase().includes(keyword) ||
+      order.product.toLowerCase().includes(keyword);
+
+    return matchesFilter && matchesKeyword;
+  });
+}
+
+function renderShippingPage() {
+  state.orders.forEach(syncOrderShippingState);
+
+  const orders = getFilteredShippingOrders();
+  const allOrders = getSortedOrders(state.orders);
+  const shippedDoneCount = allOrders.filter((order) => getRemainingShippingQuantity(order) === 0 && getShippedQuantity(order) > 0).length;
+  const pendingCount = allOrders.filter((order) => getRemainingShippingQuantity(order) > 0).length;
+  const overdueCount = allOrders.filter((order) => getRemainingShippingQuantity(order) > 0 && daysUntil(order.dueDate) < 0).length;
+  const dueTodayCount = allOrders.filter((order) => getRemainingShippingQuantity(order) > 0 && daysUntil(order.dueDate) === 0).length;
+
+  shippingFilterAllBtn.classList.toggle("active", shippingFilter === "all");
+  shippingFilterPendingBtn.classList.toggle("active", shippingFilter === "pending");
+  shippingFilterDoneBtn.classList.toggle("active", shippingFilter === "done");
+  shippingSearchInput.value = shippingSearchKeyword;
+
+  shippingSummary.innerHTML = [
+    { label: "전체 출하 대상", value: allOrders.length, hint: "등록된 전체 발주" },
+    { label: "출하 완료", value: shippedDoneCount, hint: "전량 출하 완료 발주" },
+    { label: "출하 대기", value: pendingCount, hint: "잔량이 남아 있는 발주" },
+    { label: "오늘 확인", value: dueTodayCount + overdueCount, hint: "오늘 납기 및 경과" }
+  ]
+    .map(
+      (card) => `
+        <article class="stat-card">
+          <span>${card.label}</span>
+          <strong>${card.value}</strong>
+          <p>${card.hint}</p>
+        </article>
+      `
+    )
+    .join("");
+
+  if (orders.length === 0) {
+    shippingTableBody.innerHTML = `<tr><td colspan="9"><div class="empty-state">${TEXT.noOrders}</div></td></tr>`;
+    return;
+  }
+
+  shippingTableBody.innerHTML = orders
+    .map((order) => {
+      const shippingState = getShippingStatus(order);
+      const totalQty = getOrderQuantity(order);
+      const shippedQty = getShippedQuantity(order);
+      const remainingQty = getRemainingShippingQuantity(order);
+      const latestShippedDate = getLatestShipmentDate(order);
+      const shipments = getShipmentRecords(order);
+      const historyHtml = shipments.length
+        ? shipments
+            .map((item) => `${formatDate(item.date)} ${Number(item.qty || 0).toLocaleString()}개`)
+            .join("<br />")
+        : "출하 이력 없음";
+
+      return `
+        <tr class="${shippingState.rowClass}">
+          <td>${escapeHtml(order.company)}</td>
+          <td>${escapeHtml(order.product)}</td>
+          <td class="${shippingState.dueClass}">${formatDate(order.dueDate)}</td>
+          <td>
+            <strong>${totalQty.toLocaleString()}개</strong>
+            <div class="shipping-progress-text">출하 ${shippedQty.toLocaleString()} / 잔량 ${remainingQty.toLocaleString()}</div>
+          </td>
+          <td>${statusBadge(order, false)}</td>
+          <td><span class="status-badge ${shippingState.badgeClass}">${shippingState.label}</span></td>
+          <td>${latestShippedDate ? formatDate(latestShippedDate) : "-"}</td>
+          <td>
+            <div class="shipping-note-wrap">
+              <input type="text" value="${escapeHtml(order.shippingNote || "")}" placeholder="출하 메모 입력" data-note-order-id="${order.id}" />
+              <button type="button" class="tab-btn shipping-note-save-btn" data-order-id="${order.id}">메모 저장</button>
+            </div>
+            <div class="shipping-history"><strong>출하 이력</strong><br />${historyHtml}</div>
+          </td>
+          <td>
+            <div class="shipping-manage-wrap">
+              <input type="number" min="1" max="${Math.max(remainingQty, 1)}" placeholder="출하 수량" data-ship-qty-order-id="${order.id}" ${remainingQty === 0 ? "disabled" : ""} />
+              <input type="date" value="${new Date().toISOString().slice(0, 10)}" data-ship-date-order-id="${order.id}" ${remainingQty === 0 ? "disabled" : ""} />
+              <button type="button" class="tab-btn shipping-action-btn" data-order-id="${order.id}" ${remainingQty === 0 ? "disabled" : ""}>
+                ${remainingQty === 0 ? "출하 완료" : "부분 출하 등록"}
+              </button>
+            </div>
+          </td>
+        </tr>
+      `;
+    })
+    .join("");
+
+  orders.forEach((order) => {
+    const noteInput = shippingTableBody.querySelector(`input[data-note-order-id="${order.id}"]`);
+    const noteButton = shippingTableBody.querySelector(`.shipping-note-save-btn[data-order-id="${order.id}"]`);
+    const isLocked = Boolean(order.shippingNoteLocked);
+    const isFullyShipped = getRemainingShippingQuantity(order) === 0;
+
+    if (noteInput) {
+      noteInput.disabled = isFullyShipped || isLocked;
+    }
+    if (noteButton) {
+      noteButton.disabled = isFullyShipped;
+      noteButton.textContent = isFullyShipped ? "출하 완료" : isLocked ? "메모 수정" : "메모 저장";
+    }
+  });
+
+  shippingTableBody.querySelectorAll(".shipping-action-btn").forEach((button) => {
+    button.addEventListener("click", () => {
+      const order = state.orders.find((item) => item.id === (button.dataset.orderId || ""));
+      if (!order) return;
+
+      const qtyInput = shippingTableBody.querySelector(`input[data-ship-qty-order-id="${order.id}"]`);
+      const dateInput = shippingTableBody.querySelector(`input[data-ship-date-order-id="${order.id}"]`);
+      const shipQty = Number(qtyInput?.value || 0);
+      const shipDate = String(dateInput?.value || "").trim();
+      const remainingQty = getRemainingShippingQuantity(order);
+
+      if (remainingQty === 0) return;
+      if (!shipQty || shipQty < 1) {
+        window.alert("출하 수량을 입력해 주세요.");
+        qtyInput?.focus();
+        return;
+      }
+      if (shipQty > remainingQty) {
+        window.alert(`남은 수량은 ${remainingQty.toLocaleString()}개입니다.`);
+        qtyInput?.focus();
+        return;
+      }
+      if (!shipDate) {
+        window.alert("출하일을 선택해 주세요.");
+        dateInput?.focus();
+        return;
+      }
+
+      order.shipments = getShipmentRecords(order);
+      order.shipments.push({
+        id: crypto.randomUUID(),
+        qty: shipQty,
+        date: shipDate,
+        note: String(order.shippingNote || "").trim()
+      });
+      syncOrderShippingState(order);
+      order.shippingNoteLocked = order.shipped ? true : order.shippingNoteLocked;
+
+      state.activities.unshift({
+        id: crypto.randomUUID(),
+        type: "shipping",
+        workerName: TEXT.admin,
+        orderId: order.id,
+        timestamp: new Date().toISOString(),
+        message: order.shipped
+          ? `출하 완료 처리되었습니다. (${shipQty.toLocaleString()}개)`
+          : `부분 출하 처리되었습니다. (${shipQty.toLocaleString()}개)`
+      });
+
+      persist().catch(handlePersistError);
+      renderShippingPage();
+    });
+  });
+
+  shippingTableBody.querySelectorAll(".shipping-note-save-btn").forEach((button) => {
+    button.addEventListener("click", () => {
+      const order = state.orders.find((item) => item.id === (button.dataset.orderId || ""));
+      if (!order || getRemainingShippingQuantity(order) === 0) return;
+
+      const noteInput = shippingTableBody.querySelector(`input[data-note-order-id="${order.id}"]`);
+      if (order.shippingNoteLocked) {
+        order.shippingNoteLocked = false;
+      } else {
+        order.shippingNote = String(noteInput?.value || "").trim();
+        order.shippingNoteLocked = true;
+      }
+
+      persist().catch(handlePersistError);
+      renderShippingPage();
+    });
+  });
+}
+
+
+
+
 
 function getPaymentLabel(order) {
   return order.paymentRequested ? "지급요청" : "지급요청 없음";
@@ -2509,4 +3070,483 @@ function getWorkTimeLabel(order) {
     return `시작시간 ${formatDateTime(order.startTime)}`;
   }
   return "작업시간 없음";
+}
+
+function getCleanWorkTimeValue(order) {
+  return String(getWorkTimeLabel(order) || "")
+    .replace("작업시간 ", "")
+    .replace("누적 작업시간 ", "")
+    .replace("총 작업시간 ", "")
+    .replace("시작시간 ", "");
+}
+
+function renderStats() {
+  const cards = [
+    { key: "all", label: "전체 발주", value: state.orders.length, hint: "등록된 전체 발주 건" },
+    { key: "ready", label: "작업 대기", value: state.orders.filter((item) => item.status === "ready").length, hint: "작업 시작 전 발주" },
+    { key: "working", label: "작업 중", value: state.orders.filter((item) => item.status === "working").length, hint: "현재 생산 진행 건" },
+    { key: "urgent", label: "납기 임박", value: state.orders.filter((item) => item.status !== "complete" && daysUntil(item.dueDate) <= 3).length, hint: "3일 이내 납기 건" }
+  ];
+
+  statsGrid.innerHTML = cards
+    .map(
+      (card) => `
+        <button type="button" class="stat-card ${dashboardFilter === card.key ? "active" : ""}" data-filter="${card.key}">
+          <span>${card.label}</span>
+          <strong>${card.value}</strong>
+          <p>${card.hint}</p>
+        </button>
+      `
+    )
+    .join("");
+
+  statsGrid.querySelectorAll(".stat-card").forEach((card) => {
+    card.addEventListener("click", () => {
+      const nextFilter = card.dataset.filter || "all";
+      if (dashboardFilter === nextFilter && isDashboardListOpen) {
+        isDashboardListOpen = false;
+      } else {
+        dashboardFilter = nextFilter;
+        isDashboardListOpen = true;
+      }
+      renderStats();
+      renderProgress();
+      renderDashboardFilteredList();
+      if (isDashboardListOpen) {
+        dashboardFilteredList.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    });
+  });
+}
+
+function getOrderStatusTextClean(order) {
+  if (order.status === "complete") return "작업 완료";
+  if (order.status === "working") return "작업 중";
+  if (order.status === "paused") return "작업 중지";
+  return "작업 대기";
+}
+
+function statusBadgeClean(order, urgent = false) {
+  const map = {
+    complete: { label: "작업 완료", className: "status-complete" },
+    working: { label: "작업 중", className: "status-working" },
+    paused: { label: "작업 중지", className: "status-warning" },
+    ready: { label: urgent ? "납기 임박" : "작업 대기", className: urgent ? "status-warning" : "status-ready" }
+  };
+  const item = map[order.status] || map.ready;
+  return `<span class="status-badge ${item.className}">${item.label}</span>`;
+}
+
+function renderCalendarDetail() {
+  if (!selectedCalendarDateKey) return;
+
+  const orders = getSortedOrders(state.orders.filter((order) => order.dueDate === selectedCalendarDateKey));
+  calendarDetailTitle.textContent = `${formatDate(selectedCalendarDateKey)} 납기 상세`;
+
+  if (!orders.length) {
+    calendarDetailBody.innerHTML = `<div class="empty-state">해당 날짜의 납기 데이터가 없습니다.</div>`;
+    return;
+  }
+
+  calendarDetailBody.innerHTML = orders
+    .map((order) => {
+      const urgent = order.status !== "complete" && daysUntil(order.dueDate) <= 3;
+      return `
+        <article class="feed-item">
+          <div class="feed-item-top">
+            <strong>${escapeHtml(order.company)}</strong>
+            ${statusBadgeClean(order, urgent)}
+          </div>
+          <div class="detail-lines">
+            <p class="detail-line"><strong>제품명</strong> ${escapeHtml(order.product)}</p>
+            <p class="detail-line"><strong>상태</strong> ${getOrderStatusTextClean(order)}</p>
+            <p class="detail-line"><strong>납기일</strong> ${formatDate(order.dueDate)}</p>
+            <p class="detail-line"><strong>장비</strong> ${escapeHtml(order.machineName || "-")}</p>
+            <p class="detail-line"><strong>수량</strong> ${escapeHtml(order.quantity || "-")}</p>
+            <p class="detail-line"><strong>구분</strong> ${getPaymentLabel(order)} / ${getDeliveryLabel(order)}</p>
+            <p class="detail-line"><strong>작업시간</strong> ${getCleanWorkTimeValue(order) || "-"}</p>
+            <p class="detail-line"><strong>총생산수</strong> ${String(order.productionQty || "-")}</p>
+            <p class="detail-line"><strong>총타발수</strong> ${String(order.totalHitQty || "-")}</p>
+          </div>
+        </article>
+      `;
+    })
+    .join("");
+}
+
+function renderProgress() {
+  const filteredOrders = getSortedOrders(getDashboardFilteredOrders());
+  const titleMap = {
+    all: "전체 발주 진행률",
+    ready: "작업 대기 진행률",
+    working: "작업 중 진행률",
+    urgent: "납기 임박 진행률"
+  };
+  progressTitle.textContent = titleMap[dashboardFilter] || "전체 발주 진행률";
+
+  if (filteredOrders.length === 0) {
+    progressBoard.innerHTML = `<div class="empty-state">진행 중인 생산 데이터가 없습니다.</div>`;
+    return;
+  }
+
+  progressBoard.innerHTML = filteredOrders
+    .map((order) => {
+      const percent = getProgressPercent(order);
+      const urgent = order.status !== "complete" && daysUntil(order.dueDate) <= 3;
+      return `
+        <article class="progress-card ${order.status === "paused" ? "paused-card" : ""}">
+          <div class="progress-top">
+            <div>
+              <strong>${escapeHtml(order.product)}</strong>
+              <p class="progress-meta">${escapeHtml(order.company)}</p>
+            </div>
+            ${statusBadgeClean(order, urgent)}
+          </div>
+          <div class="bar-track">
+            <div class="bar-fill" style="width: ${percent}%"></div>
+          </div>
+          <p class="progress-meta">납기일 ${formatDate(order.dueDate)}${order.workerName ? ` / 작업자 ${escapeHtml(order.workerName)}` : ""}</p>
+          <p class="progress-meta">${order.machineName ? `장비 ${escapeHtml(order.machineName)}` : "장비 미지정"}</p>
+          <p class="progress-meta">수량 ${escapeHtml(order.quantity || "-")}</p>
+          <p class="progress-meta">${getPaymentLabel(order)} / ${getDeliveryLabel(order)}</p>
+          ${order.status === "paused" ? `<div class="paused-flag">작업 중지 / ${escapeHtml(order.pauseReason || "사유 미입력")}</div>` : ""}
+          <p class="progress-meta">${getWorkTimeLabel(order)}</p>
+          <p class="progress-meta">${getProductionQtyLabel(order)}</p>
+          <p class="progress-meta">${getTotalHitQtyLabel(order)}</p>
+        </article>
+      `;
+    })
+    .join("");
+}
+
+function renderDashboardFilteredList() {
+  const filteredOrders = getSortedOrders(getDashboardFilteredOrders());
+  const titleMap = {
+    all: "전체 발주 리스트",
+    ready: "작업 대기 리스트",
+    working: "작업 중 리스트",
+    urgent: "납기 임박 리스트"
+  };
+  dashboardListTitle.textContent = titleMap[dashboardFilter] || "전체 발주 리스트";
+
+  if (!isDashboardListOpen) {
+    dashboardFilteredList.innerHTML = `<div class="empty-state">카드를 누르면 해당 리스트가 표시됩니다.</div>`;
+    return;
+  }
+
+  if (filteredOrders.length === 0) {
+    dashboardFilteredList.innerHTML = `<div class="empty-state">표시할 발주가 없습니다.</div>`;
+    return;
+  }
+
+  dashboardFilteredList.innerHTML = filteredOrders
+    .map((order) => {
+      const urgent = order.status !== "complete" && daysUntil(order.dueDate) <= 3;
+      return `
+        <article class="progress-card ${order.status === "paused" ? "paused-card" : ""}">
+          <div class="progress-top">
+            <div>
+              <strong>${escapeHtml(order.product)}</strong>
+              <p class="progress-meta">${escapeHtml(order.company)}</p>
+            </div>
+            ${statusBadgeClean(order, urgent)}
+          </div>
+          <p class="progress-meta">발주일 ${formatDate(order.orderDate)} / 납기일 ${formatDate(order.dueDate)}</p>
+          <p class="progress-meta">${order.machineName ? `장비 ${escapeHtml(order.machineName)}` : "장비 미지정"}</p>
+          <p class="progress-meta">수량 ${escapeHtml(order.quantity || "-")}</p>
+          <p class="progress-meta">${getPaymentLabel(order)} / ${getDeliveryLabel(order)}</p>
+          ${order.status === "paused" ? `<div class="paused-flag">작업 중지 / ${escapeHtml(order.pauseReason || "사유 미입력")}</div>` : ""}
+          <p class="progress-meta">${order.workerName ? `담당 작업자 ${escapeHtml(order.workerName)}` : "담당 작업자 미지정"}</p>
+          <p class="progress-meta">${getWorkTimeLabel(order)}</p>
+          <p class="progress-meta">${getProductionQtyLabel(order)}</p>
+          <p class="progress-meta">${getTotalHitQtyLabel(order)}</p>
+        </article>
+      `;
+    })
+    .join("");
+}
+
+function renderActivities() {
+  const sortedOrders = getSortedOrders(state.orders);
+
+  historyToggleBtn.textContent = isActivityFeedOpen ? "작업 이력 닫기" : "작업 이력 보기";
+
+  if (!isActivityFeedOpen) {
+    activityFeed.innerHTML = `<div class="empty-state">버튼을 누르면 작업 이력이 표시됩니다.</div>`;
+    return;
+  }
+
+  if (sortedOrders.length === 0) {
+    activityFeed.innerHTML = `<div class="empty-state">등록된 작업 이력이 없습니다.</div>`;
+    return;
+  }
+
+  const grouped = new Map();
+  sortedOrders.forEach((order) => {
+    const workerKey = order.workerName || "관리자";
+    if (!grouped.has(workerKey)) grouped.set(workerKey, []);
+    grouped.get(workerKey).push(order);
+  });
+
+  activityFeed.innerHTML = [...grouped.entries()]
+    .map(([workerName, orders]) => {
+      const items = orders
+        .map((order) => {
+          const latestActivity = state.activities.find((activity) => activity.orderId === order.id);
+          const badgeClass = order.status === "complete" ? "status-complete" : order.status === "working" ? "status-working" : order.status === "paused" ? "status-warning" : "status-ready";
+          const badgeText = getOrderStatusTextClean(order);
+          const activityMessage = latestActivity ? latestActivity.message : "발주 등록";
+          const activityTime = latestActivity ? formatDateTime(latestActivity.timestamp) : formatDateTime(order.orderDate);
+          return `
+            <article class="feed-item ${order.status === "paused" ? "paused-card" : ""}">
+              <div class="feed-item-top">
+                <strong>${escapeHtml(order.company)} / ${escapeHtml(order.product)}</strong>
+                <span class="status-badge ${badgeClass}">${badgeText}</span>
+              </div>
+              <p class="feed-meta">${escapeHtml(activityMessage)} / ${activityTime}</p>
+              <p class="feed-meta">납기일 ${formatDate(order.dueDate)} / 장비 ${escapeHtml(order.machineName || "-")} / 수량 ${escapeHtml(order.quantity || "-")} / ${getPaymentLabel(order)} / ${getDeliveryLabel(order)}</p>
+              ${order.pauseReason ? `<p class="feed-meta">중지 사유 ${escapeHtml(order.pauseReason)}${order.workQty ? ` / 작업수량 ${escapeHtml(order.workQty)}` : ""}</p>` : ""}
+            </article>
+          `;
+        })
+        .join("");
+
+      return `
+        <section class="activity-group">
+          <div class="section-head compact">
+            <h3>${escapeHtml(workerName)}</h3>
+            <p>작업 건수 ${orders.length}</p>
+          </div>
+          <div class="activity-feed">
+            ${items}
+          </div>
+        </section>
+      `;
+    })
+    .join("");
+}
+
+function renderWorkerLiveStatus() {
+  const workingOrders = getSortedOrders(state.orders.filter((order) => order.status === "working" || order.status === "paused"));
+
+  if (workingOrders.length === 0) {
+    workerLiveStatus.innerHTML = `<div class="empty-state">작업시간 없음</div>`;
+    return;
+  }
+
+  workerLiveStatus.innerHTML = workingOrders
+    .map((order) => {
+      return `
+        <article class="progress-card">
+          <div class="progress-top">
+            <div>
+              <strong>${escapeHtml(order.product)}</strong>
+              <p class="progress-meta">${escapeHtml(order.company)}</p>
+            </div>
+            <span class="status-badge ${order.status === "paused" ? "status-warning" : "status-working"}">${order.status === "paused" ? "작업 중지" : "작업 중"}</span>
+          </div>
+          <p class="progress-meta">${order.workerName ? `작업자 ${escapeHtml(order.workerName)}` : "담당 작업자 미지정"}</p>
+          <p class="progress-meta">${order.machineName ? `장비 ${escapeHtml(order.machineName)}` : "장비 미지정"}</p>
+          <p class="progress-meta">${getWorkTimeLabel(order)}</p>
+          ${order.pauseReason ? `<p class="progress-meta">중지 사유 ${escapeHtml(order.pauseReason)}${order.workQty ? ` / 작업수량 ${escapeHtml(order.workQty)}` : ""}</p>` : ""}
+          <div class="feed-actions">
+            ${order.status === "working" ? `<button type="button" class="tab-btn live-action-btn" data-order-id="${order.id}" data-action="pause">작업중지</button>` : ""}
+            <button type="button" class="tab-btn live-action-btn" data-order-id="${order.id}" data-action="complete">작업종료</button>
+          </div>
+        </article>
+      `;
+    })
+    .join("");
+
+  workerLiveStatus.querySelectorAll(".live-action-btn").forEach((button) => {
+    button.addEventListener("click", () => {
+      const order = state.orders.find((item) => item.id === (button.dataset.orderId || ""));
+      if (!order) return;
+      populateWorkerFormFromOrder(order);
+      if (button.dataset.action === "pause") preparePause();
+      if (button.dataset.action === "complete") prepareCompletion();
+    });
+  });
+}
+
+function renderOrderOptions() {
+  const selectableOrders = getSortedOrders(state.orders.filter((order) => order.status === "ready" || order.status === "paused"));
+
+  if (!selectableOrders.length) {
+    orderSelect.innerHTML = `<option value="">선택 가능한 작업이 없습니다.</option>`;
+    return;
+  }
+
+  orderSelect.innerHTML = selectableOrders
+    .map((order) => `<option value="${order.id}">${escapeHtml(order.company)} / ${escapeHtml(order.product)}</option>`)
+    .join("");
+}
+
+function buildEquipmentSummary() {
+  const equipmentMap = new Map();
+
+  getAdminMonthOrders().forEach((order) => {
+    const name = order.machineName || "미지정 장비";
+    if (!equipmentMap.has(name)) {
+      equipmentMap.set(name, { name, actualMs: 0, jobCount: 0, workerSet: new Set() });
+    }
+    const row = equipmentMap.get(name);
+    row.actualMs += Number(order.elapsedMs || 0);
+    if (Number(order.elapsedMs || 0) > 0 || order.status === "working" || order.status === "paused" || order.status === "complete") {
+      row.jobCount += 1;
+    }
+    if (order.workerName) {
+      row.workerSet.add(order.workerName);
+    }
+  });
+
+  return [...equipmentMap.values()]
+    .filter((item) => item.jobCount > 0)
+    .map((item) => {
+      const plannedMs = item.jobCount * 8 * 60 * 60 * 1000;
+      const percent = plannedMs > 0 ? Math.round((item.actualMs / plannedMs) * 100) : 0;
+      return {
+        name: item.name,
+        actualMs: item.actualMs,
+        plannedMs,
+        percent: Math.min(percent, 100),
+        jobCount: item.jobCount,
+        workerCount: item.workerSet.size
+      };
+    });
+}
+
+function buildProductionJournal() {
+  return getSortedOrders(getAdminMonthOrders())
+    .filter((order) => order.workerName || order.productionQty || order.totalHitQty || order.workQty || order.workHitQty || order.pauseReason)
+    .map((order) => ({
+      date: (order.endTime || order.startTime || order.orderDate || "").slice(0, 10),
+      workerName: order.workerName || "관리자",
+      machineName: order.machineName || "",
+      qty: Number(order.productionQty || 0),
+      hitQty: Number(order.totalHitQty || 0),
+      elapsedMs: Number(order.elapsedMs || 0),
+      statusText: getOrderStatusTextClean(order),
+      orderText: `${order.company} / ${order.product}`,
+      note: order.pauseReason
+        ? `중지 사유: ${order.pauseReason}`
+        : order.status === "complete"
+          ? "작업이 완료되었습니다."
+          : order.status === "working"
+            ? "작업 진행 중입니다."
+            : "작업 대기 상태입니다."
+    }));
+}
+
+function renderEquipmentList() {
+  const rows = buildEquipmentSummary();
+  if (!rows.length) {
+    equipmentList.innerHTML = `<div class="empty-state">작업자 입력 기반 장비 가동 데이터가 없습니다.</div>`;
+    return;
+  }
+
+  equipmentList.innerHTML = rows
+    .map((item) => `
+      <article class="progress-card">
+        <div class="progress-top">
+          <strong>${escapeHtml(item.name)}</strong>
+          <span class="status-badge ${item.percent >= 85 ? "status-working" : item.percent >= 60 ? "status-ready" : "status-warning"}">${item.percent}%</span>
+        </div>
+        <p class="progress-meta">총 작업시간 ${formatElapsedMs(item.actualMs)} / 기준시간 ${formatElapsedMs(item.plannedMs)}</p>
+        <p class="progress-meta">작업건수 ${item.jobCount} / 작업자 ${item.workerCount}</p>
+        <div class="bar-track"><div class="bar-fill" style="width:${Math.min(item.percent, 100)}%"></div></div>
+      </article>
+    `)
+    .join("");
+}
+
+function renderMoldList() {
+  const rows = buildMoldSummary();
+  if (!rows.length) {
+    moldList.innerHTML = `<div class="empty-state">작업자 입력 기반 금형 타수 데이터가 없습니다.</div>`;
+    return;
+  }
+
+  moldList.innerHTML = rows
+    .map((item) => `
+      <article class="progress-card">
+        <div class="progress-top">
+          <strong>${escapeHtml(item.name)}</strong>
+          <span class="status-badge ${item.percent >= 90 ? "status-warning" : "status-working"}">${item.percent}%</span>
+        </div>
+        <p class="progress-meta">현재 타수 ${item.currentShots.toLocaleString()} / 목표 추정 ${item.targetShots.toLocaleString()}타</p>
+        <p class="progress-meta">완료수량 ${item.completedQty.toLocaleString()} / 진행수량 ${item.inProgressQty.toLocaleString()}</p>
+        <div class="bar-track"><div class="bar-fill" style="width:${Math.min(item.percent, 100)}%"></div></div>
+      </article>
+    `)
+    .join("");
+}
+
+function renderJournalList() {
+  const rows = buildProductionJournal();
+  if (!rows.length) {
+    journalList.innerHTML = `<div class="empty-state">작업자 입력 기반 생산일지가 없습니다.</div>`;
+    return;
+  }
+
+  journalList.innerHTML = rows
+    .map((item) => `
+      <article class="feed-item">
+        <div class="feed-item-top">
+          <strong>${formatDate(item.date)}</strong>
+          <span class="status-badge status-ready">${escapeHtml(item.statusText)}</span>
+        </div>
+        <p class="feed-meta">${escapeHtml(item.orderText)} / 작업자 ${escapeHtml(item.workerName)} / 장비 ${escapeHtml(item.machineName || "-")}</p>
+        <p class="feed-meta">생산수량 ${Number(item.qty || 0).toLocaleString()} / 작업시간 ${formatElapsedMs(item.elapsedMs || 0)}</p>
+        <p class="feed-meta">${escapeHtml(item.note)}</p>
+      </article>
+    `)
+    .join("");
+}
+
+function renderWorkerEfficiency() {
+  const workerMap = new Map();
+
+  getAdminMonthOrders().forEach((order) => {
+    if (!order.workerName) return;
+    if (!workerMap.has(order.workerName)) {
+      workerMap.set(order.workerName, {
+        workerName: order.workerName,
+        totalQty: 0,
+        totalMs: 0,
+        pausedCount: 0,
+        completeCount: 0
+      });
+    }
+
+    const worker = workerMap.get(order.workerName);
+    worker.totalQty += Number(order.productionQty || 0);
+    worker.totalMs += Number(order.elapsedMs || 0);
+    if (order.pauseReason) worker.pausedCount += 1;
+    if (order.status === "complete") worker.completeCount += 1;
+  });
+
+  const rows = [...workerMap.values()];
+  if (!rows.length) {
+    workerEfficiencyList.innerHTML = `<div class="empty-state">집계된 작업자 데이터가 없습니다.</div>`;
+    return;
+  }
+
+  workerEfficiencyList.innerHTML = rows
+    .sort((a, b) => b.totalQty - a.totalQty)
+    .map((item) => {
+      const hours = item.totalMs / (1000 * 60 * 60);
+      const efficiency = hours > 0 ? (item.totalQty / hours).toFixed(1) : "0.0";
+      return `
+        <article class="progress-card">
+          <div class="progress-top">
+            <strong>${escapeHtml(item.workerName)}</strong>
+            <span class="status-badge status-working">효율 ${efficiency}</span>
+          </div>
+          <p class="progress-meta">누적 생산수 ${item.totalQty.toLocaleString()} / 누적 작업시간 ${formatElapsedMs(item.totalMs)}</p>
+          <p class="progress-meta">완료건 ${item.completeCount} / 중지이력 ${item.pausedCount} / 시간당 생산 ${efficiency}</p>
+        </article>
+      `;
+    })
+    .join("");
 }
