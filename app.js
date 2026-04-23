@@ -925,12 +925,13 @@ function renderCalendar() {
         <div class="calendar-items">
           ${orders
             .slice(0, 2)
-            .map(
-              (order) =>
-                `<button type="button" class="calendar-pill ${daysUntil(order.dueDate) <= 3 && order.status !== "complete" ? "urgent" : ""}" data-date-key="${dateKey}">${escapeHtml(order.company)}</button>`
-            )
+            .map((order) => {
+              const companyName = String(order.company || "");
+              const shortName = companyName.slice(0, 2);
+              return `<button type="button" class="calendar-pill ${daysUntil(order.dueDate) <= 3 && order.status !== "complete" ? "urgent" : ""}" data-date-key="${dateKey}"><span class="calendar-pill-text-long">${escapeHtml(companyName)}</span><span class="calendar-pill-text-short">${escapeHtml(shortName || companyName)}</span></button>`;
+            })
             .join("")}
-          ${orders.length > 2 ? `<div class="calendar-pill">+${orders.length - 2}嫄?/div>` : ""}
+          ${orders.length > 2 ? `<div class="calendar-pill">+${orders.length - 2}건</div>` : ""}
         </div>
       </div>
     `;
