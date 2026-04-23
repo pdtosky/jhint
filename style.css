@@ -239,6 +239,31 @@ button {
   border-radius: 12px;
 }
 
+.shipping-manage-wrap {
+  display: grid;
+  gap: 8px;
+  min-width: 220px;
+}
+
+.shipping-manage-wrap input {
+  min-width: 160px;
+  padding: 10px 12px;
+  border-radius: 12px;
+}
+
+.shipping-progress-text,
+.shipping-history {
+  margin-top: 6px;
+  color: var(--sub);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.shipping-history strong,
+.shipping-progress-text strong {
+  color: var(--ink);
+}
+
 .admin-lock-box {
   max-width: 420px;
   margin: 0 auto;
