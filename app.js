@@ -860,8 +860,7 @@ async function handleAdminLogin(formElement) {
   });
 
   if (error) {
-    const detail = String(error.message || "").trim();
-    window.alert(`로그인에 실패했습니다. 이메일, 비밀번호, Supabase 사용자 확인 상태를 확인해 주세요.${detail ? `\n\n오류 내용: ${detail}` : ""}`);
+    window.alert("로그인에 실패했습니다.\n이메일 또는 비밀번호를 확인해 주세요.");
     return;
   }
 
@@ -1859,8 +1858,7 @@ async function handleAdminLogin(formElement) {
   });
 
   if (error) {
-    const detail = String(error.message || "").trim();
-    window.alert(`로그인에 실패했습니다. 이메일, 비밀번호, Supabase 사용자 확인 상태를 확인해 주세요.${detail ? `\n\n오류 내용: ${detail}` : ""}`);
+    window.alert("로그인에 실패했습니다.\n이메일 또는 비밀번호를 확인해 주세요.");
     return;
   }
 
@@ -3701,8 +3699,7 @@ async function handleAdminLogin(formElement) {
   });
 
   if (error) {
-    const detail = String(error.message || "").trim();
-    window.alert(`로그인에 실패했습니다. 이메일, 비밀번호, Supabase 사용자 확인 상태를 확인해 주세요.${detail ? `\n\n오류 내용: ${detail}` : ""}`);
+    window.alert("로그인에 실패했습니다.\n이메일 또는 비밀번호를 확인해 주세요.");
     return;
   }
 
@@ -3718,3 +3715,4 @@ async function handleAdminLogin(formElement) {
   adminPageLoginForm.reset();
   renderAdminSession();
 }
+
