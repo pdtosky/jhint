@@ -392,7 +392,7 @@ function updateWorkState(nextStatus) {
     );
     if (hasOtherActiveWork) {
       showWorkerAlert("같은 작업자가 이미 다른 작업을 진행 중입니다.");
-      window.alert("같은 작업자가 이미 다른 작업을 진행 중입니다.");
+      showAppAlert("같은 작업자가 이미 다른 작업을 진행 중입니다.");
       disableWorkerStartInputs();
       return;
     }
@@ -402,7 +402,7 @@ function updateWorkState(nextStatus) {
     );
     if (hasBusyMachine) {
       showWorkerAlert("입력한 장비명이 현재 다른 작업에서 사용 중입니다.");
-      window.alert("입력한 장비명이 현재 다른 작업에서 사용 중입니다.");
+      showAppAlert("입력한 장비명이 현재 다른 작업에서 사용 중입니다.");
       disableWorkerStartInputs();
       return;
     }
@@ -822,7 +822,7 @@ function persist() {
   lastStateSnapshot = payload;
   const request = isSupabaseBackend() ? saveSupabaseState(normalizeAppState(state)) : saveApiState(payload);
   return request.catch(() => {
-    window.alert("서버 저장에 실패했습니다. 네트워크 연결 상태를 확인해 주세요.");
+    showAppAlert("서버 저장에 실패했습니다. 네트워크 연결 상태를 확인해 주세요.");
   });
 }
 
@@ -849,7 +849,7 @@ async function handleAdminLogin(formElement) {
   const adminEmail = String(formData.get("adminEmail") || "").trim().toLowerCase();
   const adminPassword = String(formData.get("adminPassword") || "").trim();
   if (!supabaseAuthClient) {
-    window.alert("관리자 인증 설정이 아직 연결되지 않았습니다.");
+    showAppAlert("관리자 인증 설정이 아직 연결되지 않았습니다.");
     return;
   }
   if (!adminEmail || !adminPassword) return;
@@ -860,14 +860,14 @@ async function handleAdminLogin(formElement) {
   });
 
   if (error) {
-    window.alert("로그인에 실패했습니다.\n이메일 또는 비밀번호를 확인해 주세요.");
+    showAppAlert("로그인에 실패했습니다.\n이메일 또는 비밀번호를 확인해 주세요.");
     return;
   }
 
   const sessionEmail = data?.user?.email || data?.session?.user?.email || adminEmail;
   if (!isAllowedAdminEmail(sessionEmail)) {
     await supabaseAuthClient.auth.signOut({ scope: "local" });
-    window.alert("이 계정은 관리자 권한이 없습니다.");
+    showAppAlert("이 계정은 관리자 권한이 없습니다.");
     return;
   }
 
@@ -1834,7 +1834,7 @@ function renderWorkerEfficiency() {
 }
 
 function handlePersistError() {
-  window.alert("서버 저장에 실패했습니다. 네트워크 연결 상태를 확인해 주세요.");
+  showAppAlert("서버 저장에 실패했습니다. 네트워크 연결 상태를 확인해 주세요.");
 }
 
 async function handleAdminLogin(formElement) {
@@ -1843,12 +1843,12 @@ async function handleAdminLogin(formElement) {
   const adminPassword = String(formData.get("adminPassword") || "").trim();
 
   if (!supabaseAuthClient) {
-    window.alert("관리자 인증 설정이 아직 연결되지 않았습니다.");
+    showAppAlert("관리자 인증 설정이 아직 연결되지 않았습니다.");
     return;
   }
 
   if (!adminEmail || !adminPassword) {
-    window.alert("이메일과 비밀번호를 입력해 주세요.");
+    showAppAlert("이메일과 비밀번호를 입력해 주세요.");
     return;
   }
 
@@ -1858,14 +1858,14 @@ async function handleAdminLogin(formElement) {
   });
 
   if (error) {
-    window.alert("로그인에 실패했습니다.\n이메일 또는 비밀번호를 확인해 주세요.");
+    showAppAlert("로그인에 실패했습니다.\n이메일 또는 비밀번호를 확인해 주세요.");
     return;
   }
 
   const sessionEmail = data?.user?.email || data?.session?.user?.email || adminEmail;
   if (!isAllowedAdminEmail(sessionEmail)) {
     await supabaseAuthClient.auth.signOut({ scope: "local" });
-    window.alert("이 계정은 관리자 권한이 없습니다.");
+    showAppAlert("이 계정은 관리자 권한이 없습니다.");
     return;
   }
 
@@ -1876,7 +1876,7 @@ async function handleAdminLogin(formElement) {
 }
 
 function handlePersistError() {
-  window.alert("서버 저장에 실패했습니다. 네트워크 연결 상태를 확인해 주세요.");
+  showAppAlert("서버 저장에 실패했습니다. 네트워크 연결 상태를 확인해 주세요.");
 }
 
 async function handleAdminLogin(formElement) {
@@ -1885,12 +1885,12 @@ async function handleAdminLogin(formElement) {
   const adminPassword = String(formData.get("adminPassword") || "").trim();
 
   if (!supabaseAuthClient) {
-    window.alert("관리자 인증 설정이 아직 연결되지 않았습니다.");
+    showAppAlert("관리자 인증 설정이 아직 연결되지 않았습니다.");
     return;
   }
 
   if (!adminEmail || !adminPassword) {
-    window.alert("이메일과 비밀번호를 입력해 주세요.");
+    showAppAlert("이메일과 비밀번호를 입력해 주세요.");
     return;
   }
 
@@ -1900,14 +1900,14 @@ async function handleAdminLogin(formElement) {
   });
 
   if (error) {
-    window.alert("로그인에 실패했습니다. 이메일 또는 비밀번호를 확인해 주세요.");
+    showAppAlert("로그인에 실패했습니다. 이메일 또는 비밀번호를 확인해 주세요.");
     return;
   }
 
   const sessionEmail = data?.user?.email || data?.session?.user?.email || adminEmail;
   if (!isAllowedAdminEmail(sessionEmail)) {
     await supabaseAuthClient.auth.signOut({ scope: "local" });
-    window.alert("이 계정은 관리자 권한이 없습니다.");
+    showAppAlert("이 계정은 관리자 권한이 없습니다.");
     return;
   }
 
@@ -2243,7 +2243,7 @@ function escapeHtml(value) {
 }
 
 function handlePersistError() {
-  window.alert("?쒕쾭 ??μ뿉 ?ㅽ뙣?덉뒿?덈떎. ?쒕쾭 ?곌껐 ?곹깭瑜??뺤씤??二쇱꽭??");
+  showAppAlert("?쒕쾭 ??μ뿉 ?ㅽ뙣?덉뒿?덈떎. ?쒕쾭 ?곌껐 ?곹깭瑜??뺤씤??二쇱꽭??");
 }
 
 function getCleanWorkTimeValue(order) {
@@ -2259,7 +2259,7 @@ async function handleAdminLogin(formElement) {
   const adminEmail = String(formData.get("adminEmail") || "").trim().toLowerCase();
   const adminPassword = String(formData.get("adminPassword") || "").trim();
   if (!supabaseAuthClient) {
-    window.alert("愿由ъ옄 ?몄쬆 ?ㅼ젙???꾩쭅 ?곌껐?섏? ?딆븯?듬땲??");
+    showAppAlert("愿由ъ옄 ?몄쬆 ?ㅼ젙???꾩쭅 ?곌껐?섏? ?딆븯?듬땲??");
     return;
   }
   if (!adminEmail || !adminPassword) return;
@@ -2270,14 +2270,14 @@ async function handleAdminLogin(formElement) {
   });
 
   if (error) {
-    window.alert("濡쒓렇?몄뿉 ?ㅽ뙣?덉뒿?덈떎. ?대찓???먮뒗 鍮꾨?踰덊샇瑜??뺤씤??二쇱꽭??");
+    showAppAlert("濡쒓렇?몄뿉 ?ㅽ뙣?덉뒿?덈떎. ?대찓???먮뒗 鍮꾨?踰덊샇瑜??뺤씤??二쇱꽭??");
     return;
   }
 
   const sessionEmail = data?.user?.email || data?.session?.user?.email || adminEmail;
   if (!isAllowedAdminEmail(sessionEmail)) {
     await supabaseAuthClient.auth.signOut({ scope: "local" });
-    window.alert("??怨꾩젙? 愿由ъ옄 沅뚰븳???놁뒿?덈떎.");
+    showAppAlert("??怨꾩젙? 愿由ъ옄 沅뚰븳???놁뒿?덈떎.");
     return;
   }
 
@@ -3069,17 +3069,17 @@ function renderShippingPage() {
 
       if (remainingQty === 0) return;
       if (!shipQty || shipQty < 1) {
-        window.alert("출하 수량을 입력해 주세요.");
+        showAppAlert("출하 수량을 입력해 주세요.");
         qtyInput?.focus();
         return;
       }
       if (shipQty > remainingQty) {
-        window.alert(`남은 수량은 ${remainingQty.toLocaleString()}개입니다.`);
+        showAppAlert(`남은 수량은 ${remainingQty.toLocaleString()}개입니다.`);
         qtyInput?.focus();
         return;
       }
       if (!shipDate) {
-        window.alert("출하일을 선택해 주세요.");
+        showAppAlert("출하일을 선택해 주세요.");
         dateInput?.focus();
         return;
       }
@@ -3637,7 +3637,7 @@ function renderWorkerEfficiency() {
 }
 
 function handlePersistError() {
-  window.alert("서버 저장에 실패했습니다. 네트워크 연결 상태를 확인해 주세요.");
+  showAppAlert("서버 저장에 실패했습니다. 네트워크 연결 상태를 확인해 주세요.");
 }
 
 async function handleAdminLogin(formElement) {
@@ -3646,12 +3646,12 @@ async function handleAdminLogin(formElement) {
   const adminPassword = String(formData.get("adminPassword") || "").trim();
 
   if (!supabaseAuthClient) {
-    window.alert("관리자 인증 설정이 아직 연결되지 않았습니다.");
+    showAppAlert("관리자 인증 설정이 아직 연결되지 않았습니다.");
     return;
   }
 
   if (!adminEmail || !adminPassword) {
-    window.alert("이메일과 비밀번호를 입력해 주세요.");
+    showAppAlert("이메일과 비밀번호를 입력해 주세요.");
     return;
   }
 
@@ -3661,14 +3661,14 @@ async function handleAdminLogin(formElement) {
   });
 
   if (error) {
-    window.alert("로그인에 실패했습니다. 이메일 또는 비밀번호를 확인해 주세요.");
+    showAppAlert("로그인에 실패했습니다. 이메일 또는 비밀번호를 확인해 주세요.");
     return;
   }
 
   const sessionEmail = data?.user?.email || data?.session?.user?.email || adminEmail;
   if (!isAllowedAdminEmail(sessionEmail)) {
     await supabaseAuthClient.auth.signOut({ scope: "local" });
-    window.alert("이 계정은 관리자 권한이 없습니다.");
+    showAppAlert("이 계정은 관리자 권한이 없습니다.");
     return;
   }
 
@@ -3684,12 +3684,12 @@ async function handleAdminLogin(formElement) {
   const adminPassword = String(formData.get("adminPassword") || "").trim();
 
   if (!supabaseAuthClient) {
-    window.alert("관리자 인증 설정이 아직 연결되지 않았습니다.");
+    showAppAlert("관리자 인증 설정이 아직 연결되지 않았습니다.");
     return;
   }
 
   if (!adminEmail || !adminPassword) {
-    window.alert("이메일과 비밀번호를 입력해 주세요.");
+    showAppAlert("이메일과 비밀번호를 입력해 주세요.");
     return;
   }
 
@@ -3699,14 +3699,14 @@ async function handleAdminLogin(formElement) {
   });
 
   if (error) {
-    window.alert("로그인에 실패했습니다.\n이메일 또는 비밀번호를 확인해 주세요.");
+    showAppAlert("로그인에 실패했습니다.\n이메일 또는 비밀번호를 확인해 주세요.");
     return;
   }
 
   const sessionEmail = data?.user?.email || data?.session?.user?.email || adminEmail;
   if (!isAllowedAdminEmail(sessionEmail)) {
     await supabaseAuthClient.auth.signOut({ scope: "local" });
-    window.alert("이 계정은 관리자 권한이 없습니다.");
+    showAppAlert("이 계정은 관리자 권한이 없습니다.");
     return;
   }
 
@@ -3738,9 +3738,13 @@ function showAppAlert(message) {
     });
   }
 
+  const rawMessage = String(message || "");
+  const cleanMessage = /[濡愿怨쒕뾽]/.test(rawMessage)
+    ? "처리 중 문제가 발생했습니다.\n입력값과 연결 상태를 확인해 주세요."
+    : rawMessage;
   const messageNode = modal.querySelector("#appAlertMessage");
   if (messageNode) {
-    messageNode.textContent = String(message || "");
+    messageNode.textContent = cleanMessage;
   }
   modal.hidden = false;
 }
@@ -3782,3 +3786,4 @@ async function handleAdminLogin(formElement) {
   adminPageLoginForm.reset();
   renderAdminSession();
 }
+
