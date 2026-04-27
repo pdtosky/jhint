@@ -3716,3 +3716,69 @@ async function handleAdminLogin(formElement) {
   renderAdminSession();
 }
 
+function showAppAlert(message) {
+  let modal = document.getElementById("appAlertModal");
+  if (!modal) {
+    modal = document.createElement("div");
+    modal.id = "appAlertModal";
+    modal.className = "modal-backdrop";
+    modal.hidden = true;
+    modal.innerHTML = `
+      <div class="modal-card app-alert-card">
+        <h3>알림</h3>
+        <p id="appAlertMessage" class="app-alert-message"></p>
+        <div class="modal-actions">
+          <button type="button" class="tab-btn" id="appAlertCloseBtn">확인</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+    modal.querySelector("#appAlertCloseBtn").addEventListener("click", () => {
+      modal.hidden = true;
+    });
+  }
+
+  const messageNode = modal.querySelector("#appAlertMessage");
+  if (messageNode) {
+    messageNode.textContent = String(message || "");
+  }
+  modal.hidden = false;
+}
+
+async function handleAdminLogin(formElement) {
+  const formData = new FormData(formElement);
+  const adminEmail = String(formData.get("adminEmail") || "").trim().toLowerCase();
+  const adminPassword = String(formData.get("adminPassword") || "").trim();
+
+  if (!supabaseAuthClient) {
+    showAppAlert("관리자 인증 설정이 아직 연결되지 않았습니다.");
+    return;
+  }
+
+  if (!adminEmail || !adminPassword) {
+    showAppAlert("이메일과 비밀번호를 입력해 주세요.");
+    return;
+  }
+
+  const { data, error } = await supabaseAuthClient.auth.signInWithPassword({
+    email: adminEmail,
+    password: adminPassword
+  });
+
+  if (error) {
+    showAppAlert("로그인에 실패했습니다.\n이메일 또는 비밀번호를 확인해 주세요.");
+    return;
+  }
+
+  const sessionEmail = data?.user?.email || data?.session?.user?.email || adminEmail;
+  if (!isAllowedAdminEmail(sessionEmail)) {
+    await supabaseAuthClient.auth.signOut({ scope: "local" });
+    showAppAlert("이 계정은 관리자 권한이 없습니다.");
+    return;
+  }
+
+  setAdminSession(sessionEmail);
+  adminLoginForm.reset();
+  adminPageLoginForm.reset();
+  renderAdminSession();
+}
