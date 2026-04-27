@@ -770,6 +770,14 @@ tbody tr:last-child td {
   color: var(--sub);
 }
 
+.app-alert-card {
+  max-width: 420px;
+}
+
+.app-alert-message {
+  white-space: pre-line;
+}
+
 #calendarDetailBody {
   overflow-y: auto;
   padding-right: 4px;
