@@ -2059,3 +2059,242 @@ tbody tr:last-child td {
     display: none;
   }
 }
+
+@media (max-width: 760px) {
+  .calendar-wrap {
+    padding: 12px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .calendar-weekdays,
+  .calendar-grid {
+    min-width: 520px;
+    gap: 5px;
+  }
+
+  .calendar-day {
+    min-height: 76px;
+    aspect-ratio: auto;
+    padding: 6px;
+    border-radius: 12px;
+  }
+
+  .calendar-date {
+    font-size: 0.78rem;
+    line-height: 1;
+  }
+
+  .calendar-items {
+    gap: 4px;
+    margin-top: 7px;
+  }
+
+  .calendar-pill {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 20px !important;
+    padding: 4px 5px;
+    border-radius: 8px;
+    font-size: 0.62rem;
+    line-height: 1.05;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: clip;
+  }
+
+  .calendar-pill-text-long {
+    display: none;
+  }
+
+  .calendar-pill-text-short {
+    display: inline;
+  }
+
+  .progress-card {
+    padding: 12px;
+  }
+
+  .progress-meta-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .progress-meta-grid span,
+  .progress-chip {
+    width: 100%;
+    min-width: 0;
+    justify-content: flex-start;
+    padding: 6px 8px;
+    font-size: 0.7rem;
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .progress-meta-grid .progress-note-chip {
+    grid-column: 1 / -1;
+    white-space: normal;
+    overflow: hidden;
+    text-overflow: unset;
+  }
+
+  .stats-grid {
+    gap: 7px;
+  }
+
+  .stat-card {
+    min-height: 64px;
+    padding: 10px 11px;
+  }
+}
+
+@media (max-width: 760px) {
+  .calendar-wrap {
+    width: 100%;
+    padding: 10px;
+    overflow-x: hidden;
+  }
+
+  .calendar-weekdays,
+  .calendar-grid {
+    width: 100%;
+    min-width: 0 !important;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 3px;
+  }
+
+  .calendar-weekday {
+    font-size: 0.68rem;
+  }
+
+  .calendar-day {
+    min-width: 0;
+    min-height: 64px;
+    aspect-ratio: auto;
+    padding: 5px 3px;
+    border-radius: 10px;
+  }
+
+  .calendar-date {
+    font-size: 0.72rem;
+    line-height: 1;
+  }
+
+  .calendar-items {
+    gap: 3px;
+    margin-top: 6px;
+  }
+
+  .calendar-pill {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    min-height: 18px !important;
+    padding: 3px 2px;
+    border-radius: 7px;
+    font-size: 0.54rem;
+    line-height: 1;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: clip;
+  }
+
+  .calendar-pill-text-long {
+    display: none !important;
+  }
+
+  .calendar-pill-text-short {
+    display: inline !important;
+  }
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+@media (max-width: 760px) {
+  .calendar-wrap {
+    padding: 8px;
+    border-radius: 18px;
+    overflow: hidden;
+  }
+
+  .calendar-head {
+    margin-bottom: 10px;
+  }
+
+  .calendar-head .tab-btn {
+    min-width: 54px;
+    min-height: 48px;
+    padding: 8px;
+  }
+
+  .calendar-weekdays,
+  .calendar-grid {
+    width: 100%;
+    min-width: 0 !important;
+    gap: 2px;
+  }
+
+  .calendar-weekday {
+    font-size: 0.66rem;
+    line-height: 1;
+    padding-bottom: 4px;
+  }
+
+  .calendar-day {
+    min-width: 0 !important;
+    min-height: 58px;
+    padding: 5px 2px 4px;
+    border-radius: 8px;
+    border-color: rgba(75, 104, 146, 0.14);
+    box-shadow: none !important;
+  }
+
+  .calendar-day.today {
+    outline: 1px solid rgba(13, 107, 95, 0.45);
+    outline-offset: -1px;
+  }
+
+  .calendar-date {
+    display: block;
+    padding-left: 2px;
+    font-size: 0.68rem;
+    line-height: 1;
+  }
+
+  .calendar-items {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    margin-top: 5px;
+  }
+
+  .calendar-pill {
+    width: min(28px, 100%);
+    max-width: 28px;
+    min-height: 16px !important;
+    padding: 2px 1px;
+    border-radius: 999px;
+    font-size: 0.5rem;
+    font-weight: 900;
+    letter-spacing: -0.04em;
+    line-height: 1;
+  }
+
+  .calendar-pill-text-long {
+    display: none !important;
+  }
+
+  .calendar-pill-text-short {
+    display: inline !important;
+  }
+}
