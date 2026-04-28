@@ -272,6 +272,7 @@ function bindEvents() {
       paymentRequested: Boolean(formData.get("paymentRequested")),
       deliveryType: String(formData.get("deliveryType") || ""),
       dueDate: String(formData.get("dueDate") || ""),
+      orderNote: String(formData.get("orderNote") || "").trim(),
       status: "ready",
       startTime: "",
       endTime: "",
@@ -315,6 +316,7 @@ function bindEvents() {
     order.quantity = String(editQuantityInput.value || "").trim();
     order.paymentRequested = editPaymentRequestedInput.checked;
     order.deliveryType = String(editDeliveryTypeInput.value || "");
+    order.orderNote = String(new FormData(orderEditForm).get("editOrderNote") || "").trim();
 
     state.activities.unshift({
       id: crypto.randomUUID(),
@@ -371,6 +373,12 @@ function bindEvents() {
 
   shippingFilterDoneBtn.addEventListener("click", () => {
     openShippingList("done");
+  });
+
+  shippingSummary.addEventListener("click", (event) => {
+    const card = event.target.closest("[data-shipping-summary-filter]");
+    if (!card) return;
+    openShippingList(card.dataset.shippingSummaryFilter || "all");
   });
 
   shippingSearchInput.addEventListener("input", () => {
@@ -795,6 +803,7 @@ function normalizeOrderRecord(order) {
     workerName: order.workerName || "",
     productionQty: order.productionQty || "",
     totalHitQty: order.totalHitQty || "",
+    orderNote: order.orderNote || "",
     shipped: Boolean(order.shipped),
     shippedDate: order.shippedDate || "",
     shippingNote: order.shippingNote || "",
@@ -875,6 +884,531 @@ async function handleAdminLogin(formElement) {
   adminLoginForm.reset();
   adminPageLoginForm.reset();
   renderAdminSession();
+}
+
+function renderCalendar() {
+  document.getElementById("calendarMobileList")?.remove();
+
+  const weekdays = ["일", "월", "화", "수", "목", "금", "토"];
+  calendarWeekdays.innerHTML = weekdays.map((day) => `<div class="calendar-weekday">${day}</div>`).join("");
+  calendarTitle.textContent = `${calendarCursor.getFullYear()}년 ${calendarCursor.getMonth() + 1}월`;
+
+  const firstDay = new Date(calendarCursor.getFullYear(), calendarCursor.getMonth(), 1);
+  const startDay = new Date(firstDay);
+  startDay.setDate(firstDay.getDate() - firstDay.getDay());
+  const todayKey = toDateKey(new Date());
+
+  calendarGrid.innerHTML = Array.from({ length: 42 }, (_, index) => {
+    const cellDate = new Date(startDay);
+    cellDate.setDate(startDay.getDate() + index);
+    const dateKey = toDateKey(cellDate);
+    const orders = getSortedOrders(state.orders.filter((order) => order.dueDate === dateKey));
+    const isCurrentMonth = cellDate.getMonth() === calendarCursor.getMonth();
+    const isToday = dateKey === todayKey;
+    const urgent = orders.some((order) => order.status !== "complete" && daysUntil(order.dueDate) <= 3);
+
+    return `
+      <div class="calendar-day ${isCurrentMonth ? "" : "muted"} ${isToday ? "today" : ""} ${orders.length ? "has-due" : ""} ${urgent ? "urgent-due" : ""}">
+        <div class="calendar-date">${cellDate.getDate()}</div>
+        <div class="calendar-items">
+          ${orders
+            .slice(0, 2)
+            .map((order) => {
+              const companyName = String(order.company || "");
+              const shortName = companyName.slice(0, 2);
+              return `<button type="button" class="calendar-pill ${daysUntil(order.dueDate) <= 3 && order.status !== "complete" ? "urgent" : ""}" data-date-key="${dateKey}"><span class="calendar-pill-text-long">${escapeHtml(companyName)}</span><span class="calendar-pill-text-short">${escapeHtml(shortName || companyName)}</span></button>`;
+            })
+            .join("")}
+          ${orders.length > 2 ? `<div class="calendar-pill">+${orders.length - 2}건</div>` : ""}
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  const monthOrders = getSortedOrders(
+    state.orders.filter((order) => {
+      if (!order.dueDate) return false;
+      const dueDate = new Date(order.dueDate);
+      return dueDate.getFullYear() === calendarCursor.getFullYear() && dueDate.getMonth() === calendarCursor.getMonth();
+    })
+  );
+
+  const mobileListHtml = monthOrders.length
+    ? monthOrders
+        .map((order) => {
+          const urgent = order.status !== "complete" && daysUntil(order.dueDate) <= 3;
+          return `
+            <button type="button" class="calendar-list-item ${urgent ? "urgent" : ""}" data-date-key="${order.dueDate}">
+              <span class="calendar-list-date">${formatDate(order.dueDate)}</span>
+              <strong>${escapeHtml(order.company)}</strong>
+              <span>${escapeHtml(order.product)} / 수량 ${escapeHtml(order.quantity || "-")}</span>
+              <span>${getOrderStatusTextClean(order)} / ${getDeliveryLabel(order)}</span>
+            </button>
+          `;
+        })
+        .join("")
+    : `<div class="empty-state calendar-list-empty">이번 달 납기 일정이 없습니다.</div>`;
+
+  calendarGrid.insertAdjacentHTML("afterend", `<div id="calendarMobileList" class="calendar-mobile-list">${mobileListHtml}</div>`);
+
+  document.querySelectorAll(".calendar-pill[data-date-key], .calendar-list-item[data-date-key]").forEach((button) => {
+    button.addEventListener("click", () => {
+      openCalendarDetail(button.dataset.dateKey || "");
+    });
+  });
+}
+
+function renderProgressChip(label, value) {
+  const safeValue = value === undefined || value === null || value === "" ? "-" : value;
+  return `<span class="progress-chip"><strong>${escapeHtml(label)}</strong>${escapeHtml(String(safeValue))}</span>`;
+}
+
+function renderProgressMetaGrid(order, includeOrderDate = false) {
+  const chips = [];
+  if (includeOrderDate) {
+    chips.push(renderProgressChip("발주", formatDate(order.orderDate)));
+  }
+  chips.push(renderProgressChip("납기", formatDate(order.dueDate)));
+  chips.push(renderProgressChip("작업자", order.workerName || "미지정"));
+  chips.push(renderProgressChip("장비", order.machineName || "미지정"));
+  chips.push(renderProgressChip("수량", order.quantity || "-"));
+  chips.push(renderProgressChip("생산수", order.productionQty || "-"));
+  chips.push(renderProgressChip("총타수", order.totalHitQty || "-"));
+  chips.push(renderProgressChip("작업시간", getCleanWorkTimeValue(order) || "-"));
+  chips.push(renderProgressChip("지급", order.paymentRequested ? "요청" : "없음"));
+  chips.push(renderProgressChip("구분", order.deliveryType || "-"));
+  return `<div class="progress-meta-grid">${chips.join("")}</div>`;
+}
+
+function renderProgress() {
+  const filteredOrders = getSortedOrders(getDashboardFilteredOrders());
+  const titleMap = {
+    all: "전체 발주 진행률",
+    ready: "작업 대기 진행률",
+    working: "작업 중 진행률",
+    urgent: "납기 임박 진행률"
+  };
+  progressTitle.textContent = titleMap[dashboardFilter] || "전체 발주 진행률";
+
+  if (filteredOrders.length === 0) {
+    progressBoard.innerHTML = `<div class="empty-state">진행 중인 생산 데이터가 없습니다.</div>`;
+    return;
+  }
+
+  progressBoard.innerHTML = filteredOrders
+    .map((order) => {
+      const percent = getProgressPercent(order);
+      const urgent = order.status !== "complete" && daysUntil(order.dueDate) <= 3;
+      return `
+        <article class="progress-card ${order.status === "paused" ? "paused-card" : ""}">
+          <div class="progress-top">
+            <div>
+              <strong>${escapeHtml(order.product)}</strong>
+              <p class="progress-meta">${escapeHtml(order.company)}</p>
+            </div>
+            ${statusBadgeClean(order, urgent)}
+          </div>
+          <div class="bar-track">
+            <div class="bar-fill" style="width: ${percent}%"></div>
+          </div>
+          ${renderProgressMetaGrid(order)}
+          ${order.status === "paused" ? `<div class="paused-flag">작업 중지 / ${escapeHtml(order.pauseReason || "사유 미입력")}</div>` : ""}
+        </article>
+      `;
+    })
+    .join("");
+}
+
+function renderDashboardFilteredList() {
+  const filteredOrders = getSortedOrders(getDashboardFilteredOrders());
+  const titleMap = {
+    all: "전체 발주 리스트",
+    ready: "작업 대기 리스트",
+    working: "작업 중 리스트",
+    urgent: "납기 임박 리스트"
+  };
+  dashboardListTitle.textContent = titleMap[dashboardFilter] || "전체 발주 리스트";
+
+  if (!isDashboardListOpen) {
+    dashboardFilteredList.innerHTML = `<div class="empty-state">카드를 누르면 해당 리스트가 표시됩니다.</div>`;
+    return;
+  }
+
+  if (filteredOrders.length === 0) {
+    dashboardFilteredList.innerHTML = `<div class="empty-state">표시할 발주가 없습니다.</div>`;
+    return;
+  }
+
+  dashboardFilteredList.innerHTML = filteredOrders
+    .map((order) => {
+      const percent = getProgressPercent(order);
+      const urgent = order.status !== "complete" && daysUntil(order.dueDate) <= 3;
+      return `
+        <article class="progress-card ${order.status === "paused" ? "paused-card" : ""}">
+          <div class="progress-top">
+            <div>
+              <strong>${escapeHtml(order.product)}</strong>
+              <p class="progress-meta">${escapeHtml(order.company)}</p>
+            </div>
+            ${statusBadgeClean(order, urgent)}
+          </div>
+          <div class="bar-track">
+            <div class="bar-fill" style="width: ${percent}%"></div>
+          </div>
+          ${renderProgressMetaGrid(order, true)}
+          ${order.status === "paused" ? `<div class="paused-flag">작업 중지 / ${escapeHtml(order.pauseReason || "사유 미입력")}</div>` : ""}
+        </article>
+      `;
+    })
+    .join("");
+}
+
+function renderProgressChip(label, value) {
+  const safeValue = value === undefined || value === null || value === "" ? "-" : value;
+  return `<span class="progress-chip"><strong>${escapeHtml(label)}</strong>${escapeHtml(String(safeValue))}</span>`;
+}
+
+function renderProgressMetaGrid(order, includeOrderDate = false) {
+  const workTime = getCleanWorkTimeValue(order) || "-";
+  const chips = [];
+
+  if (includeOrderDate) {
+    chips.push(renderProgressChip("발주", formatDate(order.orderDate)));
+  }
+
+  chips.push(renderProgressChip("납기", formatDate(order.dueDate)));
+  chips.push(renderProgressChip("작업자", order.workerName || "미지정"));
+  chips.push(renderProgressChip("장비", order.machineName || "미지정"));
+  chips.push(renderProgressChip("수량", order.quantity || "-"));
+  chips.push(renderProgressChip("생산수", order.productionQty || "-"));
+  chips.push(renderProgressChip("총타수", order.totalHitQty || "-"));
+  chips.push(renderProgressChip("작업시간", workTime));
+  chips.push(renderProgressChip("지급", order.paymentRequested ? "요청" : "없음"));
+  chips.push(renderProgressChip("구분", order.deliveryType || "-"));
+
+  return `<div class="progress-meta-grid">${chips.join("")}</div>`;
+}
+
+function renderProgress() {
+  const filteredOrders = getSortedOrders(getDashboardFilteredOrders());
+  const titleMap = {
+    all: "전체 발주 진행률",
+    ready: "작업 대기 진행률",
+    working: "작업 중 진행률",
+    urgent: "납기 임박 진행률"
+  };
+  progressTitle.textContent = titleMap[dashboardFilter] || "전체 발주 진행률";
+
+  if (filteredOrders.length === 0) {
+    progressBoard.innerHTML = `<div class="empty-state">진행 중인 생산 데이터가 없습니다.</div>`;
+    return;
+  }
+
+  progressBoard.innerHTML = filteredOrders
+    .map((order) => {
+      const percent = getProgressPercent(order);
+      const urgent = order.status !== "complete" && daysUntil(order.dueDate) <= 3;
+      return `
+        <article class="progress-card ${order.status === "paused" ? "paused-card" : ""}">
+          <div class="progress-top">
+            <div>
+              <strong>${escapeHtml(order.product)}</strong>
+              <p class="progress-meta">${escapeHtml(order.company)}</p>
+            </div>
+            ${statusBadgeClean(order, urgent)}
+          </div>
+          <div class="bar-track">
+            <div class="bar-fill" style="width: ${percent}%"></div>
+          </div>
+          ${renderProgressMetaGrid(order)}
+          ${order.status === "paused" ? `<div class="paused-flag">작업 중지 / ${escapeHtml(order.pauseReason || "사유 미입력")}</div>` : ""}
+        </article>
+      `;
+    })
+    .join("");
+}
+
+function renderDashboardFilteredList() {
+  const filteredOrders = getSortedOrders(getDashboardFilteredOrders());
+  const titleMap = {
+    all: "전체 발주 리스트",
+    ready: "작업 대기 리스트",
+    working: "작업 중 리스트",
+    urgent: "납기 임박 리스트"
+  };
+  dashboardListTitle.textContent = titleMap[dashboardFilter] || "전체 발주 리스트";
+
+  if (!isDashboardListOpen) {
+    dashboardFilteredList.innerHTML = `<div class="empty-state">카드를 누르면 해당 리스트가 표시됩니다.</div>`;
+    return;
+  }
+
+  if (filteredOrders.length === 0) {
+    dashboardFilteredList.innerHTML = `<div class="empty-state">표시할 발주가 없습니다.</div>`;
+    return;
+  }
+
+  dashboardFilteredList.innerHTML = filteredOrders
+    .map((order) => {
+      const percent = getProgressPercent(order);
+      const urgent = order.status !== "complete" && daysUntil(order.dueDate) <= 3;
+      return `
+        <article class="progress-card ${order.status === "paused" ? "paused-card" : ""}">
+          <div class="progress-top">
+            <div>
+              <strong>${escapeHtml(order.product)}</strong>
+              <p class="progress-meta">${escapeHtml(order.company)}</p>
+            </div>
+            ${statusBadgeClean(order, urgent)}
+          </div>
+          <div class="bar-track">
+            <div class="bar-fill" style="width: ${percent}%"></div>
+          </div>
+          ${renderProgressMetaGrid(order, true)}
+          ${order.status === "paused" ? `<div class="paused-flag">작업 중지 / ${escapeHtml(order.pauseReason || "사유 미입력")}</div>` : ""}
+        </article>
+      `;
+    })
+    .join("");
+}
+
+function renderProgressMetaGrid(order, includeOrderDate = false) {
+  const items = [];
+  if (includeOrderDate) items.push(`발주 ${formatDate(order.orderDate)}`);
+  items.push(`납기 ${formatDate(order.dueDate)}`);
+  if (order.workerName) items.push(`작업자 ${escapeHtml(order.workerName)}`);
+  items.push(order.machineName ? `장비 ${escapeHtml(order.machineName)}` : "장비 미지정");
+  items.push(`수량 ${escapeHtml(order.quantity || "-")}`);
+  items.push(getPaymentLabel(order));
+  items.push(getDeliveryLabel(order));
+  items.push(getWorkTimeLabel(order));
+  items.push(getProductionQtyLabel(order));
+  items.push(getTotalHitQtyLabel(order));
+
+  return `<div class="progress-meta-grid">${items.map((item) => `<span>${item}</span>`).join("")}</div>`;
+}
+
+function renderProgress() {
+  const filteredOrders = getSortedOrders(getDashboardFilteredOrders());
+  const titleMap = {
+    all: "전체 발주 진행률",
+    ready: "작업 대기 진행률",
+    working: "작업 중 진행률",
+    urgent: "납기 임박 진행률"
+  };
+  progressTitle.textContent = titleMap[dashboardFilter] || "전체 발주 진행률";
+
+  if (filteredOrders.length === 0) {
+    progressBoard.innerHTML = `<div class="empty-state">진행 중인 생산 데이터가 없습니다.</div>`;
+    return;
+  }
+
+  progressBoard.innerHTML = filteredOrders
+    .map((order) => {
+      const percent = getProgressPercent(order);
+      const urgent = order.status !== "complete" && daysUntil(order.dueDate) <= 3;
+      return `
+        <article class="progress-card ${order.status === "paused" ? "paused-card" : ""}">
+          <div class="progress-top">
+            <div>
+              <strong>${escapeHtml(order.product)}</strong>
+              <p class="progress-meta">${escapeHtml(order.company)}</p>
+            </div>
+            ${statusBadgeClean(order, urgent)}
+          </div>
+          <div class="bar-track">
+            <div class="bar-fill" style="width: ${percent}%"></div>
+          </div>
+          ${renderProgressMetaGrid(order)}
+          ${order.status === "paused" ? `<div class="paused-flag">작업 중지 / ${escapeHtml(order.pauseReason || "사유 미입력")}</div>` : ""}
+        </article>
+      `;
+    })
+    .join("");
+}
+
+function renderDashboardFilteredList() {
+  const filteredOrders = getSortedOrders(getDashboardFilteredOrders());
+  const titleMap = {
+    all: "전체 발주 리스트",
+    ready: "작업 대기 리스트",
+    working: "작업 중 리스트",
+    urgent: "납기 임박 리스트"
+  };
+  dashboardListTitle.textContent = titleMap[dashboardFilter] || "전체 발주 리스트";
+
+  if (!isDashboardListOpen) {
+    dashboardFilteredList.innerHTML = `<div class="empty-state">카드를 누르면 해당 리스트가 표시됩니다.</div>`;
+    return;
+  }
+
+  if (filteredOrders.length === 0) {
+    dashboardFilteredList.innerHTML = `<div class="empty-state">표시할 발주가 없습니다.</div>`;
+    return;
+  }
+
+  dashboardFilteredList.innerHTML = filteredOrders
+    .map((order) => {
+      const urgent = order.status !== "complete" && daysUntil(order.dueDate) <= 3;
+      return `
+        <article class="progress-card ${order.status === "paused" ? "paused-card" : ""}">
+          <div class="progress-top">
+            <div>
+              <strong>${escapeHtml(order.product)}</strong>
+              <p class="progress-meta">${escapeHtml(order.company)}</p>
+            </div>
+            ${statusBadgeClean(order, urgent)}
+          </div>
+          ${renderProgressMetaGrid(order, true)}
+          ${order.status === "paused" ? `<div class="paused-flag">작업 중지 / ${escapeHtml(order.pauseReason || "사유 미입력")}</div>` : ""}
+        </article>
+      `;
+    })
+    .join("");
+}
+
+function renderCalendar() {
+  document.getElementById("calendarMobileList")?.remove();
+
+  const weekdays = ["일", "월", "화", "수", "목", "금", "토"];
+  calendarWeekdays.innerHTML = weekdays.map((day) => `<div class="calendar-weekday">${day}</div>`).join("");
+  calendarTitle.textContent = `${calendarCursor.getFullYear()}년 ${calendarCursor.getMonth() + 1}월`;
+
+  const firstDay = new Date(calendarCursor.getFullYear(), calendarCursor.getMonth(), 1);
+  const startDay = new Date(firstDay);
+  startDay.setDate(firstDay.getDate() - firstDay.getDay());
+  const todayKey = toDateKey(new Date());
+
+  calendarGrid.innerHTML = Array.from({ length: 42 }, (_, index) => {
+    const cellDate = new Date(startDay);
+    cellDate.setDate(startDay.getDate() + index);
+    const dateKey = toDateKey(cellDate);
+    const orders = getSortedOrders(state.orders.filter((order) => order.dueDate === dateKey));
+    const isCurrentMonth = cellDate.getMonth() === calendarCursor.getMonth();
+    const isToday = dateKey === todayKey;
+    const urgent = orders.some((order) => order.status !== "complete" && daysUntil(order.dueDate) <= 3);
+
+    return `
+      <div class="calendar-day ${isCurrentMonth ? "" : "muted"} ${isToday ? "today" : ""} ${orders.length ? "has-due" : ""} ${urgent ? "urgent-due" : ""}">
+        <div class="calendar-date">${cellDate.getDate()}</div>
+        <div class="calendar-items">
+          ${orders
+            .slice(0, 2)
+            .map((order) => {
+              const companyName = String(order.company || "");
+              const shortName = companyName.slice(0, 2);
+              return `<button type="button" class="calendar-pill ${daysUntil(order.dueDate) <= 3 && order.status !== "complete" ? "urgent" : ""}" data-date-key="${dateKey}"><span class="calendar-pill-text-long">${escapeHtml(companyName)}</span><span class="calendar-pill-text-short">${escapeHtml(shortName || companyName)}</span></button>`;
+            })
+            .join("")}
+          ${orders.length > 2 ? `<div class="calendar-pill">+${orders.length - 2}건</div>` : ""}
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  const monthOrders = getSortedOrders(
+    state.orders.filter((order) => {
+      if (!order.dueDate) return false;
+      const dueDate = new Date(order.dueDate);
+      return dueDate.getFullYear() === calendarCursor.getFullYear() && dueDate.getMonth() === calendarCursor.getMonth();
+    })
+  );
+
+  const mobileListHtml = monthOrders.length
+    ? monthOrders
+        .map((order) => {
+          const urgent = order.status !== "complete" && daysUntil(order.dueDate) <= 3;
+          return `
+            <button type="button" class="calendar-list-item ${urgent ? "urgent" : ""}" data-date-key="${order.dueDate}">
+              <span class="calendar-list-date">${formatDate(order.dueDate)}</span>
+              <strong>${escapeHtml(order.company)}</strong>
+              <span>${escapeHtml(order.product)} / 수량 ${escapeHtml(order.quantity || "-")}</span>
+              <span>${getOrderStatusTextClean(order)} / ${getDeliveryLabel(order)}</span>
+            </button>
+          `;
+        })
+        .join("")
+    : `<div class="empty-state calendar-list-empty">이번 달 납기 일정이 없습니다.</div>`;
+
+  calendarGrid.insertAdjacentHTML("afterend", `<div id="calendarMobileList" class="calendar-mobile-list">${mobileListHtml}</div>`);
+
+  document.querySelectorAll(".calendar-pill[data-date-key], .calendar-list-item[data-date-key]").forEach((button) => {
+    button.addEventListener("click", () => {
+      openCalendarDetail(button.dataset.dateKey || "");
+    });
+  });
+}
+
+function renderCalendar() {
+  document.getElementById("calendarMobileList")?.remove();
+
+  const weekdays = ["일", "월", "화", "수", "목", "금", "토"];
+  calendarWeekdays.innerHTML = weekdays.map((day) => `<div class="calendar-weekday">${day}</div>`).join("");
+  calendarTitle.textContent = `${calendarCursor.getFullYear()}년 ${calendarCursor.getMonth() + 1}월`;
+
+  const firstDay = new Date(calendarCursor.getFullYear(), calendarCursor.getMonth(), 1);
+  const startDay = new Date(firstDay);
+  startDay.setDate(firstDay.getDate() - firstDay.getDay());
+  const todayKey = toDateKey(new Date());
+
+  calendarGrid.innerHTML = Array.from({ length: 42 }, (_, index) => {
+    const cellDate = new Date(startDay);
+    cellDate.setDate(startDay.getDate() + index);
+    const dateKey = toDateKey(cellDate);
+    const orders = getSortedOrders(state.orders.filter((order) => order.dueDate === dateKey));
+    const isCurrentMonth = cellDate.getMonth() === calendarCursor.getMonth();
+    const isToday = dateKey === todayKey;
+    const urgent = orders.some((order) => order.status !== "complete" && daysUntil(order.dueDate) <= 3);
+
+    return `
+      <div class="calendar-day ${isCurrentMonth ? "" : "muted"} ${isToday ? "today" : ""} ${orders.length ? "has-due" : ""} ${urgent ? "urgent-due" : ""}">
+        <div class="calendar-date">${cellDate.getDate()}</div>
+        <div class="calendar-items">
+          ${orders
+            .slice(0, 2)
+            .map((order) => {
+              const companyName = String(order.company || "");
+              const shortName = companyName.slice(0, 2);
+              return `<button type="button" class="calendar-pill ${daysUntil(order.dueDate) <= 3 && order.status !== "complete" ? "urgent" : ""}" data-date-key="${dateKey}"><span class="calendar-pill-text-long">${escapeHtml(companyName)}</span><span class="calendar-pill-text-short">${escapeHtml(shortName || companyName)}</span></button>`;
+            })
+            .join("")}
+          ${orders.length > 2 ? `<div class="calendar-pill">+${orders.length - 2}건</div>` : ""}
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  const monthOrders = getSortedOrders(
+    state.orders.filter((order) => {
+      if (!order.dueDate) return false;
+      const dueDate = new Date(order.dueDate);
+      return dueDate.getFullYear() === calendarCursor.getFullYear() && dueDate.getMonth() === calendarCursor.getMonth();
+    })
+  );
+
+  const mobileListHtml = monthOrders.length
+    ? monthOrders
+        .map((order) => {
+          const urgent = order.status !== "complete" && daysUntil(order.dueDate) <= 3;
+          return `
+            <button type="button" class="calendar-list-item ${urgent ? "urgent" : ""}" data-date-key="${order.dueDate}">
+              <span class="calendar-list-date">${formatDate(order.dueDate)}</span>
+              <strong>${escapeHtml(order.company)}</strong>
+              <span>${escapeHtml(order.product)} / 수량 ${escapeHtml(order.quantity || "-")}</span>
+              <span>${getOrderStatusTextClean(order)} / ${getDeliveryLabel(order)}</span>
+            </button>
+          `;
+        })
+        .join("")
+    : `<div class="empty-state calendar-list-empty">이번 달 납기 일정이 없습니다.</div>`;
+
+  calendarGrid.insertAdjacentHTML("afterend", `<div id="calendarMobileList" class="calendar-mobile-list">${mobileListHtml}</div>`);
+
+  document.querySelectorAll(".calendar-pill[data-date-key], .calendar-list-item[data-date-key]").forEach((button) => {
+    button.addEventListener("click", () => {
+      openCalendarDetail(button.dataset.dateKey || "");
+    });
+  });
 }
 
 async function handleAdminLogout() {
@@ -2945,7 +3479,9 @@ function getFilteredShippingOrders() {
         ? remainingQty === 0 && getShippedQuantity(order) > 0
         : shippingFilter === "pending"
           ? remainingQty > 0
-          : true;
+          : shippingFilter === "today"
+            ? remainingQty > 0 && daysUntil(order.dueDate) <= 0
+            : true;
 
     const keyword = shippingSearchKeyword.trim();
     const matchesKeyword =
@@ -2973,18 +3509,18 @@ function renderShippingPage() {
   shippingSearchInput.value = shippingSearchKeyword;
 
   shippingSummary.innerHTML = [
-    { label: "전체 출하 대상", value: allOrders.length, hint: "등록된 전체 발주" },
-    { label: "출하 완료", value: shippedDoneCount, hint: "전량 출하 완료 발주" },
-    { label: "출하 대기", value: pendingCount, hint: "잔량이 남아 있는 발주" },
-    { label: "오늘 확인", value: dueTodayCount + overdueCount, hint: "오늘 납기 및 경과" }
+    { label: "전체 출하 대상", value: allOrders.length, hint: "등록된 전체 발주", filter: "all" },
+    { label: "출하 완료", value: shippedDoneCount, hint: "전량 출하 완료 발주", filter: "done" },
+    { label: "출하 대기", value: pendingCount, hint: "잔량이 남아 있는 발주", filter: "pending" },
+    { label: "오늘 확인", value: dueTodayCount + overdueCount, hint: "오늘 납기 및 경과", filter: "today" }
   ]
     .map(
       (card) => `
-        <article class="stat-card">
+        <button type="button" class="stat-card ${shippingFilter === card.filter ? "active" : ""}" data-shipping-summary-filter="${card.filter}">
           <span>${card.label}</span>
           <strong>${card.value}</strong>
           <p>${card.hint}</p>
-        </article>
+        </button>
       `
     )
     .join("");
@@ -3010,24 +3546,24 @@ function renderShippingPage() {
 
       return `
         <tr class="${shippingState.rowClass}">
-          <td>${escapeHtml(order.company)}</td>
-          <td>${escapeHtml(order.product)}</td>
-          <td class="${shippingState.dueClass}">${formatDate(order.dueDate)}</td>
-          <td>
+          <td data-label="업체명">${escapeHtml(order.company)}</td>
+          <td data-label="제품명">${escapeHtml(order.product)}</td>
+          <td data-label="납기일" class="${shippingState.dueClass}">${formatDate(order.dueDate)}</td>
+          <td data-label="수량">
             <strong>${totalQty.toLocaleString()}개</strong>
             <div class="shipping-progress-text">출하 ${shippedQty.toLocaleString()} / 잔량 ${remainingQty.toLocaleString()}</div>
           </td>
-          <td>${statusBadge(order, false)}</td>
-          <td><span class="status-badge ${shippingState.badgeClass}">${shippingState.label}</span></td>
-          <td>${latestShippedDate ? formatDate(latestShippedDate) : "-"}</td>
-          <td>
+          <td data-label="작업 상태">${statusBadge(order, false)}</td>
+          <td data-label="출하 상태"><span class="status-badge ${shippingState.badgeClass}">${shippingState.label}</span></td>
+          <td data-label="출하일">${latestShippedDate ? formatDate(latestShippedDate) : "-"}</td>
+          <td data-label="출하 메모">
             <div class="shipping-note-wrap">
               <input type="text" value="${escapeHtml(order.shippingNote || "")}" placeholder="출하 메모 입력" data-note-order-id="${order.id}" />
               <button type="button" class="tab-btn shipping-note-save-btn" data-order-id="${order.id}">메모 저장</button>
             </div>
             <div class="shipping-history"><strong>출하 이력</strong><br />${historyHtml}</div>
           </td>
-          <td>
+          <td data-label="관리">
             <div class="shipping-manage-wrap">
               <input type="number" min="1" max="${Math.max(remainingQty, 1)}" placeholder="출하 수량" data-ship-qty-order-id="${order.id}" ${remainingQty === 0 ? "disabled" : ""} />
               <input type="date" value="${new Date().toISOString().slice(0, 10)}" data-ship-date-order-id="${order.id}" ${remainingQty === 0 ? "disabled" : ""} />
@@ -3749,6 +4285,39 @@ function showAppAlert(message) {
   modal.hidden = false;
 }
 
+function renderOrdersTable() {
+  if (state.orders.length === 0) {
+    ordersTableBody.innerHTML = `<tr><td colspan="9"><div class="empty-state">${TEXT.noOrders}</div></td></tr>`;
+    return;
+  }
+
+  ordersTableBody.innerHTML = getSortedOrders(state.orders)
+    .map((order) => {
+      const urgent = order.status !== "complete" && daysUntil(order.dueDate) <= 3;
+      return `
+        <tr class="${urgent ? "danger-row" : ""}">
+          <td data-label="발주일">${formatDate(order.orderDate)}</td>
+          <td data-label="업체명">${escapeHtml(order.company)}</td>
+          <td data-label="제품명">${escapeHtml(order.product)}</td>
+          <td data-label="수량">${escapeHtml(order.quantity || "-")}</td>
+          <td data-label="지급요청">${order.paymentRequested ? "요청" : "-"}</td>
+          <td data-label="구분">${escapeHtml(order.deliveryType || "-")}</td>
+          <td data-label="납기일" class="${urgent ? "danger-text" : ""}">${formatDate(order.dueDate)}</td>
+          <td data-label="상태">${statusBadgeClean(order, urgent)}</td>
+          <td data-label="관리"><button type="button" class="tab-btn edit-order-btn" data-order-id="${order.id}">수정</button></td>
+        </tr>
+      `;
+    })
+    .join("");
+
+  ordersTableBody.querySelectorAll(".edit-order-btn").forEach((button) => {
+    button.addEventListener("click", () => {
+      if (!isAdminLoggedIn) return;
+      openOrderEditPanel(button.dataset.orderId || "");
+    });
+  });
+}
+
 async function handleAdminLogin(formElement) {
   const formData = new FormData(formElement);
   const adminEmail = String(formData.get("adminEmail") || "").trim().toLowerCase();
@@ -3787,3 +4356,790 @@ async function handleAdminLogin(formElement) {
   renderAdminSession();
 }
 
+
+function renderCalendar() {
+  document.getElementById("calendarMobileList")?.remove();
+
+  const weekdays = ["일", "월", "화", "수", "목", "금", "토"];
+  calendarWeekdays.innerHTML = weekdays.map((day) => `<div class="calendar-weekday">${day}</div>`).join("");
+  calendarTitle.textContent = `${calendarCursor.getFullYear()}년 ${calendarCursor.getMonth() + 1}월`;
+
+  const firstDay = new Date(calendarCursor.getFullYear(), calendarCursor.getMonth(), 1);
+  const startDay = new Date(firstDay);
+  startDay.setDate(firstDay.getDate() - firstDay.getDay());
+  const todayKey = toDateKey(new Date());
+
+  calendarGrid.innerHTML = Array.from({ length: 42 }, (_, index) => {
+    const cellDate = new Date(startDay);
+    cellDate.setDate(startDay.getDate() + index);
+    const dateKey = toDateKey(cellDate);
+    const orders = getSortedOrders(state.orders.filter((order) => order.dueDate === dateKey));
+    const isCurrentMonth = cellDate.getMonth() === calendarCursor.getMonth();
+    const isToday = dateKey === todayKey;
+    const urgent = orders.some((order) => order.status !== "complete" && daysUntil(order.dueDate) <= 3);
+
+    return `
+      <div class="calendar-day ${isCurrentMonth ? "" : "muted"} ${isToday ? "today" : ""} ${orders.length ? "has-due" : ""} ${urgent ? "urgent-due" : ""}">
+        <div class="calendar-date">${cellDate.getDate()}</div>
+        <div class="calendar-items">
+          ${orders
+            .slice(0, 2)
+            .map((order) => {
+              const companyName = String(order.company || "");
+              const shortName = companyName.slice(0, 2);
+              return `<button type="button" class="calendar-pill ${daysUntil(order.dueDate) <= 3 && order.status !== "complete" ? "urgent" : ""}" data-date-key="${dateKey}"><span class="calendar-pill-text-long">${escapeHtml(companyName)}</span><span class="calendar-pill-text-short">${escapeHtml(shortName || companyName)}</span></button>`;
+            })
+            .join("")}
+          ${orders.length > 2 ? `<div class="calendar-pill">+${orders.length - 2}건</div>` : ""}
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  const monthOrders = getSortedOrders(
+    state.orders.filter((order) => {
+      if (!order.dueDate) return false;
+      const dueDate = new Date(order.dueDate);
+      return dueDate.getFullYear() === calendarCursor.getFullYear() && dueDate.getMonth() === calendarCursor.getMonth();
+    })
+  );
+
+  const mobileListHtml = monthOrders.length
+    ? monthOrders
+        .map((order) => {
+          const urgent = order.status !== "complete" && daysUntil(order.dueDate) <= 3;
+          return `
+            <button type="button" class="calendar-list-item ${urgent ? "urgent" : ""}" data-date-key="${order.dueDate}">
+              <span class="calendar-list-date">${formatDate(order.dueDate)}</span>
+              <strong>${escapeHtml(order.company)}</strong>
+              <span>${escapeHtml(order.product)} / 수량 ${escapeHtml(order.quantity || "-")}</span>
+              <span>${getOrderStatusTextClean(order)} / ${getDeliveryLabel(order)}</span>
+            </button>
+          `;
+        })
+        .join("")
+    : `<div class="empty-state calendar-list-empty">이번 달 납기 일정이 없습니다.</div>`;
+
+  calendarGrid.insertAdjacentHTML("afterend", `<div id="calendarMobileList" class="calendar-mobile-list">${mobileListHtml}</div>`);
+
+  document.querySelectorAll(".calendar-pill[data-date-key], .calendar-list-item[data-date-key]").forEach((button) => {
+    button.addEventListener("click", () => {
+      openCalendarDetail(button.dataset.dateKey || "");
+    });
+  });
+}
+
+function renderProgressChip(label, value) {
+  const safeValue = value === undefined || value === null || value === "" ? "-" : value;
+  return `<span class="progress-chip"><strong>${escapeHtml(label)}</strong>${escapeHtml(String(safeValue))}</span>`;
+}
+
+function renderProgressMetaGrid(order, includeOrderDate = false) {
+  const chips = [];
+  if (includeOrderDate) {
+    chips.push(renderProgressChip("발주", formatDate(order.orderDate)));
+  }
+  chips.push(renderProgressChip("납기", formatDate(order.dueDate)));
+  chips.push(renderProgressChip("작업자", order.workerName || "미지정"));
+  chips.push(renderProgressChip("장비", order.machineName || "미지정"));
+  chips.push(renderProgressChip("수량", order.quantity || "-"));
+  chips.push(renderProgressChip("생산수", order.productionQty || "-"));
+  chips.push(renderProgressChip("총타수", order.totalHitQty || "-"));
+  chips.push(renderProgressChip("작업시간", getCleanWorkTimeValue(order) || "-"));
+  chips.push(renderProgressChip("지급", order.paymentRequested ? "요청" : "없음"));
+  chips.push(renderProgressChip("구분", order.deliveryType || "-"));
+  return `<div class="progress-meta-grid">${chips.join("")}</div>`;
+}
+
+function renderProgress() {
+  const filteredOrders = getSortedOrders(getDashboardFilteredOrders());
+  const titleMap = {
+    all: "전체 발주 진행률",
+    ready: "작업 대기 진행률",
+    working: "작업 중 진행률",
+    urgent: "납기 임박 진행률"
+  };
+  progressTitle.textContent = titleMap[dashboardFilter] || "전체 발주 진행률";
+
+  if (filteredOrders.length === 0) {
+    progressBoard.innerHTML = `<div class="empty-state">진행 중인 생산 데이터가 없습니다.</div>`;
+    return;
+  }
+
+  progressBoard.innerHTML = filteredOrders
+    .map((order) => {
+      const percent = getProgressPercent(order);
+      const urgent = order.status !== "complete" && daysUntil(order.dueDate) <= 3;
+      return `
+        <article class="progress-card ${order.status === "paused" ? "paused-card" : ""}">
+          <div class="progress-top">
+            <div>
+              <strong>${escapeHtml(order.product)}</strong>
+              <p class="progress-meta">${escapeHtml(order.company)}</p>
+            </div>
+            ${statusBadgeClean(order, urgent)}
+          </div>
+          <div class="bar-track">
+            <div class="bar-fill" style="width: ${percent}%"></div>
+          </div>
+          ${renderProgressMetaGrid(order)}
+          ${order.status === "paused" ? `<div class="paused-flag">작업 중지 / ${escapeHtml(order.pauseReason || "사유 미입력")}</div>` : ""}
+        </article>
+      `;
+    })
+    .join("");
+}
+
+function renderDashboardFilteredList() {
+  const filteredOrders = getSortedOrders(getDashboardFilteredOrders());
+  const titleMap = {
+    all: "전체 발주 리스트",
+    ready: "작업 대기 리스트",
+    working: "작업 중 리스트",
+    urgent: "납기 임박 리스트"
+  };
+  dashboardListTitle.textContent = titleMap[dashboardFilter] || "전체 발주 리스트";
+
+  if (!isDashboardListOpen) {
+    dashboardFilteredList.innerHTML = `<div class="empty-state">카드를 누르면 해당 리스트가 표시됩니다.</div>`;
+    return;
+  }
+
+  if (filteredOrders.length === 0) {
+    dashboardFilteredList.innerHTML = `<div class="empty-state">표시할 발주가 없습니다.</div>`;
+    return;
+  }
+
+  dashboardFilteredList.innerHTML = filteredOrders
+    .map((order) => {
+      const percent = getProgressPercent(order);
+      const urgent = order.status !== "complete" && daysUntil(order.dueDate) <= 3;
+      return `
+        <article class="progress-card ${order.status === "paused" ? "paused-card" : ""}">
+          <div class="progress-top">
+            <div>
+              <strong>${escapeHtml(order.product)}</strong>
+              <p class="progress-meta">${escapeHtml(order.company)}</p>
+            </div>
+            ${statusBadgeClean(order, urgent)}
+          </div>
+          <div class="bar-track">
+            <div class="bar-fill" style="width: ${percent}%"></div>
+          </div>
+          ${renderProgressMetaGrid(order, true)}
+          ${order.status === "paused" ? `<div class="paused-flag">작업 중지 / ${escapeHtml(order.pauseReason || "사유 미입력")}</div>` : ""}
+        </article>
+      `;
+    })
+    .join("");
+}
+
+function openOrderEditPanel(orderId) {
+  const order = state.orders.find((item) => item.id === orderId);
+  if (!order) {
+    showAppAlert("수정할 발주를 찾을 수 없습니다.");
+    return;
+  }
+
+  editOrderIdInput.value = order.id;
+  editDueDateInput.value = order.dueDate || "";
+  editQuantityInput.value = order.quantity || "";
+  editPaymentRequestedInput.checked = Boolean(order.paymentRequested);
+  editDeliveryTypeInput.value = order.deliveryType || "직납";
+  orderEditPanel.hidden = false;
+
+  requestAnimationFrame(() => {
+    orderEditPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+    editDueDateInput.focus({ preventScroll: true });
+  });
+}
+
+if (ordersTableBody && !ordersTableBody.dataset.editDelegated) {
+  ordersTableBody.dataset.editDelegated = "true";
+  ordersTableBody.addEventListener("click", (event) => {
+    const button = event.target.closest(".edit-order-btn");
+    if (!button) return;
+    event.preventDefault();
+
+    if (!isAdminLoggedIn) {
+      showAppAlert("관리자 로그인 후 발주를 수정할 수 있습니다.");
+      return;
+    }
+
+    openOrderEditPanel(button.dataset.orderId || "");
+  });
+}
+
+function renderStats() {
+  const cards = [
+    { key: "all", label: "전체 발주", value: state.orders.length, hint: "등록된 전체 발주 건", tone: "stat-all" },
+    { key: "ready", label: "작업 대기", value: state.orders.filter((item) => item.status === "ready").length, hint: "작업 시작 전 발주", tone: "stat-ready" },
+    { key: "working", label: "작업 중", value: state.orders.filter((item) => item.status === "working").length, hint: "현재 생산 진행 건", tone: "stat-working" },
+    { key: "complete", label: "작업 완료", value: state.orders.filter((item) => item.status === "complete").length, hint: "생산 완료 발주", tone: "stat-complete" },
+    { key: "urgent", label: "납기 임박", value: state.orders.filter((item) => item.status !== "complete" && daysUntil(item.dueDate) <= 3).length, hint: "3일 이내 납기 건", tone: "stat-urgent" }
+  ];
+
+  statsGrid.innerHTML = cards
+    .map(
+      (card) => `
+        <button type="button" class="stat-card ${card.tone} ${dashboardFilter === card.key ? "active" : ""}" data-filter="${card.key}">
+          <span>${card.label}</span>
+          <strong>${card.value}</strong>
+          <p>${card.hint}</p>
+        </button>
+      `
+    )
+    .join("");
+
+  statsGrid.querySelectorAll(".stat-card").forEach((card) => {
+    card.addEventListener("click", () => {
+      const nextFilter = card.dataset.filter || "all";
+      if (dashboardFilter === nextFilter && isDashboardListOpen) {
+        isDashboardListOpen = false;
+      } else {
+        dashboardFilter = nextFilter;
+        isDashboardListOpen = true;
+      }
+      renderStats();
+      renderProgress();
+      renderDashboardFilteredList();
+      if (isDashboardListOpen) {
+        dashboardFilteredList.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    });
+  });
+}
+
+function getDashboardFilteredOrders() {
+  if (dashboardFilter === "ready") {
+    return state.orders.filter((order) => order.status === "ready");
+  }
+  if (dashboardFilter === "working") {
+    return state.orders.filter((order) => order.status === "working");
+  }
+  if (dashboardFilter === "complete") {
+    return state.orders.filter((order) => order.status === "complete");
+  }
+  if (dashboardFilter === "urgent") {
+    return state.orders.filter((order) => order.status !== "complete" && daysUntil(order.dueDate) <= 3);
+  }
+  return state.orders;
+}
+
+function renderProgress() {
+  const filteredOrders = getSortedOrders(getDashboardFilteredOrders());
+  const titleMap = {
+    all: "전체 발주 진행률",
+    ready: "작업 대기 진행률",
+    working: "작업 중 진행률",
+    complete: "작업 완료 진행률",
+    urgent: "납기 임박 진행률"
+  };
+  progressTitle.textContent = titleMap[dashboardFilter] || "전체 발주 진행률";
+
+  if (filteredOrders.length === 0) {
+    progressBoard.innerHTML = `<div class="empty-state">진행 중인 생산 데이터가 없습니다.</div>`;
+    return;
+  }
+
+  progressBoard.innerHTML = filteredOrders
+    .map((order) => {
+      const percent = getProgressPercent(order);
+      const urgent = order.status !== "complete" && daysUntil(order.dueDate) <= 3;
+      return `
+        <article class="progress-card ${order.status === "paused" ? "paused-card" : ""}">
+          <div class="progress-top">
+            <div>
+              <strong>${escapeHtml(order.product)}</strong>
+              <p class="progress-meta">${escapeHtml(order.company)}</p>
+            </div>
+            ${statusBadgeClean(order, urgent)}
+          </div>
+          <div class="bar-track">
+            <div class="bar-fill" style="width: ${percent}%"></div>
+          </div>
+          ${renderProgressMetaGrid(order)}
+          ${order.status === "paused" ? `<div class="paused-flag">작업 중지 / ${escapeHtml(order.pauseReason || "사유 미입력")}</div>` : ""}
+        </article>
+      `;
+    })
+    .join("");
+}
+
+function renderDashboardFilteredList() {
+  const filteredOrders = getSortedOrders(getDashboardFilteredOrders());
+  const titleMap = {
+    all: "전체 발주 리스트",
+    ready: "작업 대기 리스트",
+    working: "작업 중 리스트",
+    complete: "작업 완료 리스트",
+    urgent: "납기 임박 리스트"
+  };
+  dashboardListTitle.textContent = titleMap[dashboardFilter] || "전체 발주 리스트";
+
+  if (!isDashboardListOpen) {
+    dashboardFilteredList.innerHTML = `<div class="empty-state">카드를 누르면 해당 리스트가 표시됩니다.</div>`;
+    return;
+  }
+
+  if (filteredOrders.length === 0) {
+    dashboardFilteredList.innerHTML = `<div class="empty-state">표시할 발주가 없습니다.</div>`;
+    return;
+  }
+
+  dashboardFilteredList.innerHTML = filteredOrders
+    .map((order) => {
+      const percent = getProgressPercent(order);
+      const urgent = order.status !== "complete" && daysUntil(order.dueDate) <= 3;
+      return `
+        <article class="progress-card ${order.status === "paused" ? "paused-card" : ""}">
+          <div class="progress-top">
+            <div>
+              <strong>${escapeHtml(order.product)}</strong>
+              <p class="progress-meta">${escapeHtml(order.company)}</p>
+            </div>
+            ${statusBadgeClean(order, urgent)}
+          </div>
+          <div class="bar-track">
+            <div class="bar-fill" style="width: ${percent}%"></div>
+          </div>
+          ${renderProgressMetaGrid(order, true)}
+          ${order.status === "paused" ? `<div class="paused-flag">작업 중지 / ${escapeHtml(order.pauseReason || "사유 미입력")}</div>` : ""}
+        </article>
+      `;
+    })
+    .join("");
+}
+
+function getCalendarStatusClass(order) {
+  if (order.status === "complete") return "calendar-complete";
+  if (order.status === "working") return "calendar-working";
+  if (order.status === "paused") return "calendar-paused";
+  if (order.status !== "complete" && daysUntil(order.dueDate) <= 3) return "calendar-urgent";
+  return "calendar-ready";
+}
+
+function renderCalendar() {
+  document.getElementById("calendarMobileList")?.remove();
+
+  const weekdays = ["일", "월", "화", "수", "목", "금", "토"];
+  calendarWeekdays.innerHTML = weekdays.map((day) => `<div class="calendar-weekday">${day}</div>`).join("");
+  calendarTitle.textContent = `${calendarCursor.getFullYear()}년 ${calendarCursor.getMonth() + 1}월`;
+
+  const firstDay = new Date(calendarCursor.getFullYear(), calendarCursor.getMonth(), 1);
+  const startDay = new Date(firstDay);
+  startDay.setDate(firstDay.getDate() - firstDay.getDay());
+  const todayKey = toDateKey(new Date());
+
+  calendarGrid.innerHTML = Array.from({ length: 42 }, (_, index) => {
+    const cellDate = new Date(startDay);
+    cellDate.setDate(startDay.getDate() + index);
+    const dateKey = toDateKey(cellDate);
+    const orders = getSortedOrders(state.orders.filter((order) => order.dueDate === dateKey));
+    const isCurrentMonth = cellDate.getMonth() === calendarCursor.getMonth();
+    const isToday = dateKey === todayKey;
+    const urgent = orders.some((order) => order.status !== "complete" && daysUntil(order.dueDate) <= 3);
+    const hasWorking = orders.some((order) => order.status === "working");
+    const hasComplete = orders.length > 0 && orders.every((order) => order.status === "complete");
+    const hasReady = orders.some((order) => order.status === "ready");
+
+    return `
+      <div class="calendar-day ${isCurrentMonth ? "" : "muted"} ${isToday ? "today" : ""} ${orders.length ? "has-due" : ""} ${urgent ? "urgent-due" : ""} ${hasWorking ? "working-due" : ""} ${hasComplete ? "complete-due" : ""} ${hasReady ? "ready-due" : ""}">
+        <div class="calendar-date">${cellDate.getDate()}</div>
+        <div class="calendar-items">
+          ${orders
+            .slice(0, 2)
+            .map((order) => {
+              const companyName = String(order.company || "");
+              const shortName = companyName.slice(0, 2);
+              return `<button type="button" class="calendar-pill ${getCalendarStatusClass(order)}" data-date-key="${dateKey}"><span class="calendar-pill-text-long">${escapeHtml(companyName)}</span><span class="calendar-pill-text-short">${escapeHtml(shortName || companyName)}</span></button>`;
+            })
+            .join("")}
+          ${orders.length > 2 ? `<div class="calendar-pill calendar-more">+${orders.length - 2}건</div>` : ""}
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  document.querySelectorAll(".calendar-pill[data-date-key]").forEach((button) => {
+    button.addEventListener("click", () => {
+      openCalendarDetail(button.dataset.dateKey || "");
+    });
+  });
+}
+
+function renderCalendarDetail() {
+  if (!selectedCalendarDateKey) return;
+  const orders = getSortedOrders(state.orders.filter((order) => order.dueDate === selectedCalendarDateKey));
+  calendarDetailTitle.textContent = `${formatDate(selectedCalendarDateKey)} 납기 상세`;
+
+  if (!orders.length) {
+    calendarDetailBody.innerHTML = `<div class="empty-state">해당 날짜의 납기 데이터가 없습니다.</div>`;
+    return;
+  }
+
+  calendarDetailBody.innerHTML = orders
+    .map((order) => {
+      const urgent = order.status !== "complete" && daysUntil(order.dueDate) <= 3;
+      return `
+        <article class="feed-item calendar-detail-card ${getCalendarStatusClass(order)}">
+          <div class="feed-item-top">
+            <strong>${escapeHtml(order.company)}</strong>
+            ${statusBadgeClean(order, urgent)}
+          </div>
+          <div class="detail-lines">
+            <p class="detail-line"><strong>제품명</strong> ${escapeHtml(order.product)}</p>
+            <p class="detail-line"><strong>상태</strong> ${getOrderStatusTextClean(order)}</p>
+            <p class="detail-line"><strong>납기일</strong> ${formatDate(order.dueDate)}</p>
+            <p class="detail-line"><strong>장비</strong> ${escapeHtml(order.machineName || "-")}</p>
+            <p class="detail-line"><strong>수량</strong> ${escapeHtml(order.quantity || "-")}</p>
+            <p class="detail-line"><strong>구분</strong> ${getPaymentLabel(order)} / ${getDeliveryLabel(order)}</p>
+            <p class="detail-line"><strong>작업시간</strong> ${getCleanWorkTimeValue(order) || "-"}</p>
+            <p class="detail-line"><strong>총생산수</strong> ${String(order.productionQty || "-")}</p>
+            <p class="detail-line"><strong>총타발수</strong> ${String(order.totalHitQty || "-")}</p>
+          </div>
+        </article>
+      `;
+    })
+    .join("");
+}
+
+function getCalendarStatusClass(order) {
+  if (order.status === "complete") return "calendar-complete";
+  if (order.status !== "complete" && daysUntil(order.dueDate) <= 3) return "calendar-urgent";
+  if (order.status === "working") return "calendar-working";
+  if (order.status === "paused") return "calendar-paused";
+  return "calendar-ready";
+}
+
+function statusBadgeClean(order, urgent = false) {
+  if (order.status !== "complete" && urgent) {
+    const label = daysUntil(order.dueDate) < 0 ? "납기 경과" : "납기 임박";
+    return `<span class="status-badge status-warning">${label}</span>`;
+  }
+
+  const map = {
+    complete: { label: "작업 완료", className: "status-complete" },
+    working: { label: "작업 중", className: "status-working" },
+    paused: { label: "작업 중지", className: "status-warning" },
+    ready: { label: "작업 대기", className: "status-ready" }
+  };
+  const item = map[order.status] || map.ready;
+  return `<span class="status-badge ${item.className}">${item.label}</span>`;
+}
+
+function getOrderNoteText(order) {
+  return String(order.orderNote || "").trim();
+}
+
+function renderOrdersTable() {
+  if (state.orders.length === 0) {
+    ordersTableBody.innerHTML = `<tr><td colspan="10"><div class="empty-state">${TEXT.noOrders}</div></td></tr>`;
+    return;
+  }
+
+  ordersTableBody.innerHTML = getSortedOrders(state.orders)
+    .map((order) => {
+      const urgent = order.status !== "complete" && daysUntil(order.dueDate) <= 3;
+      const note = getOrderNoteText(order);
+      return `
+        <tr class="${urgent ? "danger-row" : ""}">
+          <td data-label="발주일">${formatDate(order.orderDate)}</td>
+          <td data-label="업체명">${escapeHtml(order.company)}</td>
+          <td data-label="제품명">${escapeHtml(order.product)}</td>
+          <td data-label="수량">${escapeHtml(order.quantity || "-")}</td>
+          <td data-label="지급요청">${order.paymentRequested ? "요청" : "-"}</td>
+          <td data-label="구분">${escapeHtml(order.deliveryType || "-")}</td>
+          <td data-label="납기일" class="${urgent ? "danger-text" : ""}">${formatDate(order.dueDate)}</td>
+          <td data-label="비고">${note ? escapeHtml(note) : "-"}</td>
+          <td data-label="상태">${statusBadgeClean(order, urgent)}</td>
+          <td data-label="관리"><button type="button" class="tab-btn edit-order-btn" data-order-id="${order.id}">수정</button></td>
+        </tr>
+      `;
+    })
+    .join("");
+
+  ordersTableBody.querySelectorAll(".edit-order-btn").forEach((button) => {
+    button.addEventListener("click", () => {
+      if (!isAdminLoggedIn) {
+        showAppAlert("관리자 로그인 후 발주를 수정할 수 있습니다.");
+        return;
+      }
+      openOrderEditPanel(button.dataset.orderId || "");
+    });
+  });
+}
+
+function renderProgressMetaGrid(order, includeOrderDate = false) {
+  const chips = [];
+  if (includeOrderDate) {
+    chips.push(renderProgressChip("발주", formatDate(order.orderDate)));
+  }
+  chips.push(renderProgressChip("납기", formatDate(order.dueDate)));
+  chips.push(renderProgressChip("작업자", order.workerName || "미지정"));
+  chips.push(renderProgressChip("장비", order.machineName || "미지정"));
+  chips.push(renderProgressChip("수량", order.quantity || "-"));
+  chips.push(renderProgressChip("생산수", order.productionQty || "-"));
+  chips.push(renderProgressChip("총타수", order.totalHitQty || "-"));
+  chips.push(renderProgressChip("작업시간", getCleanWorkTimeValue(order) || "-"));
+  chips.push(renderProgressChip("지급", order.paymentRequested ? "요청" : "없음"));
+  chips.push(renderProgressChip("구분", order.deliveryType || "-"));
+  if (getOrderNoteText(order)) {
+    chips.push(renderProgressChip("비고", getOrderNoteText(order)));
+  }
+  return `<div class="progress-meta-grid">${chips.join("")}</div>`;
+}
+
+function openOrderEditPanel(orderId) {
+  const order = state.orders.find((item) => item.id === orderId);
+  if (!order) {
+    showAppAlert("수정할 발주를 찾을 수 없습니다.");
+    return;
+  }
+
+  const editOrderNoteInput = document.getElementById("editOrderNote");
+  editOrderIdInput.value = order.id;
+  editDueDateInput.value = order.dueDate || "";
+  editQuantityInput.value = order.quantity || "";
+  editPaymentRequestedInput.checked = Boolean(order.paymentRequested);
+  editDeliveryTypeInput.value = order.deliveryType || "직납";
+  if (editOrderNoteInput) {
+    editOrderNoteInput.value = getOrderNoteText(order);
+  }
+  orderEditPanel.hidden = false;
+
+  requestAnimationFrame(() => {
+    orderEditPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+    editDueDateInput.focus({ preventScroll: true });
+  });
+}
+
+function renderCalendarDetail() {
+  if (!selectedCalendarDateKey) return;
+  const orders = getSortedOrders(state.orders.filter((order) => order.dueDate === selectedCalendarDateKey));
+  calendarDetailTitle.textContent = `${formatDate(selectedCalendarDateKey)} 납기 상세`;
+
+  if (!orders.length) {
+    calendarDetailBody.innerHTML = `<div class="empty-state">해당 날짜의 납기 데이터가 없습니다.</div>`;
+    return;
+  }
+
+  calendarDetailBody.innerHTML = orders
+    .map((order) => {
+      const urgent = order.status !== "complete" && daysUntil(order.dueDate) <= 3;
+      const note = getOrderNoteText(order);
+      return `
+        <article class="feed-item calendar-detail-card ${getCalendarStatusClass(order)}">
+          <div class="feed-item-top">
+            <strong>${escapeHtml(order.company)}</strong>
+            ${statusBadgeClean(order, urgent)}
+          </div>
+          <div class="detail-lines">
+            <p class="detail-line"><strong>제품명</strong> ${escapeHtml(order.product)}</p>
+            <p class="detail-line"><strong>상태</strong> ${getOrderStatusTextClean(order)}</p>
+            <p class="detail-line"><strong>납기일</strong> ${formatDate(order.dueDate)}</p>
+            <p class="detail-line"><strong>장비</strong> ${escapeHtml(order.machineName || "-")}</p>
+            <p class="detail-line"><strong>수량</strong> ${escapeHtml(order.quantity || "-")}</p>
+            <p class="detail-line"><strong>구분</strong> ${getPaymentLabel(order)} / ${getDeliveryLabel(order)}</p>
+            <p class="detail-line"><strong>비고</strong> ${note ? escapeHtml(note) : "-"}</p>
+            <p class="detail-line"><strong>작업시간</strong> ${getCleanWorkTimeValue(order) || "-"}</p>
+            <p class="detail-line"><strong>총생산수</strong> ${String(order.productionQty || "-")}</p>
+            <p class="detail-line"><strong>총타발수</strong> ${String(order.totalHitQty || "-")}</p>
+          </div>
+        </article>
+      `;
+    })
+    .join("");
+}
+
+function renderShippingPage() {
+  state.orders.forEach(syncOrderShippingState);
+
+  const orders = getFilteredShippingOrders();
+  const allOrders = getSortedOrders(state.orders);
+  const shippedDoneCount = allOrders.filter((order) => getRemainingShippingQuantity(order) === 0 && getShippedQuantity(order) > 0).length;
+  const pendingCount = allOrders.filter((order) => getRemainingShippingQuantity(order) > 0).length;
+  const overdueCount = allOrders.filter((order) => getRemainingShippingQuantity(order) > 0 && daysUntil(order.dueDate) < 0).length;
+  const dueTodayCount = allOrders.filter((order) => getRemainingShippingQuantity(order) > 0 && daysUntil(order.dueDate) === 0).length;
+
+  shippingFilterAllBtn.classList.toggle("active", shippingFilter === "all");
+  shippingFilterPendingBtn.classList.toggle("active", shippingFilter === "pending");
+  shippingFilterDoneBtn.classList.toggle("active", shippingFilter === "done");
+  shippingSearchInput.value = shippingSearchKeyword;
+
+  shippingSummary.innerHTML = [
+    { label: "전체 출하 대상", value: allOrders.length, hint: "등록된 전체 발주", filter: "all" },
+    { label: "출하 완료", value: shippedDoneCount, hint: "전량 출하 완료 발주", filter: "done" },
+    { label: "출하 대기", value: pendingCount, hint: "잔량이 남아 있는 발주", filter: "pending" },
+    { label: "오늘 확인", value: dueTodayCount + overdueCount, hint: "오늘 납기 및 경과", filter: "today" }
+  ]
+    .map(
+      (card) => `
+        <button type="button" class="stat-card ${shippingFilter === card.filter ? "active" : ""}" data-shipping-summary-filter="${card.filter}">
+          <span>${card.label}</span>
+          <strong>${card.value}</strong>
+          <p>${card.hint}</p>
+        </button>
+      `
+    )
+    .join("");
+
+  if (orders.length === 0) {
+    shippingTableBody.innerHTML = `<tr><td colspan="9"><div class="empty-state">${TEXT.noOrders}</div></td></tr>`;
+    return;
+  }
+
+  shippingTableBody.innerHTML = orders
+    .map((order) => {
+      const shippingState = getShippingStatus(order);
+      const totalQty = getOrderQuantity(order);
+      const shippedQty = getShippedQuantity(order);
+      const remainingQty = getRemainingShippingQuantity(order);
+      const latestShippedDate = getLatestShipmentDate(order);
+      const shipments = getShipmentRecords(order);
+      const orderNote = getOrderNoteText(order);
+      const historyHtml = shipments.length
+        ? shipments
+            .map((item) => `${formatDate(item.date)} ${Number(item.qty || 0).toLocaleString()}개`)
+            .join("<br />")
+        : "출하 이력 없음";
+
+      return `
+        <tr class="${shippingState.rowClass}">
+          <td data-label="업체명">${escapeHtml(order.company)}</td>
+          <td data-label="제품명">${escapeHtml(order.product)}</td>
+          <td data-label="납기일" class="${shippingState.dueClass}">${formatDate(order.dueDate)}</td>
+          <td data-label="수량">
+            <strong>${totalQty.toLocaleString()}개</strong>
+            <div class="shipping-progress-text">출하 ${shippedQty.toLocaleString()} / 잔량 ${remainingQty.toLocaleString()}</div>
+          </td>
+          <td data-label="작업 상태">${statusBadgeClean(order, order.status !== "complete" && daysUntil(order.dueDate) <= 3)}</td>
+          <td data-label="출하 상태"><span class="status-badge ${shippingState.badgeClass}">${shippingState.label}</span></td>
+          <td data-label="출하일">${latestShippedDate ? formatDate(latestShippedDate) : "-"}</td>
+          <td data-label="출하 메모">
+            ${orderNote ? `<div class="order-note-box"><strong>발주 비고</strong><span>${escapeHtml(orderNote)}</span></div>` : ""}
+            <div class="shipping-note-wrap">
+              <input type="text" value="${escapeHtml(order.shippingNote || "")}" placeholder="출하 메모 입력" data-note-order-id="${order.id}" />
+              <button type="button" class="tab-btn shipping-note-save-btn" data-order-id="${order.id}">메모 저장</button>
+            </div>
+            <div class="shipping-history"><strong>출하 이력</strong><br />${historyHtml}</div>
+          </td>
+          <td data-label="관리">
+            <div class="shipping-manage-wrap">
+              <input type="number" min="1" max="${Math.max(remainingQty, 1)}" placeholder="출하 수량" data-ship-qty-order-id="${order.id}" ${remainingQty === 0 ? "disabled" : ""} />
+              <input type="date" value="${new Date().toISOString().slice(0, 10)}" data-ship-date-order-id="${order.id}" ${remainingQty === 0 ? "disabled" : ""} />
+              <button type="button" class="tab-btn shipping-action-btn" data-order-id="${order.id}" ${remainingQty === 0 ? "disabled" : ""}>
+                ${remainingQty === 0 ? "출하 완료" : "부분 출하 등록"}
+              </button>
+            </div>
+          </td>
+        </tr>
+      `;
+    })
+    .join("");
+
+  orders.forEach((order) => {
+    const noteInput = shippingTableBody.querySelector(`input[data-note-order-id="${order.id}"]`);
+    const noteButton = shippingTableBody.querySelector(`.shipping-note-save-btn[data-order-id="${order.id}"]`);
+    const isLocked = Boolean(order.shippingNoteLocked);
+    const isFullyShipped = getRemainingShippingQuantity(order) === 0;
+
+    if (noteInput) {
+      noteInput.disabled = isFullyShipped || isLocked;
+    }
+    if (noteButton) {
+      noteButton.disabled = isFullyShipped;
+      noteButton.textContent = isFullyShipped ? "출하 완료" : isLocked ? "메모 수정" : "메모 저장";
+    }
+  });
+
+  shippingTableBody.querySelectorAll(".shipping-action-btn").forEach((button) => {
+    button.addEventListener("click", () => {
+      const order = state.orders.find((item) => item.id === button.dataset.orderId);
+      if (!order) return;
+
+      const qtyInput = shippingTableBody.querySelector(`input[data-ship-qty-order-id="${order.id}"]`);
+      const dateInput = shippingTableBody.querySelector(`input[data-ship-date-order-id="${order.id}"]`);
+      const remainingQty = getRemainingShippingQuantity(order);
+      const shipQty = Number(qtyInput?.value || 0);
+      const shipDate = String(dateInput?.value || "");
+
+      if (!shipQty || shipQty <= 0) {
+        showAppAlert("출하 수량을 입력해 주세요.");
+        return;
+      }
+      if (shipQty > remainingQty) {
+        showAppAlert("출하 수량이 잔량보다 많습니다.");
+        return;
+      }
+      if (!shipDate) {
+        showAppAlert("출하일을 입력해 주세요.");
+        return;
+      }
+
+      const shipments = getShipmentRecords(order);
+      shipments.push({
+        id: crypto.randomUUID(),
+        qty: shipQty,
+        date: shipDate,
+        note: String(order.shippingNote || "").trim()
+      });
+      order.shipments = shipments;
+      order.shippedDate = shipDate;
+      syncOrderShippingState(order);
+      order.shippingNoteLocked = order.shipped ? true : order.shippingNoteLocked;
+
+      state.activities.unshift({
+        id: crypto.randomUUID(),
+        type: "ship",
+        workerName: "출하",
+        orderId: order.id,
+        timestamp: new Date().toISOString(),
+        message: `${shipQty.toLocaleString()}개 출하 등록`
+      });
+
+      persist();
+      renderShippingPage();
+      renderDashboard();
+    });
+  });
+
+  shippingTableBody.querySelectorAll(".shipping-note-save-btn").forEach((button) => {
+    button.addEventListener("click", () => {
+      const order = state.orders.find((item) => item.id === button.dataset.orderId);
+      if (!order) return;
+      const noteInput = shippingTableBody.querySelector(`input[data-note-order-id="${order.id}"]`);
+      if (order.shippingNoteLocked) {
+        order.shippingNoteLocked = false;
+      } else {
+        order.shippingNote = String(noteInput?.value || "").trim();
+        order.shippingNoteLocked = true;
+      }
+      persist();
+      renderShippingPage();
+    });
+  });
+}
+
+function renderProgressMetaGrid(order, includeOrderDate = false) {
+  const chips = [];
+  if (includeOrderDate) {
+    chips.push(renderProgressChip("발주", formatDate(order.orderDate)));
+  }
+  chips.push(renderProgressChip("납기", formatDate(order.dueDate)));
+  chips.push(renderProgressChip("작업자", order.workerName || "미지정"));
+  chips.push(renderProgressChip("장비", order.machineName || "미지정"));
+  chips.push(renderProgressChip("수량", order.quantity || "-"));
+  chips.push(renderProgressChip("생산수", order.productionQty || "-"));
+  chips.push(renderProgressChip("총타수", order.totalHitQty || "-"));
+  chips.push(renderProgressChip("작업시간", getCleanWorkTimeValue(order) || "-"));
+  chips.push(renderProgressChip("지급", order.paymentRequested ? "요청" : "없음"));
+  chips.push(renderProgressChip("구분", order.deliveryType || "-"));
+
+  const note = getOrderNoteText(order);
+  if (note) {
+    chips.push(`<span class="progress-chip progress-note-chip"><strong>비고</strong>${escapeHtml(note)}</span>`);
+  }
+
+  return `<div class="progress-meta-grid">${chips.join("")}</div>`;
+}
