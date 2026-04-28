@@ -2933,3 +2933,33 @@ html {
     padding: 7px 10px;
   }
 }
+
+.order-action-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.delete-order-btn {
+  border-color: rgba(216, 58, 52, 0.28);
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.delete-order-btn:hover {
+  border-color: rgba(216, 58, 52, 0.45);
+  background: rgba(253, 227, 224, 0.95);
+}
+
+@media (max-width: 760px) {
+  .order-action-buttons {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .order-action-buttons .tab-btn {
+    min-height: 38px;
+    padding: 8px 14px;
+  }
+}
