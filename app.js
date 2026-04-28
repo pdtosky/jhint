@@ -5236,3 +5236,133 @@ function createSupabaseAuthClient() {
     }
   });
 }
+
+function showAppConfirm(message, options = {}) {
+  return new Promise((resolve) => {
+    let modal = document.getElementById("appConfirmModal");
+    if (!modal) {
+      modal = document.createElement("div");
+      modal.id = "appConfirmModal";
+      modal.className = "modal-backdrop";
+      modal.hidden = true;
+      modal.innerHTML = `
+        <div class="modal-card app-alert-card">
+          <h3 id="appConfirmTitle">확인</h3>
+          <p id="appConfirmMessage" class="app-alert-message"></p>
+          <div class="modal-actions">
+            <button type="button" class="danger-action-btn" id="appConfirmYesBtn">삭제</button>
+            <button type="button" class="tab-btn" id="appConfirmNoBtn">취소</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+    }
+
+    const titleNode = modal.querySelector("#appConfirmTitle");
+    const messageNode = modal.querySelector("#appConfirmMessage");
+    const yesButton = modal.querySelector("#appConfirmYesBtn");
+    const noButton = modal.querySelector("#appConfirmNoBtn");
+
+    titleNode.textContent = options.title || "확인";
+    messageNode.textContent = String(message || "");
+    yesButton.textContent = options.yesText || "삭제";
+    noButton.textContent = options.noText || "취소";
+
+    const close = (result) => {
+      modal.hidden = true;
+      yesButton.removeEventListener("click", onYes);
+      noButton.removeEventListener("click", onNo);
+      resolve(result);
+    };
+    const onYes = () => close(true);
+    const onNo = () => close(false);
+
+    yesButton.addEventListener("click", onYes);
+    noButton.addEventListener("click", onNo);
+    modal.hidden = false;
+  });
+}
+
+async function deleteOrder(orderId) {
+  if (!isAdminLoggedIn) {
+    showAppAlert("관리자 로그인 후 발주를 삭제할 수 있습니다.");
+    return;
+  }
+
+  const order = state.orders.find((item) => item.id === orderId);
+  if (!order) {
+    showAppAlert("삭제할 발주를 찾을 수 없습니다.");
+    return;
+  }
+
+  const confirmed = await showAppConfirm(
+    `${order.company} / ${order.product}\n\n이 발주를 삭제하시겠습니까?\n작업 이력과 출하 이력도 함께 삭제됩니다.`,
+    {
+      title: "발주 삭제",
+      yesText: "삭제",
+      noText: "취소"
+    }
+  );
+
+  if (!confirmed) return;
+
+  state.orders = state.orders.filter((item) => item.id !== orderId);
+  state.activities = state.activities.filter((activity) => activity.orderId !== orderId);
+  if (selectedCalendarDateKey === order.dueDate) {
+    selectedCalendarDateKey = "";
+    calendarDetailModal.hidden = true;
+  }
+  closeOrderEditPanel();
+  persist();
+  render();
+  showAppAlert("발주가 삭제되었습니다.");
+}
+
+function renderOrdersTable() {
+  if (state.orders.length === 0) {
+    ordersTableBody.innerHTML = `<tr><td colspan="10"><div class="empty-state">${TEXT.noOrders}</div></td></tr>`;
+    return;
+  }
+
+  ordersTableBody.innerHTML = getSortedOrders(state.orders)
+    .map((order) => {
+      const urgent = order.status !== "complete" && daysUntil(order.dueDate) <= 3;
+      const note = getOrderNoteText(order);
+      return `
+        <tr class="${urgent ? "danger-row" : ""}">
+          <td data-label="발주일">${formatDate(order.orderDate)}</td>
+          <td data-label="업체명">${escapeHtml(order.company)}</td>
+          <td data-label="제품명">${escapeHtml(order.product)}</td>
+          <td data-label="수량">${escapeHtml(order.quantity || "-")}</td>
+          <td data-label="지급요청">${order.paymentRequested ? "요청" : "-"}</td>
+          <td data-label="구분">${escapeHtml(order.deliveryType || "-")}</td>
+          <td data-label="납기일" class="${urgent ? "danger-text" : ""}">${formatDate(order.dueDate)}</td>
+          <td data-label="비고">${note ? escapeHtml(note) : "-"}</td>
+          <td data-label="상태">${statusBadgeClean(order, urgent)}</td>
+          <td data-label="관리">
+            <div class="order-action-buttons">
+              <button type="button" class="tab-btn edit-order-btn" data-order-id="${order.id}">수정</button>
+              <button type="button" class="tab-btn delete-order-btn" data-order-id="${order.id}">삭제</button>
+            </div>
+          </td>
+        </tr>
+      `;
+    })
+    .join("");
+
+  ordersTableBody.querySelectorAll(".edit-order-btn").forEach((button) => {
+    button.addEventListener("click", () => {
+      if (!isAdminLoggedIn) {
+        showAppAlert("관리자 로그인 후 발주를 수정할 수 있습니다.");
+        return;
+      }
+      openOrderEditPanel(button.dataset.orderId || "");
+    });
+  });
+
+  ordersTableBody.querySelectorAll(".delete-order-btn").forEach((button) => {
+    button.addEventListener("click", () => {
+      deleteOrder(button.dataset.orderId || "");
+    });
+  });
+}
