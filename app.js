@@ -1,4 +1,5 @@
 const ADMIN_SESSION_KEY = "production-admin-session-v1";
+const DUE_ALARM_KEY = "production-due-alarm-date-v1";
 const API_STATE_URL = "/api/state";
 const POLL_INTERVAL_MS = 5000;
 const APP_CONFIG = window.APP_CONFIG || {};
@@ -193,6 +194,7 @@ const supabaseAuthClient = createSupabaseAuthClient();
 bindEvents();
 initializeApp();
 startDashboardClock();
+startDueAlarmClock();
 
 function bindEvents() {
   tabButtons.forEach((button) => {
@@ -5142,4 +5144,95 @@ function renderProgressMetaGrid(order, includeOrderDate = false) {
   }
 
   return `<div class="progress-meta-grid">${chips.join("")}</div>`;
+}
+
+
+
+
+
+function getDueAlarmOrders() {
+  return getSortedOrders(
+    state.orders.filter((order) => order.status !== "complete" && daysUntil(order.dueDate) <= 3)
+  );
+}
+
+function playDueAlarmSound() {
+  try {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) return;
+    const audioContext = new AudioContextClass();
+    const now = audioContext.currentTime;
+
+    [0, 0.32, 0.64].forEach((offset) => {
+      const oscillator = audioContext.createOscillator();
+      const gain = audioContext.createGain();
+      oscillator.type = "sine";
+      oscillator.frequency.setValueAtTime(880, now + offset);
+      gain.gain.setValueAtTime(0.001, now + offset);
+      gain.gain.exponentialRampToValueAtTime(0.18, now + offset + 0.03);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + offset + 0.22);
+      oscillator.connect(gain);
+      gain.connect(audioContext.destination);
+      oscillator.start(now + offset);
+      oscillator.stop(now + offset + 0.24);
+    });
+
+    setTimeout(() => audioContext.close?.(), 1300);
+  } catch (error) {
+    // Some mobile browsers block sound until the user interacts with the page.
+  }
+}
+
+function showDueAlarmIfNeeded(force = false) {
+  const now = new Date();
+  const todayKey = toDateKey(now);
+  const alreadyAlarmed = localStorage.getItem(DUE_ALARM_KEY) === todayKey;
+  const isNineOClockWindow = now.getHours() === 9 && now.getMinutes() < 10;
+
+  if (!force && (alreadyAlarmed || !isNineOClockWindow)) return;
+
+  const dueOrders = getDueAlarmOrders();
+  if (!dueOrders.length) return;
+
+  localStorage.setItem(DUE_ALARM_KEY, todayKey);
+  playDueAlarmSound();
+
+  const lines = dueOrders.slice(0, 6).map((order) => {
+    const dueText = daysUntil(order.dueDate) < 0 ? "납기 경과" : `D-${daysUntil(order.dueDate)}`;
+    return `- ${order.company} / ${order.product} / ${formatDate(order.dueDate)} (${dueText})`;
+  });
+  const moreText = dueOrders.length > 6 ? `\n외 ${dueOrders.length - 6}건 더 있습니다.` : "";
+  showAppAlert(`납기 임박 발주가 ${dueOrders.length}건 있습니다.\n\n${lines.join("\n")}${moreText}`);
+}
+
+function startDueAlarmClock() {
+  showDueAlarmIfNeeded();
+  setInterval(() => showDueAlarmIfNeeded(), 30000);
+}
+
+function clearPersistentSupabaseAuthStorage() {
+  try {
+    Object.keys(localStorage)
+      .filter((key) => key.startsWith("sb-") && key.includes("auth-token"))
+      .forEach((key) => localStorage.removeItem(key));
+  } catch (error) {
+    // Some privacy modes can block localStorage access.
+  }
+}
+
+function createSupabaseAuthClient() {
+  if (!isSupabaseBackend() || !hasSupabaseConfig() || !window.supabase?.createClient) {
+    return null;
+  }
+
+  clearPersistentSupabaseAuthStorage();
+
+  return window.supabase.createClient(APP_CONFIG.supabaseUrl, APP_CONFIG.supabaseAnonKey, {
+    auth: {
+      storage: window.sessionStorage,
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true
+    }
+  });
 }
