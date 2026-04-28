@@ -2667,7 +2667,7 @@ html {
 }
 
 /* 12-inch tablet dashboard mode: keep the full due-date calendar visible at a glance. */
-@media (min-width: 900px) and (max-width: 1500px) {
+@media (min-width: 900px) {
   .page-shell {
     width: 100%;
     max-width: none;
@@ -2867,7 +2867,7 @@ html {
   }
 }
 
-@media (min-width: 900px) and (max-width: 1500px) and (max-height: 820px) {
+@media (min-width: 900px) and (max-height: 820px) {
   .page-shell {
     padding-top: 6px;
   }
