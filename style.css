@@ -3035,3 +3035,37 @@ html {
     padding: 7px 9px;
   }
 }
+
+@media (max-width: 760px) {
+  .shipping-table-wrap.mobile-card-table td:nth-child(5) {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    justify-content: stretch;
+    gap: 10px;
+    width: 100%;
+    padding: 8px 10px;
+    border-radius: 14px;
+    white-space: normal;
+  }
+
+  .shipping-table-wrap.mobile-card-table td:nth-child(5)::before {
+    content: "\C791\C5C5 \C0C1\D0DC";
+    justify-self: start;
+  }
+
+  .shipping-table-wrap.mobile-card-table td:nth-child(5) .status-badge {
+    justify-self: end;
+    min-width: 64px;
+    min-height: 34px;
+    padding: 6px 10px;
+  }
+
+  .shipping-table-wrap.mobile-card-table td:nth-child(6) .status-badge,
+  .shipping-table-wrap.mobile-card-table td:nth-child(7) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
