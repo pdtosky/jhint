@@ -2963,3 +2963,75 @@ html {
     padding: 8px 14px;
   }
 }
+
+.status-badge {
+  justify-content: center;
+  text-align: center;
+  line-height: 1.15;
+}
+
+.shipping-table-wrap td {
+  vertical-align: middle;
+}
+
+.shipping-table-wrap td[data-label="작업 상태"],
+.shipping-table-wrap td[data-label="출하 상태"],
+.shipping-table-wrap td[data-label="출하일"] {
+  text-align: center;
+}
+
+.shipping-table-wrap td[data-label="작업 상태"] .status-badge,
+.shipping-table-wrap td[data-label="출하 상태"] .status-badge {
+  min-width: 58px;
+  min-height: 46px;
+  padding: 8px 10px;
+  align-items: center;
+  justify-content: center;
+}
+
+.order-note-box,
+.shipping-note-wrap input,
+.shipping-note-wrap button,
+.shipping-manage-wrap input,
+.shipping-manage-wrap button {
+  align-items: center;
+}
+
+.shipping-note-wrap input,
+.shipping-note-wrap button,
+.shipping-manage-wrap input,
+.shipping-manage-wrap button {
+  min-height: 44px;
+  line-height: 1.2;
+}
+
+.shipping-note-wrap button,
+.shipping-manage-wrap button {
+  display: inline-flex;
+  justify-content: center;
+}
+
+.order-note-box {
+  align-content: center;
+}
+
+.order-note-box strong,
+.order-note-box span {
+  line-height: 1.25;
+}
+
+@media (max-width: 760px) {
+  .shipping-table-wrap.mobile-card-table td[data-label="작업 상태"],
+  .shipping-table-wrap.mobile-card-table td[data-label="출하 상태"],
+  .shipping-table-wrap.mobile-card-table td[data-label="출하일"] {
+    align-items: center;
+    justify-content: center;
+  }
+
+  .shipping-table-wrap.mobile-card-table td[data-label="작업 상태"] .status-badge,
+  .shipping-table-wrap.mobile-card-table td[data-label="출하 상태"] .status-badge {
+    min-width: 54px;
+    min-height: 42px;
+    padding: 7px 9px;
+  }
+}
