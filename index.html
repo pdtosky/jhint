@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css?v=20260423-4" />
+  <link rel="stylesheet" href="style.css?v=20260428-20" />
 </head>
 <body>
   <div class="page-shell">
@@ -150,6 +150,10 @@
                 &#45225;&#44592;&#51068;
                 <input type="date" name="dueDate" required />
               </label>
+              <label class="wide-field">
+                &#48708;&#44256;
+                <textarea name="orderNote" rows="3" placeholder="&#53945;&#51060;&#49324;&#54637;&#51060;&#45208; &#51452;&#51032;&#49324;&#54637;&#51012; &#51077;&#47141;"></textarea>
+              </label>
               <button type="submit" class="primary-btn">&#48156;&#51452; &#46321;&#47197;</button>
             </form>
 
@@ -179,6 +183,10 @@
                     <option value="&#48156;&#49569;">&#48156;&#49569;</option>
                   </select>
                 </label>
+                <label class="wide-field">
+                  &#48708;&#44256;
+                  <textarea name="editOrderNote" id="editOrderNote" rows="3" placeholder="&#53945;&#51060;&#49324;&#54637;&#51060;&#45208; &#51452;&#51032;&#49324;&#54637;&#51012; &#51077;&#47141;"></textarea>
+                </label>
                 <div class="worker-actions">
                   <button type="submit" class="primary-btn">&#49688;&#51221; &#51200;&#51109;</button>
                   <button type="button" class="end-btn" id="cancelEditBtn">&#52712;&#49548;</button>
@@ -188,10 +196,10 @@
 
             <div class="section-head compact">
               <h3>&#46321;&#47197;&#46108; &#48156;&#51452;&#49436;</h3>
-              <p>?⑷린 3???대궡 ??ぉ? 遺됱??됱쑝濡??쒖떆</p>
+              <p>&#45225;&#44592; 3&#51068; &#51060;&#45236; &#54637;&#47785;&#51008; &#48521;&#51008;&#49353;&#51004;&#47196; &#54364;&#49884;</p>
             </div>
 
-            <div class="table-wrap">
+            <div class="table-wrap orders-table-wrap mobile-card-table">
               <table>
                 <thead>
                   <tr>
@@ -202,6 +210,7 @@
                     <th>&#51648;&#44553;&#50836;&#52397;</th>
                     <th>&#51649;&#45225;/&#48156;&#49569;</th>
                     <th>&#45225;&#44592;&#51068;</th>
+                    <th>&#48708;&#44256;</th>
                     <th>&#49345;&#53468;</th>
                     <th>&#44288;&#47532;</th>
                   </tr>
@@ -379,7 +388,7 @@
 
           <div id="shippingSummary" class="stats-grid"></div>
 
-          <div class="table-wrap">
+          <div class="table-wrap shipping-table-wrap mobile-card-table">
             <table>
               <thead>
                 <tr>
@@ -428,8 +437,8 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="config.js?v=20260427-3"></script>
-  <script src="app.js?v=20260427-3"></script>
+  <script src="config.js?v=20260428-20"></script>
+  <script src="app.js?v=20260428-20"></script>
 </body>
 </html>
 
