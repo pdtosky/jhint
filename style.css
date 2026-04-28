@@ -2298,3 +2298,102 @@ html {
     display: inline !important;
   }
 }
+
+@media (max-width: 760px) {
+  .section-head,
+  .section-head.compact,
+  .panel-head {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 6px 10px;
+    width: 100%;
+    text-align: left;
+  }
+
+  .section-head h3,
+  .section-head.compact h3,
+  .panel-head h2 {
+    margin: 0;
+    grid-column: 1 / 2;
+    min-width: 0;
+    text-align: left;
+  }
+
+  .section-head p,
+  .section-head.compact p,
+  .panel-head p {
+    grid-column: 1 / -1;
+    max-width: none !important;
+    width: 100%;
+    margin: 0;
+    color: var(--sub);
+    text-align: left !important;
+    font-size: 0.76rem;
+    line-height: 1.35;
+  }
+
+  .orders-table-wrap {
+    margin-top: 10px;
+  }
+
+  .orders-table-wrap .empty-state {
+    width: 100%;
+    margin: 0;
+    padding: 16px 12px;
+    border-radius: 16px;
+    text-align: center;
+  }
+}
+
+@media (max-width: 760px) {
+  .section-head,
+  .section-head.compact {
+    display: block !important;
+    width: 100% !important;
+    margin: 18px 0 10px !important;
+    padding: 0 !important;
+    text-align: left !important;
+  }
+
+  .section-head h3,
+  .section-head.compact h3 {
+    display: block !important;
+    width: 100% !important;
+    margin: 0 0 6px !important;
+    padding: 0 !important;
+    text-align: left !important;
+    line-height: 1.25 !important;
+  }
+
+  .section-head p,
+  .section-head.compact p {
+    display: block !important;
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    text-align: left !important;
+    line-height: 1.4 !important;
+    word-break: keep-all;
+  }
+
+  .orders-table-wrap,
+  .shipping-table-wrap {
+    width: 100% !important;
+    margin-top: 10px !important;
+  }
+
+  .orders-table-wrap table,
+  .shipping-table-wrap table {
+    width: 100% !important;
+  }
+
+  .mobile-card-table .empty-state {
+    display: block !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    text-align: center !important;
+  }
+}
