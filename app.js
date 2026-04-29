@@ -5366,3 +5366,42 @@ function renderOrdersTable() {
     });
   });
 }
+
+function renderCalendarDetail() {
+  if (!selectedCalendarDateKey) return;
+  const orders = getSortedOrders(state.orders.filter((order) => order.dueDate === selectedCalendarDateKey));
+  calendarDetailTitle.textContent = `${formatDate(selectedCalendarDateKey)} 납기 상세`;
+
+  if (!orders.length) {
+    calendarDetailBody.innerHTML = `<div class="empty-state">해당 날짜의 납기 데이터가 없습니다.</div>`;
+    return;
+  }
+
+  calendarDetailBody.innerHTML = orders
+    .map((order) => {
+      const urgent = order.status !== "complete" && daysUntil(order.dueDate) <= 3;
+      const note = getOrderNoteText(order);
+      return `
+        <article class="feed-item calendar-detail-card ${getCalendarStatusClass(order)}">
+          <div class="feed-item-top">
+            <strong>${escapeHtml(order.company)}</strong>
+            ${statusBadgeClean(order, urgent)}
+          </div>
+          <div class="detail-lines">
+            <p class="detail-line"><strong>제품명</strong> ${escapeHtml(order.product)}</p>
+            <p class="detail-line"><strong>상태</strong> ${getOrderStatusTextClean(order)}</p>
+            <p class="detail-line"><strong>납기일</strong> ${formatDate(order.dueDate)}</p>
+            <p class="detail-line"><strong>작업자</strong> ${escapeHtml(order.workerName || "미지정")}</p>
+            <p class="detail-line"><strong>장비명</strong> ${escapeHtml(order.machineName || "미지정")}</p>
+            <p class="detail-line"><strong>수량</strong> ${escapeHtml(order.quantity || "-")}</p>
+            <p class="detail-line"><strong>구분</strong> ${getPaymentLabel(order)} / ${getDeliveryLabel(order)}</p>
+            <p class="detail-line"><strong>비고</strong> ${note ? escapeHtml(note) : "-"}</p>
+            <p class="detail-line"><strong>작업시간</strong> ${getCleanWorkTimeValue(order) || "-"}</p>
+            <p class="detail-line"><strong>총생산수</strong> ${String(order.productionQty || "-")}</p>
+            <p class="detail-line"><strong>총타발수</strong> ${String(order.totalHitQty || "-")}</p>
+          </div>
+        </article>
+      `;
+    })
+    .join("");
+}
