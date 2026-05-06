@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css?v=20260429-01" />
+  <link rel="stylesheet" href="style.css?v=20260506-01" />
 </head>
 <body>
   <div class="page-shell">
@@ -125,12 +125,14 @@
               </label>
               <label>
                 &#50629;&#52404;&#47749;
-                <input type="text" name="company" placeholder="&#50696;: &#54620;&#48731;&#49328;&#50629;" required />
+                <input type="text" name="company" list="companySuggestions" placeholder="&#50696;: &#54620;&#48731;&#49328;&#50629;" required />
               </label>
               <label>
                 &#51228;&#54408;&#47749;
-                <input type="text" name="product" placeholder="&#50696;: &#50508;&#47336;&#48120;&#45768;&#50644; &#54532;&#47112;&#51076;" required />
+                <input type="text" name="product" list="productSuggestions" placeholder="&#50696;: &#50508;&#47336;&#48120;&#45768;&#50644; &#54532;&#47112;&#51076;" required />
               </label>
+              <datalist id="companySuggestions"></datalist>
+              <datalist id="productSuggestions"></datalist>
               <label>
                 &#48156;&#51452;&#49688;&#47049;
                 <input type="number" name="quantity" min="1" placeholder="&#50696;: 300" required />
@@ -437,8 +439,8 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="config.js?v=20260429-01"></script>
-  <script src="app.js?v=20260429-01"></script>
+  <script src="config.js?v=20260506-01"></script>
+  <script src="app.js?v=20260506-01"></script>
 </body>
 </html>
 
