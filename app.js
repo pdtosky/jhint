@@ -1429,6 +1429,7 @@ function render() {
   renderDashboardFilteredList();
   renderCalendar();
   renderOrdersTable();
+  renderOrderSuggestions();
   renderOrderOptions();
   renderActivities();
   renderWorkerLiveStatus();
@@ -5404,4 +5405,23 @@ function renderCalendarDetail() {
       `;
     })
     .join("");
+}
+
+function getUniqueOrderValues(fieldName) {
+  return [...new Set(
+    state.orders
+      .map((order) => String(order[fieldName] || "").trim())
+      .filter(Boolean)
+  )].sort((a, b) => a.localeCompare(b, "ko"));
+}
+
+function renderDatalistOptions(datalistId, values) {
+  const datalist = document.getElementById(datalistId);
+  if (!datalist) return;
+  datalist.innerHTML = values.map((value) => `<option value="${escapeHtml(value)}"></option>`).join("");
+}
+
+function renderOrderSuggestions() {
+  renderDatalistOptions("companySuggestions", getUniqueOrderValues("company"));
+  renderDatalistOptions("productSuggestions", getUniqueOrderValues("product"));
 }
