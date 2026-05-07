@@ -534,7 +534,7 @@ function finalizePause() {
     workerName: pendingPauseWorkerName,
     orderId: pendingPauseOrderId,
     timestamp: now.toISOString(),
-    message: `?묒뾽??以묒??덉뒿?덈떎. / ?ъ쑀 ${pauseReason}${workQty ? ` / ?묒뾽?섎웾 ${workQty}` : ""}`
+    message: `작업을 중지했습니다. / 사유 ${pauseReason}${workQty ? ` / 작업수량 ${workQty}` : ""}${workHitQty ? ` / 작업타수 ${workHitQty}` : ""}`
   });
 
   persist();
@@ -586,7 +586,7 @@ function finalizeCompletion() {
     workerName: pendingCompletionWorkerName,
     orderId: pendingCompletionOrderId,
     timestamp: new Date().toISOString(),
-    message: `${TEXT.endMessage} / ?ㅻ뒛 ?묒뾽?섎웾 ${productionQty}${totalHitQty ? ` / ?ㅻ뒛 ?묒뾽???${totalHitQty}` : ""} / ${TEXT.productionQty} ${order.productionQty}${order.totalHitQty ? ` / ${TEXT.totalHitQty} ${order.totalHitQty}` : ""}`
+    message: `${TEXT.endMessage} / 오늘 작업수량 ${productionQty}${totalHitQty ? ` / 오늘 작업타수 ${totalHitQty}` : ""} / ${TEXT.productionQty} ${order.productionQty}${order.totalHitQty ? ` / ${TEXT.totalHitQty} ${order.totalHitQty}` : ""}`
   });
 
   persist();
@@ -5424,4 +5424,101 @@ function renderDatalistOptions(datalistId, values) {
 function renderOrderSuggestions() {
   renderDatalistOptions("companySuggestions", getUniqueOrderValues("company"));
   renderDatalistOptions("productSuggestions", getUniqueOrderValues("product"));
+}
+
+function hasBrokenKoreanText(value) {
+  return /[ ]|쨌|異|묒|뾽|웾|ㅻ|닛|젰|蹂|濡|愿|꾨|덈|듬|땲|\?[^\s]/.test(String(value || ""));
+}
+
+function getCleanActivityMessage(activity, order) {
+  const rawMessage = String(activity?.message || "").trim();
+  if (rawMessage && !hasBrokenKoreanText(rawMessage)) {
+    return rawMessage;
+  }
+
+  const type = activity?.type || "";
+  if (type === "start") {
+    return order.status === "paused" ? "작업을 다시 시작했습니다." : "작업을 시작했습니다.";
+  }
+  if (type === "pause") {
+    const parts = ["작업을 중지했습니다."];
+    if (order.pauseReason) parts.push(`사유 ${order.pauseReason}`);
+    if (order.workQty) parts.push(`작업수량 ${Number(order.workQty).toLocaleString()}`);
+    if (order.workHitQty) parts.push(`작업타수 ${Number(order.workHitQty).toLocaleString()}`);
+    return parts.join(" / ");
+  }
+  if (type === "end") {
+    const parts = ["작업을 종료했습니다."];
+    if (order.productionQty) parts.push(`총생산수 ${Number(order.productionQty).toLocaleString()}`);
+    if (order.totalHitQty) parts.push(`총타발수 ${Number(order.totalHitQty).toLocaleString()}`);
+    return parts.join(" / ");
+  }
+  if (type === "ship" || type === "shipping") {
+    return "출하 처리되었습니다.";
+  }
+  if (type === "register") {
+    return "발주 정보가 등록 또는 수정되었습니다.";
+  }
+  return "작업 이력이 기록되었습니다.";
+}
+
+function renderActivities() {
+  const sortedOrders = getSortedOrders(state.orders);
+
+  historyToggleBtn.textContent = isActivityFeedOpen ? "작업 이력 닫기" : "작업 이력 보기";
+  historyToggleBtn.setAttribute("aria-expanded", String(isActivityFeedOpen));
+
+  if (!isActivityFeedOpen) {
+    activityFeed.innerHTML = `<div class="empty-state">작업 이력은 버튼을 누르면 표시됩니다.</div>`;
+    return;
+  }
+
+  if (sortedOrders.length === 0) {
+    activityFeed.innerHTML = `<div class="empty-state">${TEXT.noActivity}</div>`;
+    return;
+  }
+
+  const grouped = new Map();
+  sortedOrders.forEach((order) => {
+    const workerKey = order.workerName || "관리자";
+    if (!grouped.has(workerKey)) grouped.set(workerKey, []);
+    grouped.get(workerKey).push(order);
+  });
+
+  activityFeed.innerHTML = [...grouped.entries()]
+    .map(([workerName, orders]) => {
+      const items = orders
+        .map((order) => {
+          const latestActivity = state.activities.find((activity) => activity.orderId === order.id);
+          const badgeClass = order.status === "complete" ? "status-complete" : order.status === "working" ? "status-working" : order.status === "paused" ? "status-warning" : "status-ready";
+          const badgeText = getOrderStatusTextClean(order);
+          const activityMessage = getCleanActivityMessage(latestActivity, order);
+          const activityTime = latestActivity ? formatDateTime(latestActivity.timestamp) : formatDateTime(order.orderDate);
+          return `
+            <article class="feed-item ${order.status === "paused" ? "paused-card" : ""}">
+              <div class="feed-item-top">
+                <strong>${escapeHtml(order.company)} / ${escapeHtml(order.product)}</strong>
+                <span class="status-badge ${badgeClass}">${badgeText}</span>
+              </div>
+              <p class="feed-meta">${escapeHtml(activityMessage)} / ${activityTime}</p>
+              <p class="feed-meta">납기일 ${formatDate(order.dueDate)} / 장비 ${escapeHtml(order.machineName || "-")} / 수량 ${escapeHtml(order.quantity || "-")} / ${getPaymentLabel(order)} / ${getDeliveryLabel(order)}</p>
+              ${order.pauseReason ? `<p class="feed-meta">중지 사유 ${escapeHtml(order.pauseReason)}${order.workQty ? ` / 작업수량 ${escapeHtml(order.workQty)}` : ""}${order.workHitQty ? ` / 작업타수 ${escapeHtml(order.workHitQty)}` : ""}</p>` : ""}
+            </article>
+          `;
+        })
+        .join("");
+
+      return `
+        <section class="activity-group">
+          <div class="section-head compact">
+            <h3>${escapeHtml(workerName)}</h3>
+            <p>작업 건수 ${orders.length}</p>
+          </div>
+          <div class="activity-feed">
+            ${items}
+          </div>
+        </section>
+      `;
+    })
+    .join("");
 }
