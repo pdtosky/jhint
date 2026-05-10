@@ -5459,6 +5459,9 @@ function getCleanActivityMessage(activity, order) {
   if (type === "register") {
     return "발주 정보가 등록 또는 수정되었습니다.";
   }
+  if (type === "edit") {
+    return "작업 이력이 수정되었습니다.";
+  }
   return "작업 이력이 기록되었습니다.";
 }
 
@@ -5503,6 +5506,9 @@ function renderActivities() {
               <p class="feed-meta">${escapeHtml(activityMessage)} / ${activityTime}</p>
               <p class="feed-meta">납기일 ${formatDate(order.dueDate)} / 장비 ${escapeHtml(order.machineName || "-")} / 수량 ${escapeHtml(order.quantity || "-")} / ${getPaymentLabel(order)} / ${getDeliveryLabel(order)}</p>
               ${order.pauseReason ? `<p class="feed-meta">중지 사유 ${escapeHtml(order.pauseReason)}${order.workQty ? ` / 작업수량 ${escapeHtml(order.workQty)}` : ""}${order.workHitQty ? ` / 작업타수 ${escapeHtml(order.workHitQty)}` : ""}</p>` : ""}
+              <div class="feed-actions">
+                <button type="button" class="tab-btn history-edit-btn" data-order-id="${order.id}">작업 수정</button>
+              </div>
             </article>
           `;
         })
@@ -5521,4 +5527,128 @@ function renderActivities() {
       `;
     })
     .join("");
+
+  activityFeed.querySelectorAll(".history-edit-btn").forEach((button) => {
+    button.addEventListener("click", () => {
+      openWorkerHistoryEdit(button.dataset.orderId || "");
+    });
+  });
+}
+
+function openWorkerHistoryEdit(orderId) {
+  const order = state.orders.find((item) => item.id === orderId);
+  if (!order) {
+    showAppAlert("수정할 작업 이력을 찾을 수 없습니다.");
+    return;
+  }
+
+  let modal = document.getElementById("workerHistoryEditModal");
+  if (!modal) {
+    modal = document.createElement("div");
+    modal.id = "workerHistoryEditModal";
+    modal.className = "modal-backdrop";
+    modal.hidden = true;
+    modal.innerHTML = `
+      <div class="modal-card worker-history-edit-card">
+        <h3>작업 이력 수정</h3>
+        <p class="progress-meta" id="workerHistoryEditTitle"></p>
+        <form id="workerHistoryEditForm" class="worker-history-edit-form">
+          <input type="hidden" name="orderId" />
+          <label>
+            작업자명
+            <input type="text" name="workerName" />
+          </label>
+          <label>
+            장비명
+            <input type="text" name="machineName" />
+          </label>
+          <label>
+            작업 상태
+            <select name="status">
+              <option value="ready">작업 대기</option>
+              <option value="working">작업 중</option>
+              <option value="paused">작업 중지</option>
+              <option value="complete">작업 완료</option>
+            </select>
+          </label>
+          <label>
+            총생산수
+            <input type="number" name="productionQty" min="0" />
+          </label>
+          <label>
+            총타발수
+            <input type="number" name="totalHitQty" min="0" />
+          </label>
+          <label class="wide-field">
+            중지 사유
+            <input type="text" name="pauseReason" placeholder="작업 중지 상태일 때만 입력" />
+          </label>
+          <div class="modal-actions">
+            <button type="submit" class="primary-btn">수정 저장</button>
+            <button type="button" class="tab-btn" id="workerHistoryEditCancelBtn">취소</button>
+          </div>
+        </form>
+      </div>
+    `;
+    document.body.appendChild(modal);
+
+    modal.querySelector("#workerHistoryEditCancelBtn").addEventListener("click", () => {
+      modal.hidden = true;
+    });
+    modal.querySelector("#workerHistoryEditForm").addEventListener("submit", (event) => {
+      event.preventDefault();
+      saveWorkerHistoryEdit(new FormData(event.currentTarget));
+      modal.hidden = true;
+    });
+  }
+
+  const form = modal.querySelector("#workerHistoryEditForm");
+  modal.querySelector("#workerHistoryEditTitle").textContent = `${order.company} / ${order.product}`;
+  form.elements.orderId.value = order.id;
+  form.elements.workerName.value = order.workerName || "";
+  form.elements.machineName.value = order.machineName || "";
+  form.elements.status.value = order.status || "ready";
+  form.elements.productionQty.value = order.productionQty || "";
+  form.elements.totalHitQty.value = order.totalHitQty || "";
+  form.elements.pauseReason.value = order.pauseReason || "";
+  modal.hidden = false;
+}
+
+function saveWorkerHistoryEdit(formData) {
+  const orderId = String(formData.get("orderId") || "");
+  const order = state.orders.find((item) => item.id === orderId);
+  if (!order) return;
+
+  const nextStatus = String(formData.get("status") || "ready");
+  const now = new Date().toISOString();
+  order.workerName = String(formData.get("workerName") || "").trim();
+  order.machineName = String(formData.get("machineName") || "").trim();
+  order.status = nextStatus;
+  order.productionQty = String(formData.get("productionQty") || "").trim();
+  order.totalHitQty = String(formData.get("totalHitQty") || "").trim();
+  order.pauseReason = nextStatus === "paused" ? String(formData.get("pauseReason") || "").trim() : "";
+
+  if (nextStatus === "working") {
+    order.startTime = now;
+    order.endTime = "";
+  } else if (nextStatus === "complete") {
+    order.endTime = order.endTime || now;
+    order.startTime = "";
+  } else {
+    order.startTime = "";
+    order.endTime = "";
+  }
+
+  state.activities.unshift({
+    id: crypto.randomUUID(),
+    type: "edit",
+    workerName: order.workerName || "작업자",
+    orderId: order.id,
+    timestamp: now,
+    message: "작업 이력이 수정되었습니다."
+  });
+
+  persist();
+  render();
+  showAppAlert("작업 이력이 수정되었습니다.");
 }
