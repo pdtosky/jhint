@@ -3069,3 +3069,30 @@ html {
     justify-content: center;
   }
 }
+
+.worker-history-edit-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.worker-history-edit-form .wide-field,
+.worker-history-edit-form .modal-actions {
+  grid-column: 1 / -1;
+}
+
+.worker-history-edit-form input,
+.worker-history-edit-form select {
+  width: 100%;
+}
+
+.worker-history-edit-card {
+  max-width: 620px;
+}
+
+@media (max-width: 760px) {
+  .worker-history-edit-form {
+    grid-template-columns: 1fr;
+  }
+}
