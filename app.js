@@ -2303,48 +2303,57 @@ function renderShippingPageCardOverride() {
           `;
 
       return `
-        <article class="shipping-order-card ${shippingState.rowClass}">
-          <div class="shipping-card-main">
-            <div>
-              <p class="shipping-card-company">${escapeHtml(order.company)}</p>
-              <h3>${escapeHtml(order.product)}</h3>
-            </div>
-            <div class="shipping-card-badges">
-              ${statusBadgeClean(order, order.status !== "complete" && daysUntil(order.dueDate) <= 3)}
-              <span class="status-badge ${shippingState.badgeClass}">${shippingState.label}</span>
-            </div>
-          </div>
-
-          <div class="shipping-card-facts">
-            <span><strong>납기일</strong>${formatDate(order.dueDate)}</span>
-            <span><strong>수량</strong>${totalQty.toLocaleString()}개</span>
-            <span><strong>출하</strong>${shippedQty.toLocaleString()}개</span>
-            <span><strong>잔량</strong>${remainingQty.toLocaleString()}개</span>
-            <span><strong>출하일</strong>${latestShippedDate ? formatDate(latestShippedDate) : "-"}</span>
-          </div>
-
-          ${orderNote ? `<div class="order-note-box shipping-card-note"><strong>발주 비고</strong><span>${escapeHtml(orderNote)}</span></div>` : ""}
-
-          <div class="shipping-card-bottom">
-            <div class="shipping-note-area">
-              <label>출하 메모</label>
-              <div class="shipping-note-wrap">
-                <input type="text" value="${escapeHtml(order.shippingNote || "")}" placeholder="출하 메모 입력" data-note-order-id="${order.id}" />
-                <button type="button" class="tab-btn shipping-note-save-btn" data-order-id="${order.id}">메모 저장</button>
+        <details class="shipping-order-card ${shippingState.rowClass}">
+          <summary>
+            <div class="shipping-card-main">
+              <div>
+                <p class="shipping-card-company">${escapeHtml(order.company)}</p>
+                <h3>${escapeHtml(order.product)}</h3>
               </div>
-              <div class="shipping-history"><strong>출하 이력</strong>${historyHtml}</div>
-            </div>
-
-            <div class="shipping-manage-area">
-              <label>출하 관리</label>
-              <div class="shipping-manage-wrap">
-                <input type="number" min="1" max="${Math.max(totalQty, 1)}" value="${qtyValue}" placeholder="출하 수량" data-ship-qty-order-id="${order.id}" />
-                <input type="date" value="${dateValue}" data-ship-date-order-id="${order.id}" />
-                ${actionButtons}
+              <div class="shipping-card-badges">
+                ${statusBadgeClean(order, order.status !== "complete" && daysUntil(order.dueDate) <= 3)}
+                <span class="status-badge ${shippingState.badgeClass}">${shippingState.label}</span>
               </div>
             </div>
+            <div class="shipping-card-facts shipping-card-summary-facts">
+              <span><strong>납기일</strong>${formatDate(order.dueDate)}</span>
+              <span><strong>수량</strong>${totalQty.toLocaleString()}개</span>
+              <span><strong>잔량</strong>${remainingQty.toLocaleString()}개</span>
+            </div>
+          </summary>
+
+          <div class="shipping-card-detail">
+            <div class="shipping-card-facts">
+              <span><strong>납기일</strong>${formatDate(order.dueDate)}</span>
+              <span><strong>수량</strong>${totalQty.toLocaleString()}개</span>
+              <span><strong>출하</strong>${shippedQty.toLocaleString()}개</span>
+              <span><strong>잔량</strong>${remainingQty.toLocaleString()}개</span>
+              <span><strong>출하일</strong>${latestShippedDate ? formatDate(latestShippedDate) : "-"}</span>
+            </div>
+
+            ${orderNote ? `<div class="order-note-box shipping-card-note"><strong>발주 비고</strong><span>${escapeHtml(orderNote)}</span></div>` : ""}
+
+            <div class="shipping-card-bottom">
+              <div class="shipping-note-area">
+                <label>출하 메모</label>
+                <div class="shipping-note-wrap">
+                  <input type="text" value="${escapeHtml(order.shippingNote || "")}" placeholder="출하 메모 입력" data-note-order-id="${order.id}" />
+                  <button type="button" class="tab-btn shipping-note-save-btn" data-order-id="${order.id}">메모 저장</button>
+                </div>
+                <div class="shipping-history"><strong>출하 이력</strong>${historyHtml}</div>
+              </div>
+
+              <div class="shipping-manage-area">
+                <label>출하 관리</label>
+                <div class="shipping-manage-wrap">
+                  <input type="number" min="1" max="${Math.max(totalQty, 1)}" value="${qtyValue}" placeholder="출하 수량" data-ship-qty-order-id="${order.id}" />
+                  <input type="date" value="${dateValue}" data-ship-date-order-id="${order.id}" />
+                  ${actionButtons}
+                </div>
+              </div>
+            </div>
           </div>
-        </article>
+        </details>
       `;
     })
     .join("");

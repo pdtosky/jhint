@@ -3254,6 +3254,42 @@ html {
   box-shadow: 0 16px 36px rgba(36, 64, 110, 0.08);
 }
 
+.shipping-order-card summary {
+  display: grid;
+  gap: 12px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.shipping-order-card summary::-webkit-details-marker {
+  display: none;
+}
+
+.shipping-order-card summary::after {
+  content: "펼치기";
+  justify-self: end;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: rgba(240, 247, 255, 0.92);
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 900;
+}
+
+.shipping-order-card[open] summary::after {
+  content: "접기";
+  background: rgba(18, 121, 105, 0.12);
+  color: var(--brand);
+}
+
+.shipping-card-detail {
+  display: grid;
+  gap: 14px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(211, 224, 236, 0.8);
+}
+
 .shipping-card-main,
 .shipping-card-bottom {
   display: grid;
@@ -3427,6 +3463,10 @@ html {
 
   .shipping-card-facts {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .shipping-card-summary-facts {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .shipping-card-bottom .shipping-note-wrap,
