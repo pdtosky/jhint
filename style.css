@@ -1011,7 +1011,7 @@ tbody tr:last-child td {
 
 .journal-work-card {
   display: grid;
-  grid-template-columns: minmax(120px, 0.8fr) minmax(220px, 1.5fr) minmax(260px, 1.3fr);
+  grid-template-columns: minmax(92px, 0.65fr) minmax(180px, 1.25fr) minmax(160px, 1fr);
   gap: 12px;
   align-items: center;
   border: 1px solid rgba(211, 224, 236, 0.9);
@@ -1027,11 +1027,13 @@ tbody tr:last-child td {
   flex-wrap: wrap;
   gap: 6px 10px;
   align-items: center;
+  min-width: 0;
 }
 
 .journal-work-date strong,
 .journal-work-main strong {
   color: var(--ink);
+  overflow-wrap: anywhere;
 }
 
 .journal-work-date span,
@@ -1046,6 +1048,18 @@ tbody tr:last-child td {
 .journal-work-card p {
   grid-column: 1 / -1;
   margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.journal-work-numbers {
+  justify-content: flex-end;
+}
+
+.journal-work-numbers span {
+  border-radius: 999px;
+  background: rgba(232, 242, 255, 0.86);
+  padding: 5px 8px;
+  white-space: nowrap;
 }
 
 .empty-state {
@@ -3282,6 +3296,21 @@ html {
 
   .journal-work-card {
     grid-template-columns: 1fr;
+  }
+
+  .journal-work-numbers {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 1180px) {
+  .journal-work-card {
+    grid-template-columns: minmax(92px, 0.75fr) minmax(0, 1.4fr);
+  }
+
+  .journal-work-numbers {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
   }
 }
 
