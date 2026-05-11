@@ -2311,24 +2311,17 @@ function renderShippingPageCardOverride() {
           `;
 
       return `
-        <details class="shipping-order-card ${shippingState.rowClass}">
-          <summary>
-            <div class="shipping-card-main">
-              <div>
-                <p class="shipping-card-company">${escapeHtml(order.company)}</p>
-                <h3>${escapeHtml(order.product)}</h3>
-              </div>
-              <div class="shipping-card-badges">
-                ${statusBadgeClean(order, order.status !== "complete" && daysUntil(order.dueDate) <= 3)}
-                <span class="status-badge ${shippingState.badgeClass}">${shippingState.label}</span>
-              </div>
+        <article class="shipping-order-card ${shippingState.rowClass}">
+          <div class="shipping-card-main">
+            <div>
+              <p class="shipping-card-company">${escapeHtml(order.company)}</p>
+              <h3>${escapeHtml(order.product)}</h3>
             </div>
-            <div class="shipping-card-facts shipping-card-summary-facts">
-              <span><strong>납기일</strong>${formatDate(order.dueDate)}</span>
-              <span><strong>수량</strong>${totalQty.toLocaleString()}개</span>
-              <span><strong>잔량</strong>${remainingQty.toLocaleString()}개</span>
+            <div class="shipping-card-badges">
+              ${statusBadgeClean(order, order.status !== "complete" && daysUntil(order.dueDate) <= 3)}
+              <span class="status-badge ${shippingState.badgeClass}">${shippingState.label}</span>
             </div>
-          </summary>
+          </div>
 
           <div class="shipping-card-detail">
             <div class="shipping-card-facts">
@@ -2361,7 +2354,7 @@ function renderShippingPageCardOverride() {
               </div>
             </div>
           </div>
-        </details>
+        </article>
       `;
     })
     .join("");
