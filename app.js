@@ -5652,3 +5652,79 @@ function saveWorkerHistoryEdit(formData) {
   render();
   showAppAlert("작업 이력이 수정되었습니다.");
 }
+
+function getWorkTimeLabel(order) {
+  if (order.status === "working" && order.startTime) {
+    return `작업시간 ${formatElapsedMs(getAccumulatedElapsedMs(order, new Date().toISOString()))}`;
+  }
+  if (order.status === "paused") {
+    return `누적 작업시간 ${formatElapsedMs(order.elapsedMs || 0)}`;
+  }
+  if (order.status === "complete") {
+    return `총 작업시간 ${formatElapsedMs(order.elapsedMs || 0)}`;
+  }
+  if (order.startTime) {
+    return `시작시간 ${formatDateTime(order.startTime)}`;
+  }
+  return "작업시간 없음";
+}
+
+function renderOrderOptions() {
+  const selectableOrders = getSortedOrders(state.orders.filter((order) => order.status === "ready" || order.status === "paused"));
+
+  if (!selectableOrders.length) {
+    orderSelect.innerHTML = `<option value="">선택 가능한 작업이 없습니다.</option>`;
+    return;
+  }
+
+  orderSelect.innerHTML = selectableOrders
+    .map((order) => {
+      const statusText = order.status === "paused" ? "작업 중지" : "작업 대기";
+      return `<option value="${order.id}">${escapeHtml(order.company)} / ${escapeHtml(order.product)} / ${statusText}</option>`;
+    })
+    .join("");
+}
+
+function renderWorkerLiveStatus() {
+  const workingOrders = getSortedOrders(state.orders.filter((order) => order.status === "working" || order.status === "paused"));
+
+  if (workingOrders.length === 0) {
+    workerLiveStatus.innerHTML = `<div class="empty-state">진행 중인 작업이 없습니다.</div>`;
+    return;
+  }
+
+  workerLiveStatus.innerHTML = workingOrders
+    .map((order) => {
+      const isPaused = order.status === "paused";
+      return `
+        <article class="progress-card ${isPaused ? "paused-card" : ""}">
+          <div class="progress-top">
+            <div>
+              <strong>${escapeHtml(order.product)}</strong>
+              <p class="progress-meta">${escapeHtml(order.company)}</p>
+            </div>
+            <span class="status-badge ${isPaused ? "status-warning" : "status-working"}">${isPaused ? "작업 중지" : "작업 중"}</span>
+          </div>
+          <p class="progress-meta">${order.workerName ? `작업자 ${escapeHtml(order.workerName)}` : "작업자 미지정"}</p>
+          <p class="progress-meta">${order.machineName ? `장비 ${escapeHtml(order.machineName)}` : "장비 미지정"}</p>
+          <p class="progress-meta">${getWorkTimeLabel(order)}</p>
+          ${order.pauseReason ? `<p class="progress-meta">중지 사유 ${escapeHtml(order.pauseReason)}${order.workQty ? ` / 작업수량 ${escapeHtml(order.workQty)}` : ""}${order.workHitQty ? ` / 작업타수 ${escapeHtml(order.workHitQty)}` : ""}</p>` : ""}
+          <div class="feed-actions">
+            ${order.status === "working" ? `<button type="button" class="tab-btn live-action-btn" data-order-id="${order.id}" data-action="pause">작업중지</button>` : ""}
+            <button type="button" class="tab-btn live-action-btn" data-order-id="${order.id}" data-action="complete">작업종료</button>
+          </div>
+        </article>
+      `;
+    })
+    .join("");
+
+  workerLiveStatus.querySelectorAll(".live-action-btn").forEach((button) => {
+    button.addEventListener("click", () => {
+      const order = state.orders.find((item) => item.id === (button.dataset.orderId || ""));
+      if (!order) return;
+      populateWorkerFormFromOrder(order);
+      if (button.dataset.action === "pause") preparePause();
+      if (button.dataset.action === "complete") prepareCompletion();
+    });
+  });
+}
