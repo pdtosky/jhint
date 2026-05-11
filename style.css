@@ -3213,6 +3213,27 @@ html {
   display: none;
 }
 
+.shipping-card-mode tbody,
+.shipping-card-mode tr,
+.shipping-card-mode td {
+  display: block !important;
+  width: 100% !important;
+}
+
+.shipping-card-mode td {
+  border: 0 !important;
+}
+
+.shipping-card-mode td::before {
+  display: none !important;
+}
+
+.shipping-card-mode .shipping-card-list,
+.shipping-card-mode .shipping-order-card {
+  width: 100%;
+  max-width: 100%;
+}
+
 .shipping-card-host::before,
 .shipping-card-host td::before {
   display: none !important;

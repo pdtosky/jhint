@@ -2210,6 +2210,17 @@ function renderWorkerLiveStatus() {
   });
 }
 
+function renderShippingPageCardModeLastOverride() {
+  const wrap = shippingTableBody?.closest(".shipping-table-wrap");
+  if (wrap) {
+    wrap.classList.add("shipping-card-mode");
+  }
+  return renderShippingPageCardOverride();
+}
+
+renderShippingPage = renderShippingPageCardModeLastOverride;
+setTimeout(render, 0);
+
 function renderShippingPageCardModeFinalOverride() {
   const wrap = shippingTableBody?.closest(".shipping-table-wrap");
   if (wrap) {
