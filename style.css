@@ -246,7 +246,8 @@ button {
 }
 
 .shipping-manage-wrap .shipping-action-btn,
-.shipping-manage-wrap .shipping-complete-btn {
+.shipping-manage-wrap .shipping-complete-btn,
+.shipping-manage-wrap .shipping-edit-btn {
   width: 100%;
 }
 
@@ -1924,7 +1925,8 @@ tbody tr:last-child td {
   }
 
   .shipping-manage-wrap .shipping-action-btn,
-  .shipping-manage-wrap .shipping-complete-btn {
+  .shipping-manage-wrap .shipping-complete-btn,
+  .shipping-manage-wrap .shipping-edit-btn {
     grid-column: 1 / -1;
   }
 }
