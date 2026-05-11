@@ -245,6 +245,11 @@ button {
   min-width: 220px;
 }
 
+.shipping-manage-wrap .shipping-action-btn,
+.shipping-manage-wrap .shipping-complete-btn {
+  width: 100%;
+}
+
 .shipping-manage-wrap input {
   min-width: 160px;
   padding: 10px 12px;
@@ -1918,7 +1923,8 @@ tbody tr:last-child td {
     font-size: 0.78rem;
   }
 
-  .shipping-manage-wrap .shipping-action-btn {
+  .shipping-manage-wrap .shipping-action-btn,
+  .shipping-manage-wrap .shipping-complete-btn {
     grid-column: 1 / -1;
   }
 }
