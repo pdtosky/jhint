@@ -1,4 +1,4 @@
-const ADMIN_SESSION_KEY = "production-admin-session-v1";
+﻿const ADMIN_SESSION_KEY = "production-admin-session-v1";
 const DUE_ALARM_KEY = "production-due-alarm-date-v1";
 const API_STATE_URL = "/api/state";
 const POLL_INTERVAL_MS = 5000;
@@ -2098,6 +2098,202 @@ function renderWorkerLiveStatus() {
       populateWorkerFormFromOrder(order);
       if (button.dataset.action === "pause") preparePause();
       if (button.dataset.action === "complete") prepareCompletion();
+    });
+  });
+}
+
+function saveShippingRecordFinal(order, shipQty, shipDate, replaceExisting = false) {
+  const totalQty = getOrderQuantity(order);
+  const maxQty = replaceExisting ? totalQty : getRemainingShippingQuantity(order);
+
+  if (!shipQty || shipQty <= 0) {
+    showAppAlert("출하 수량을 입력해 주세요.");
+    return;
+  }
+  if (shipQty > maxQty) {
+    showAppAlert(replaceExisting ? "출하 수량이 발주 수량보다 많습니다." : "출하 수량이 잔량보다 많습니다.");
+    return;
+  }
+  if (!shipDate) {
+    showAppAlert("출하일을 입력해 주세요.");
+    return;
+  }
+
+  const shipment = {
+    id: crypto.randomUUID(),
+    qty: shipQty,
+    date: shipDate,
+    note: String(order.shippingNote || "").trim()
+  };
+
+  order.shipments = replaceExisting ? [shipment] : [...getShipmentRecords(order), shipment];
+  order.shippedDate = shipDate;
+  syncOrderShippingState(order);
+  order.shippingNoteLocked = Boolean(order.shipped);
+
+  state.activities.unshift({
+    id: crypto.randomUUID(),
+    type: "ship",
+    workerName: "출하",
+    orderId: order.id,
+    timestamp: new Date().toISOString(),
+    message: replaceExisting
+      ? `출하 기록이 ${getShippedQuantity(order).toLocaleString()}개로 수정되었습니다.`
+      : order.shipped
+        ? `${shipQty.toLocaleString()}개 출하 완료`
+        : `${shipQty.toLocaleString()}개 부분 출하`
+  });
+
+  persist().catch(handlePersistError);
+  renderShippingPage();
+  renderDashboard();
+}
+
+function renderShippingPage() {
+  state.orders.forEach(syncOrderShippingState);
+
+  const orders = getFilteredShippingOrders();
+  const allOrders = getSortedOrders(state.orders);
+  const shippedDoneCount = allOrders.filter((order) => getRemainingShippingQuantity(order) === 0 && getShippedQuantity(order) > 0).length;
+  const pendingCount = allOrders.filter((order) => getRemainingShippingQuantity(order) > 0).length;
+  const overdueCount = allOrders.filter((order) => getRemainingShippingQuantity(order) > 0 && daysUntil(order.dueDate) < 0).length;
+  const dueTodayCount = allOrders.filter((order) => getRemainingShippingQuantity(order) > 0 && daysUntil(order.dueDate) === 0).length;
+
+  shippingFilterAllBtn.classList.toggle("active", shippingFilter === "all");
+  shippingFilterPendingBtn.classList.toggle("active", shippingFilter === "pending");
+  shippingFilterDoneBtn.classList.toggle("active", shippingFilter === "done");
+  shippingSearchInput.value = shippingSearchKeyword;
+
+  shippingSummary.innerHTML = [
+    { label: "전체 출하 대상", value: allOrders.length, hint: "등록된 전체 발주", filter: "all" },
+    { label: "출하 완료", value: shippedDoneCount, hint: "전량 출하 완료 발주", filter: "done" },
+    { label: "출하 대기", value: pendingCount, hint: "잔량이 남아 있는 발주", filter: "pending" },
+    { label: "오늘 확인", value: dueTodayCount + overdueCount, hint: "오늘 납기 및 경과", filter: "today" }
+  ]
+    .map(
+      (card) => `
+        <button type="button" class="stat-card ${shippingFilter === card.filter ? "active" : ""}" data-shipping-summary-filter="${card.filter}">
+          <span>${card.label}</span>
+          <strong>${card.value}</strong>
+          <p>${card.hint}</p>
+        </button>
+      `
+    )
+    .join("");
+
+  if (orders.length === 0) {
+    shippingTableBody.innerHTML = `<tr><td colspan="9"><div class="empty-state">${TEXT.noOrders}</div></td></tr>`;
+    return;
+  }
+
+  shippingTableBody.innerHTML = orders
+    .map((order) => {
+      const shippingState = getShippingStatus(order);
+      const totalQty = getOrderQuantity(order);
+      const shippedQty = getShippedQuantity(order);
+      const remainingQty = getRemainingShippingQuantity(order);
+      const latestShippedDate = getLatestShipmentDate(order);
+      const shipments = getShipmentRecords(order);
+      const orderNote = getOrderNoteText(order);
+      const isFullyShipped = remainingQty === 0 && shippedQty > 0;
+      const historyHtml = shipments.length
+        ? shipments.map((item) => `${formatDate(item.date)} ${Number(item.qty || 0).toLocaleString()}개`).join("<br />")
+        : "출하 이력 없음";
+      const qtyValue = isFullyShipped ? shippedQty : "";
+      const dateValue = latestShippedDate || new Date().toISOString().slice(0, 10);
+      const actionButtons = isFullyShipped
+        ? `<button type="button" class="tab-btn shipping-edit-btn" data-order-id="${order.id}">출하 수정 저장</button>`
+        : `
+            <button type="button" class="tab-btn shipping-action-btn" data-order-id="${order.id}">부분 출하 등록</button>
+            <button type="button" class="tab-btn shipping-complete-btn" data-order-id="${order.id}">잔량 출하 완료</button>
+          `;
+
+      return `
+        <tr class="${shippingState.rowClass}">
+          <td data-label="업체명">${escapeHtml(order.company)}</td>
+          <td data-label="제품명">${escapeHtml(order.product)}</td>
+          <td data-label="납기일" class="${shippingState.dueClass}">${formatDate(order.dueDate)}</td>
+          <td data-label="수량">
+            <strong>${totalQty.toLocaleString()}개</strong>
+            <div class="shipping-progress-text">출하 ${shippedQty.toLocaleString()} / 잔량 ${remainingQty.toLocaleString()}</div>
+          </td>
+          <td data-label="작업 상태">${statusBadgeClean(order, order.status !== "complete" && daysUntil(order.dueDate) <= 3)}</td>
+          <td data-label="출하 상태"><span class="status-badge ${shippingState.badgeClass}">${shippingState.label}</span></td>
+          <td data-label="출하일">${latestShippedDate ? formatDate(latestShippedDate) : "-"}</td>
+          <td data-label="출하 메모">
+            ${orderNote ? `<div class="order-note-box"><strong>발주 비고</strong><span>${escapeHtml(orderNote)}</span></div>` : ""}
+            <div class="shipping-note-wrap">
+              <input type="text" value="${escapeHtml(order.shippingNote || "")}" placeholder="출하 메모 입력" data-note-order-id="${order.id}" />
+              <button type="button" class="tab-btn shipping-note-save-btn" data-order-id="${order.id}">메모 저장</button>
+            </div>
+            <div class="shipping-history"><strong>출하 이력</strong><br />${historyHtml}</div>
+          </td>
+          <td data-label="관리">
+            <div class="shipping-manage-wrap">
+              <input type="number" min="1" max="${Math.max(totalQty, 1)}" value="${qtyValue}" placeholder="출하 수량" data-ship-qty-order-id="${order.id}" />
+              <input type="date" value="${dateValue}" data-ship-date-order-id="${order.id}" />
+              ${actionButtons}
+            </div>
+          </td>
+        </tr>
+      `;
+    })
+    .join("");
+
+  orders.forEach((order) => {
+    const noteInput = shippingTableBody.querySelector(`input[data-note-order-id="${order.id}"]`);
+    const noteButton = shippingTableBody.querySelector(`.shipping-note-save-btn[data-order-id="${order.id}"]`);
+    const isLocked = Boolean(order.shippingNoteLocked);
+
+    if (noteInput) noteInput.disabled = isLocked;
+    if (noteButton) {
+      noteButton.disabled = false;
+      noteButton.textContent = isLocked ? "메모 수정" : "메모 저장";
+    }
+  });
+
+  shippingTableBody.querySelectorAll(".shipping-action-btn").forEach((button) => {
+    button.addEventListener("click", () => {
+      const order = state.orders.find((item) => item.id === button.dataset.orderId);
+      if (!order) return;
+      const qtyInput = shippingTableBody.querySelector(`input[data-ship-qty-order-id="${order.id}"]`);
+      const dateInput = shippingTableBody.querySelector(`input[data-ship-date-order-id="${order.id}"]`);
+      saveShippingRecordFinal(order, Number(qtyInput?.value || 0), String(dateInput?.value || ""), false);
+    });
+  });
+
+  shippingTableBody.querySelectorAll(".shipping-complete-btn").forEach((button) => {
+    button.addEventListener("click", () => {
+      const order = state.orders.find((item) => item.id === button.dataset.orderId);
+      if (!order) return;
+      const dateInput = shippingTableBody.querySelector(`input[data-ship-date-order-id="${order.id}"]`);
+      saveShippingRecordFinal(order, getRemainingShippingQuantity(order), String(dateInput?.value || ""), false);
+    });
+  });
+
+  shippingTableBody.querySelectorAll(".shipping-edit-btn").forEach((button) => {
+    button.addEventListener("click", () => {
+      const order = state.orders.find((item) => item.id === button.dataset.orderId);
+      if (!order) return;
+      const qtyInput = shippingTableBody.querySelector(`input[data-ship-qty-order-id="${order.id}"]`);
+      const dateInput = shippingTableBody.querySelector(`input[data-ship-date-order-id="${order.id}"]`);
+      saveShippingRecordFinal(order, Number(qtyInput?.value || 0), String(dateInput?.value || ""), true);
+    });
+  });
+
+  shippingTableBody.querySelectorAll(".shipping-note-save-btn").forEach((button) => {
+    button.addEventListener("click", () => {
+      const order = state.orders.find((item) => item.id === button.dataset.orderId);
+      if (!order) return;
+      const noteInput = shippingTableBody.querySelector(`input[data-note-order-id="${order.id}"]`);
+      if (order.shippingNoteLocked) {
+        order.shippingNoteLocked = false;
+      } else {
+        order.shippingNote = String(noteInput?.value || "").trim();
+        order.shippingNoteLocked = true;
+      }
+      persist().catch(handlePersistError);
+      renderShippingPage();
     });
   });
 }
@@ -5387,11 +5583,20 @@ function renderShippingPage() {
       const latestShippedDate = getLatestShipmentDate(order);
       const shipments = getShipmentRecords(order);
       const orderNote = getOrderNoteText(order);
+      const isFullyShipped = remainingQty === 0 && shippedQty > 0;
       const historyHtml = shipments.length
         ? shipments
             .map((item) => `${formatDate(item.date)} ${Number(item.qty || 0).toLocaleString()}개`)
             .join("<br />")
         : "출하 이력 없음";
+      const qtyValue = isFullyShipped ? shippedQty : "";
+      const dateValue = latestShippedDate || new Date().toISOString().slice(0, 10);
+      const actionButtons = isFullyShipped
+        ? `<button type="button" class="tab-btn shipping-edit-btn" data-order-id="${order.id}">출하 수정 저장</button>`
+        : `
+            <button type="button" class="tab-btn shipping-action-btn" data-order-id="${order.id}">부분 출하 등록</button>
+            <button type="button" class="tab-btn shipping-complete-btn" data-order-id="${order.id}">잔량 출하 완료</button>
+          `;
 
       return `
         <tr class="${shippingState.rowClass}">
@@ -5415,11 +5620,9 @@ function renderShippingPage() {
           </td>
           <td data-label="관리">
             <div class="shipping-manage-wrap">
-              <input type="number" min="1" max="${Math.max(remainingQty, 1)}" placeholder="출하 수량" data-ship-qty-order-id="${order.id}" ${remainingQty === 0 ? "disabled" : ""} />
-              <input type="date" value="${new Date().toISOString().slice(0, 10)}" data-ship-date-order-id="${order.id}" ${remainingQty === 0 ? "disabled" : ""} />
-              <button type="button" class="tab-btn shipping-action-btn" data-order-id="${order.id}" ${remainingQty === 0 ? "disabled" : ""}>
-                ${remainingQty === 0 ? "출하 완료" : "부분 출하 등록"}
-              </button>
+              <input type="number" min="1" max="${Math.max(totalQty, 1)}" value="${qtyValue}" placeholder="출하 수량" data-ship-qty-order-id="${order.id}" />
+              <input type="date" value="${dateValue}" data-ship-date-order-id="${order.id}" />
+              ${actionButtons}
             </div>
           </td>
         </tr>
@@ -5431,16 +5634,62 @@ function renderShippingPage() {
     const noteInput = shippingTableBody.querySelector(`input[data-note-order-id="${order.id}"]`);
     const noteButton = shippingTableBody.querySelector(`.shipping-note-save-btn[data-order-id="${order.id}"]`);
     const isLocked = Boolean(order.shippingNoteLocked);
-    const isFullyShipped = getRemainingShippingQuantity(order) === 0;
 
     if (noteInput) {
-      noteInput.disabled = isFullyShipped || isLocked;
+      noteInput.disabled = isLocked;
     }
     if (noteButton) {
-      noteButton.disabled = isFullyShipped;
-      noteButton.textContent = isFullyShipped ? "출하 완료" : isLocked ? "메모 수정" : "메모 저장";
+      noteButton.disabled = false;
+      noteButton.textContent = isLocked ? "메모 수정" : "메모 저장";
     }
   });
+
+  const saveShipmentFromRow = (order, shipQty, shipDate, replaceExisting = false) => {
+    const totalQty = getOrderQuantity(order);
+    const maxQty = replaceExisting ? totalQty : getRemainingShippingQuantity(order);
+
+    if (!shipQty || shipQty <= 0) {
+      showAppAlert("출하 수량을 입력해 주세요.");
+      return;
+    }
+    if (shipQty > maxQty) {
+      showAppAlert(replaceExisting ? "출하 수량이 발주 수량보다 많습니다." : "출하 수량이 잔량보다 많습니다.");
+      return;
+    }
+    if (!shipDate) {
+      showAppAlert("출하일을 입력해 주세요.");
+      return;
+    }
+
+    const shipment = {
+      id: crypto.randomUUID(),
+      qty: shipQty,
+      date: shipDate,
+      note: String(order.shippingNote || "").trim()
+    };
+
+    order.shipments = replaceExisting ? [shipment] : [...getShipmentRecords(order), shipment];
+    order.shippedDate = shipDate;
+    syncOrderShippingState(order);
+    order.shippingNoteLocked = Boolean(order.shipped);
+
+    state.activities.unshift({
+      id: crypto.randomUUID(),
+      type: "ship",
+      workerName: "출하",
+      orderId: order.id,
+      timestamp: new Date().toISOString(),
+      message: replaceExisting
+        ? `출하 기록이 ${getShippedQuantity(order).toLocaleString()}개로 수정되었습니다.`
+        : order.shipped
+          ? `${shipQty.toLocaleString()}개 출하 완료`
+          : `${shipQty.toLocaleString()}개 부분 출하`
+    });
+
+    persist().catch(handlePersistError);
+    renderShippingPage();
+    renderDashboard();
+  };
 
   shippingTableBody.querySelectorAll(".shipping-action-btn").forEach((button) => {
     button.addEventListener("click", () => {
@@ -5449,47 +5698,26 @@ function renderShippingPage() {
 
       const qtyInput = shippingTableBody.querySelector(`input[data-ship-qty-order-id="${order.id}"]`);
       const dateInput = shippingTableBody.querySelector(`input[data-ship-date-order-id="${order.id}"]`);
-      const remainingQty = getRemainingShippingQuantity(order);
-      const shipQty = Number(qtyInput?.value || 0);
-      const shipDate = String(dateInput?.value || "");
+      saveShipmentFromRow(order, Number(qtyInput?.value || 0), String(dateInput?.value || ""), false);
+    });
+  });
 
-      if (!shipQty || shipQty <= 0) {
-        showAppAlert("출하 수량을 입력해 주세요.");
-        return;
-      }
-      if (shipQty > remainingQty) {
-        showAppAlert("출하 수량이 잔량보다 많습니다.");
-        return;
-      }
-      if (!shipDate) {
-        showAppAlert("출하일을 입력해 주세요.");
-        return;
-      }
+  shippingTableBody.querySelectorAll(".shipping-complete-btn").forEach((button) => {
+    button.addEventListener("click", () => {
+      const order = state.orders.find((item) => item.id === button.dataset.orderId);
+      if (!order) return;
+      const dateInput = shippingTableBody.querySelector(`input[data-ship-date-order-id="${order.id}"]`);
+      saveShipmentFromRow(order, getRemainingShippingQuantity(order), String(dateInput?.value || ""), false);
+    });
+  });
 
-      const shipments = getShipmentRecords(order);
-      shipments.push({
-        id: crypto.randomUUID(),
-        qty: shipQty,
-        date: shipDate,
-        note: String(order.shippingNote || "").trim()
-      });
-      order.shipments = shipments;
-      order.shippedDate = shipDate;
-      syncOrderShippingState(order);
-      order.shippingNoteLocked = order.shipped ? true : order.shippingNoteLocked;
-
-      state.activities.unshift({
-        id: crypto.randomUUID(),
-        type: "ship",
-        workerName: "출하",
-        orderId: order.id,
-        timestamp: new Date().toISOString(),
-        message: `${shipQty.toLocaleString()}개 출하 등록`
-      });
-
-      persist();
-      renderShippingPage();
-      renderDashboard();
+  shippingTableBody.querySelectorAll(".shipping-edit-btn").forEach((button) => {
+    button.addEventListener("click", () => {
+      const order = state.orders.find((item) => item.id === button.dataset.orderId);
+      if (!order) return;
+      const qtyInput = shippingTableBody.querySelector(`input[data-ship-qty-order-id="${order.id}"]`);
+      const dateInput = shippingTableBody.querySelector(`input[data-ship-date-order-id="${order.id}"]`);
+      saveShipmentFromRow(order, Number(qtyInput?.value || 0), String(dateInput?.value || ""), true);
     });
   });
 
@@ -5813,7 +6041,7 @@ function renderOrderSuggestions() {
 }
 
 function hasBrokenKoreanText(value) {
-  return /[ ]|쨌|異|묒|뾽|웾|ㅻ|닛|젰|蹂|濡|愿|꾨|덈|듬|땲|\?[^\s]/.test(String(value || ""));
+  return /[�]|쨌|異|묒|뾽|웾|ㅻ|닛|젰|蹂|濡|愿|꾨|덈|듬|땲|\?[^\s]/.test(String(value || ""));
 }
 
 function getCleanActivityMessage(activity, order) {
