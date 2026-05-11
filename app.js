@@ -109,6 +109,8 @@ let isAdminLoggedIn = false;
 let isDashboardListOpen = false;
 let calendarCursor = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 let adminMonthFilter = toMonthKey(new Date());
+let adminActiveSection = "overview";
+let adminSearchKeyword = "";
 let isActivityFeedOpen = false;
 let shippingFilter = "all";
 let shippingSearchKeyword = "";
@@ -165,6 +167,8 @@ const historyToggleBtn = document.getElementById("historyToggleBtn");
 const adminPageLocked = document.getElementById("adminPageLocked");
 const adminPageContent = document.getElementById("adminPageContent");
 const adminMonthInput = document.getElementById("adminMonthInput");
+const adminSearchInput = document.getElementById("adminSearchInput");
+const adminOverview = document.getElementById("adminOverview");
 const equipmentList = document.getElementById("equipmentList");
 const moldList = document.getElementById("moldList");
 const journalList = document.getElementById("journalList");
@@ -259,6 +263,20 @@ function bindEvents() {
   adminMonthInput.addEventListener("change", () => {
     adminMonthFilter = adminMonthInput.value || toMonthKey(new Date());
     renderAdminPage();
+  });
+
+  if (adminSearchInput) {
+    adminSearchInput.addEventListener("input", () => {
+      adminSearchKeyword = String(adminSearchInput.value || "").trim().toLowerCase();
+      renderAdminPage();
+    });
+  }
+
+  document.querySelectorAll("[data-admin-section]").forEach((button) => {
+    button.addEventListener("click", () => {
+      adminActiveSection = button.dataset.adminSection || "overview";
+      renderAdminPage();
+    });
   });
 
   orderForm.addEventListener("submit", (event) => {
@@ -1558,10 +1576,73 @@ function renderAdminSession() {
 
 function renderAdminPage() {
   adminMonthInput.value = adminMonthFilter;
+  if (adminSearchInput) adminSearchInput.value = adminSearchKeyword;
+  renderAdminSections();
+  renderAdminOverview();
   renderEquipmentList();
   renderMoldList();
   renderJournalList();
   renderWorkerEfficiency();
+}
+
+function renderAdminSections() {
+  document.querySelectorAll("[data-admin-section]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.adminSection === adminActiveSection);
+  });
+
+  document.querySelectorAll("[data-admin-panel]").forEach((panel) => {
+    panel.hidden = panel.dataset.adminPanel !== adminActiveSection;
+  });
+}
+
+function adminMatchesSearch(order) {
+  const keyword = adminSearchKeyword.trim().toLowerCase();
+  if (!keyword) return true;
+  return [
+    order.company,
+    order.product,
+    order.workerName,
+    order.machineName,
+    order.deliveryType,
+    order.orderNote,
+    order.pauseReason
+  ]
+    .map((value) => String(value || "").toLowerCase())
+    .some((value) => value.includes(keyword));
+}
+
+function getFilteredAdminMonthOrders() {
+  return getAdminMonthOrders().filter(adminMatchesSearch);
+}
+
+function renderAdminOverview() {
+  if (!adminOverview) return;
+
+  const rows = getFilteredAdminMonthOrders();
+  const completed = rows.filter((order) => order.status === "complete").length;
+  const working = rows.filter((order) => order.status === "working").length;
+  const totalProduction = rows.reduce((sum, order) => sum + Number(order.productionQty || 0), 0);
+  const totalHits = rows.reduce((sum, order) => sum + Number(order.totalHitQty || 0), 0);
+  const totalWorkMs = rows.reduce((sum, order) => sum + Number(order.elapsedMs || 0), 0);
+  const machines = new Set(rows.map((order) => order.machineName).filter(Boolean)).size;
+  const workers = new Set(rows.map((order) => order.workerName).filter(Boolean)).size;
+
+  adminOverview.innerHTML = [
+    { label: "검색 결과", value: `${rows.length}건`, hint: "조건에 맞는 발주" },
+    { label: "작업 완료", value: `${completed}건`, hint: `작업 중 ${working}건` },
+    { label: "총생산수", value: totalProduction.toLocaleString(), hint: `총타발수 ${totalHits.toLocaleString()}` },
+    { label: "작업시간", value: formatElapsedMs(totalWorkMs), hint: `장비 ${machines}대 / 작업자 ${workers}명` }
+  ]
+    .map(
+      (card) => `
+        <article class="stat-card admin-summary-card">
+          <span>${card.label}</span>
+          <strong>${card.value}</strong>
+          <p>${card.hint}</p>
+        </article>
+      `
+    )
+    .join("");
 }
 
 function renderStats() {
@@ -2908,7 +2989,7 @@ function renderJournalList() {
 function renderWorkerEfficiency() {
   const workerMap = new Map();
 
-  getAdminMonthOrders().forEach((order) => {
+  getFilteredAdminMonthOrders().forEach((order) => {
     if (!order.workerName) return;
     if (!workerMap.has(order.workerName)) {
       workerMap.set(order.workerName, {
@@ -3039,7 +3120,7 @@ async function handleAdminLogin(formElement) {
 function buildEquipmentSummary() {
   const equipmentMap = new Map();
 
-  getAdminMonthOrders().forEach((order) => {
+  getFilteredAdminMonthOrders().forEach((order) => {
     const name = order.machineName || "誘몄????λ퉬";
     if (!equipmentMap.has(name)) {
       equipmentMap.set(name, { name, actualMs: 0, jobCount: 0, workerSet: new Set() });
@@ -3071,7 +3152,7 @@ function buildEquipmentSummary() {
 }
 
 function buildMoldSummary() {
-  return getSortedOrders(state.orders).map((order) => {
+  return getSortedOrders(getFilteredAdminMonthOrders()).map((order) => {
     const completedQty = Number(order.totalHitQty || 0);
     const inProgressQty = order.status === "working" ? Number(order.workHitQty || 0) : 0;
     const currentShots = completedQty;
@@ -3090,7 +3171,7 @@ function buildMoldSummary() {
 }
 
 function buildProductionJournal() {
-  return getSortedOrders(getAdminMonthOrders())
+  return getSortedOrders(getFilteredAdminMonthOrders())
     .filter((order) => order.workerName || order.productionQty || order.totalHitQty || order.workQty || order.workHitQty || order.pauseReason)
     .map((order) => ({
       date: (order.endTime || order.startTime || order.orderDate || "").slice(0, 10),
@@ -3901,7 +3982,7 @@ function renderJournalList() {
 function renderWorkerEfficiency() {
   const workerMap = new Map();
 
-  getAdminMonthOrders().forEach((order) => {
+  getFilteredAdminMonthOrders().forEach((order) => {
     if (!order.workerName) return;
     if (!workerMap.has(order.workerName)) {
       workerMap.set(order.workerName, {
@@ -4623,7 +4704,7 @@ function buildEquipmentSummary() {
 }
 
 function buildProductionJournal() {
-  return getSortedOrders(getAdminMonthOrders())
+  return getSortedOrders(getFilteredAdminMonthOrders())
     .filter((order) => order.workerName || order.productionQty || order.totalHitQty || order.workQty || order.workHitQty || order.pauseReason)
     .map((order) => ({
       date: (order.endTime || order.startTime || order.orderDate || "").slice(0, 10),
@@ -4713,7 +4794,7 @@ function renderJournalList() {
 function renderWorkerEfficiency() {
   const workerMap = new Map();
 
-  getAdminMonthOrders().forEach((order) => {
+  getFilteredAdminMonthOrders().forEach((order) => {
     if (!order.workerName) return;
     if (!workerMap.has(order.workerName)) {
       workerMap.set(order.workerName, {

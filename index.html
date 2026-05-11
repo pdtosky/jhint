@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="style.css?v=20260511-05" />
+    <link rel="stylesheet" href="style.css?v=20260511-06" />
 </head>
 <body>
   <div class="page-shell">
@@ -316,15 +316,34 @@
           </div>
 
           <div id="adminPageContent" hidden>
-            <div class="admin-month-bar">
+            <div class="admin-control-panel">
               <label>
                 &#51312;&#54924; &#50900;
                 <input type="month" id="adminMonthInput" />
               </label>
+              <label>
+                &#44160;&#49353;
+                <input type="search" id="adminSearchInput" placeholder="&#50629;&#52404;, &#51228;&#54408;, &#51089;&#50629;&#51088;, &#51109;&#48708; &#44160;&#49353;" />
+              </label>
+              <div class="admin-section-tabs" aria-label="관리자 현황 선택">
+                <button type="button" class="tab-btn active" data-admin-section="overview">&#50836;&#50557;</button>
+                <button type="button" class="tab-btn" data-admin-section="equipment">&#51109;&#48708;</button>
+                <button type="button" class="tab-btn" data-admin-section="mold">&#44552;&#54805;</button>
+                <button type="button" class="tab-btn" data-admin-section="journal">&#49373;&#49328;&#51068;&#51648;</button>
+                <button type="button" class="tab-btn" data-admin-section="worker">&#51089;&#50629;&#51088; &#54952;&#50984;</button>
+              </div>
             </div>
 
+            <section class="admin-block admin-overview-block" data-admin-panel="overview">
+              <div class="section-head compact">
+                <h3>&#44288;&#47532;&#51088; &#50836;&#50557;</h3>
+                <p>&#49440;&#53469;&#54620; &#50900;&#44284; &#44160;&#49353;&#50612;&#50640; &#47582;&#45716; &#54788;&#54889;&#51012; &#54620;&#45576;&#50640; &#54869;&#51064;</p>
+              </div>
+              <div id="adminOverview" class="stats-grid admin-overview-grid"></div>
+            </section>
+
             <div class="admin-grid">
-              <section class="admin-block">
+              <section class="admin-block" data-admin-panel="equipment">
                 <div class="section-head compact">
                   <h3>&#51109;&#48708; &#44032;&#46041;&#50984;</h3>
                   <p>&#51089;&#50629;&#51088; &#51077;&#47141; &#45936;&#51060;&#53552; &#44592;&#51456; &#51665;&#44228;</p>
@@ -332,7 +351,7 @@
                 <div id="equipmentList" class="progress-board"></div>
               </section>
 
-              <section class="admin-block">
+              <section class="admin-block" data-admin-panel="mold">
                 <div class="section-head compact">
                   <h3>&#44552;&#54805; &#53440;&#49688; &#44288;&#47532;</h3>
                   <p>&#49373;&#49328;&#49688;&#47049;&#51012; &#53440;&#49688;&#47196; &#44036;&#51452;&#54620; &#50836;&#50557;</p>
@@ -342,7 +361,7 @@
             </div>
 
             <div class="admin-grid admin-grid-wide">
-              <section class="admin-block">
+              <section class="admin-block" data-admin-panel="journal">
                 <div class="section-head compact">
                   <h3>&#49373;&#49328;&#51068;&#51648;</h3>
                   <p>&#51089;&#50629;&#51088;&#44032; &#51077;&#47141;&#54620; &#51060;&#47141; &#44592;&#51456; &#51068;&#51648;</p>
@@ -350,7 +369,7 @@
                 <div id="journalList" class="activity-feed"></div>
               </section>
 
-              <section class="admin-block">
+              <section class="admin-block" data-admin-panel="worker">
                 <div class="section-head compact">
                   <h3>&#51089;&#50629;&#51088; &#51089;&#50629; &#54952;&#50984; &#45936;&#51060;&#53552;</h3>
                   <p>&#45572;&#51201; &#51089;&#50629;&#49884;&#44036;, &#49373;&#49328;&#49688;, &#49884;&#44036;&#45817; &#54952;&#50984;</p>
@@ -439,8 +458,8 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="config.js?v=20260511-05"></script>
-    <script src="app.js?v=20260511-05"></script>
+    <script src="config.js?v=20260511-06"></script>
+    <script src="app.js?v=20260511-06"></script>
 </body>
 </html>
 
