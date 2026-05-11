@@ -167,6 +167,7 @@ const historyToggleBtn = document.getElementById("historyToggleBtn");
 const adminPageLocked = document.getElementById("adminPageLocked");
 const adminPageContent = document.getElementById("adminPageContent");
 const adminMonthInput = document.getElementById("adminMonthInput");
+const adminAllMonthsBtn = document.getElementById("adminAllMonthsBtn");
 const adminSearchInput = document.getElementById("adminSearchInput");
 const adminOverview = document.getElementById("adminOverview");
 const equipmentList = document.getElementById("equipmentList");
@@ -264,6 +265,13 @@ function bindEvents() {
     adminMonthFilter = adminMonthInput.value || toMonthKey(new Date());
     renderAdminPage();
   });
+
+  if (adminAllMonthsBtn) {
+    adminAllMonthsBtn.addEventListener("click", () => {
+      adminMonthFilter = "all";
+      renderAdminPage();
+    });
+  }
 
   if (adminSearchInput) {
     adminSearchInput.addEventListener("input", () => {
@@ -1575,7 +1583,8 @@ function renderAdminSession() {
 }
 
 function renderAdminPage() {
-  adminMonthInput.value = adminMonthFilter;
+  adminMonthInput.value = adminMonthFilter === "all" ? "" : adminMonthFilter;
+  if (adminAllMonthsBtn) adminAllMonthsBtn.classList.toggle("active", adminMonthFilter === "all");
   if (adminSearchInput) adminSearchInput.value = adminSearchKeyword;
   renderAdminSections();
   renderAdminOverview();
@@ -2281,6 +2290,10 @@ function isWeekendDateKey(dateKey) {
 }
 
 function getAdminWorkingDayKeys(monthKey = adminMonthFilter) {
+  if (monthKey === "all") {
+    return getMonthDateKeys(toMonthKey(new Date())).filter((dateKey) => !isWeekendDateKey(dateKey) && !getKoreanPublicHolidayKeys(dateKey.slice(0, 4)).has(dateKey));
+  }
+
   const year = String(monthKey || "").slice(0, 4);
   const publicHolidays = getKoreanPublicHolidayKeys(year);
   return getMonthDateKeys(monthKey).filter((dateKey) => !isWeekendDateKey(dateKey) && !publicHolidays.has(dateKey));
@@ -3581,6 +3594,10 @@ function toMonthKey(value) {
 }
 
 function getAdminMonthOrders() {
+  if (adminMonthFilter === "all") {
+    return state.orders;
+  }
+
   return state.orders.filter((order) => {
     const baseDate = order.endTime || order.startTime || order.orderDate;
     if (!baseDate) return false;

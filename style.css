@@ -3107,13 +3107,18 @@ html {
 
 .admin-control-panel {
   display: grid;
-  grid-template-columns: minmax(160px, 220px) minmax(240px, 1fr);
+  grid-template-columns: minmax(160px, 220px) auto minmax(240px, 1fr);
   gap: 12px;
   margin-top: 18px;
   padding: 16px;
   border: 1px solid var(--line);
   border-radius: 22px;
   background: rgba(255, 255, 255, 0.78);
+}
+
+.admin-all-months-btn {
+  align-self: end;
+  min-height: 50px;
 }
 
 .admin-section-tabs {
