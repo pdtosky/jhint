@@ -2210,6 +2210,28 @@ function renderWorkerLiveStatus() {
   });
 }
 
+function renderShippingPageCardModeFinalOverride() {
+  const wrap = shippingTableBody?.closest(".shipping-table-wrap");
+  if (wrap) {
+    wrap.classList.add("shipping-card-mode");
+  }
+  renderShippingPageCardOverride();
+}
+
+renderShippingPage = renderShippingPageCardModeFinalOverride;
+setTimeout(render, 0);
+
+function renderShippingPageFinalCardMode() {
+  const wrap = shippingTableBody?.closest(".shipping-table-wrap");
+  if (wrap) {
+    wrap.classList.add("shipping-card-mode");
+  }
+  renderShippingPageCardOverride();
+}
+
+renderShippingPage = renderShippingPageFinalCardMode;
+setTimeout(render, 0);
+
 function renderShippingPageCardOverride() {
   state.orders.forEach(syncOrderShippingState);
 
@@ -2823,7 +2845,8 @@ function saveShippingRecordFinal(order, shipQty, shipDate, replaceExisting = fal
 }
 
 function renderShippingPage() {
-  state.orders.forEach(syncOrderShippingState);
+  shippingTableBody?.closest(".shipping-table-wrap")?.classList.add("shipping-card-mode");
+  return renderShippingPageCardOverride();
 
   const orders = getFilteredShippingOrders();
   const allOrders = getSortedOrders(state.orders);
@@ -5262,6 +5285,17 @@ function renderWorkerLiveStatus() {
   });
 }
 
+function renderShippingPageCardModeFinalOverrideAfterAll() {
+  const wrap = shippingTableBody?.closest(".shipping-table-wrap");
+  if (wrap) {
+    wrap.classList.add("shipping-card-mode");
+  }
+  renderShippingPageCardOverride();
+}
+
+renderShippingPage = renderShippingPageCardModeFinalOverrideAfterAll;
+setTimeout(render, 0);
+
 function renderOrderOptions() {
   const selectableOrders = getSortedOrders(state.orders.filter((order) => order.status === "ready" || order.status === "paused"));
 
@@ -6281,7 +6315,8 @@ function renderCalendarDetail() {
 }
 
 function renderShippingPage() {
-  state.orders.forEach(syncOrderShippingState);
+  shippingTableBody?.closest(".shipping-table-wrap")?.classList.add("shipping-card-mode");
+  return renderShippingPageCardOverride();
 
   const orders = getFilteredShippingOrders();
   const allOrders = getSortedOrders(state.orders);

@@ -3199,6 +3199,20 @@ html {
   padding: 0;
 }
 
+.shipping-card-mode {
+  overflow: visible;
+}
+
+.shipping-card-mode table {
+  min-width: 0;
+  table-layout: auto;
+  background: transparent;
+}
+
+.shipping-card-mode thead {
+  display: none;
+}
+
 .shipping-card-host::before,
 .shipping-card-host td::before {
   display: none !important;
