@@ -107,6 +107,7 @@ let dashboardFilter = "all";
 let dashboardTimerId = null;
 let isAdminLoggedIn = false;
 let isDashboardListOpen = false;
+let isDashboardProgressOpen = false;
 let calendarCursor = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 let adminMonthFilter = "all";
 let adminActiveSection = "overview";
@@ -1018,6 +1019,11 @@ function renderProgress() {
   };
   progressTitle.textContent = titleMap[dashboardFilter] || "전체 발주 진행률";
 
+  if (!isDashboardProgressOpen) {
+    progressBoard.innerHTML = `<div class="empty-state">카드를 누르면 해당 진행률이 표시됩니다.</div>`;
+    return;
+  }
+
   if (filteredOrders.length === 0) {
     progressBoard.innerHTML = `<div class="empty-state">진행 중인 생산 데이터가 없습니다.</div>`;
     return;
@@ -1127,6 +1133,11 @@ function renderProgress() {
   };
   progressTitle.textContent = titleMap[dashboardFilter] || "전체 발주 진행률";
 
+  if (!isDashboardProgressOpen) {
+    progressBoard.innerHTML = `<div class="empty-state">카드를 누르면 해당 진행률이 표시됩니다.</div>`;
+    return;
+  }
+
   if (filteredOrders.length === 0) {
     progressBoard.innerHTML = `<div class="empty-state">진행 중인 생산 데이터가 없습니다.</div>`;
     return;
@@ -1225,6 +1236,11 @@ function renderProgress() {
     urgent: "납기 임박 진행률"
   };
   progressTitle.textContent = titleMap[dashboardFilter] || "전체 발주 진행률";
+
+  if (!isDashboardProgressOpen) {
+    progressBoard.innerHTML = `<div class="empty-state">카드를 누르면 해당 진행률이 표시됩니다.</div>`;
+    return;
+  }
 
   if (filteredOrders.length === 0) {
     progressBoard.innerHTML = `<div class="empty-state">진행 중인 생산 데이터가 없습니다.</div>`;
@@ -1682,11 +1698,13 @@ function renderStats() {
   statsGrid.querySelectorAll(".stat-card").forEach((card) => {
     card.addEventListener("click", () => {
       const nextFilter = card.dataset.filter || "all";
-      if (dashboardFilter === nextFilter && isDashboardListOpen) {
+      if (dashboardFilter === nextFilter && (isDashboardListOpen || isDashboardProgressOpen)) {
         isDashboardListOpen = false;
+        isDashboardProgressOpen = false;
       } else {
         dashboardFilter = nextFilter;
         isDashboardListOpen = true;
+        isDashboardProgressOpen = true;
       }
       renderStats();
       renderProgress();
@@ -2190,6 +2208,184 @@ function renderWorkerLiveStatus() {
       if (button.dataset.action === "complete") prepareCompletion();
     });
   });
+}
+
+function renderDashboardProgressCollapsedOverride() {
+  const filteredOrders = getSortedOrders(getDashboardFilteredOrders());
+  const titleMap = {
+    all: "전체 발주 진행률",
+    ready: "작업 대기 진행률",
+    working: "작업 중 진행률",
+    complete: "작업 완료 진행률",
+    urgent: "납기 임박 진행률"
+  };
+  progressTitle.textContent = titleMap[dashboardFilter] || "전체 발주 진행률";
+
+  if (!isDashboardProgressOpen) {
+    progressBoard.innerHTML = `<div class="empty-state">카드를 누르면 해당 진행률이 표시됩니다.</div>`;
+    return;
+  }
+
+  if (filteredOrders.length === 0) {
+    progressBoard.innerHTML = `<div class="empty-state">진행 중인 생산 데이터가 없습니다.</div>`;
+    return;
+  }
+
+  progressBoard.innerHTML = filteredOrders
+    .map((order) => {
+      const percent = getProgressPercent(order);
+      const urgent = order.status !== "complete" && daysUntil(order.dueDate) <= 3;
+      return `
+        <article class="progress-card ${order.status === "paused" ? "paused-card" : ""}">
+          <div class="progress-top">
+            <div>
+              <strong>${escapeHtml(order.product)}</strong>
+              <p class="progress-meta">${escapeHtml(order.company)}</p>
+            </div>
+            ${statusBadgeClean(order, urgent)}
+          </div>
+          <div class="bar-track">
+            <div class="bar-fill" style="width: ${percent}%"></div>
+          </div>
+          ${renderProgressMetaGrid(order)}
+          ${order.status === "paused" ? `<div class="paused-flag">작업 중지 / ${escapeHtml(order.pauseReason || "사유 미입력")}</div>` : ""}
+        </article>
+      `;
+    })
+    .join("");
+}
+
+function renderDashboardStatsCollapsedOverride() {
+  const cards = [
+    { key: "all", label: "전체 발주", value: state.orders.length, hint: "등록된 전체 발주 건", tone: "stat-all" },
+    { key: "ready", label: "작업 대기", value: state.orders.filter((item) => item.status === "ready").length, hint: "작업 시작 전 발주", tone: "stat-ready" },
+    { key: "working", label: "작업 중", value: state.orders.filter((item) => item.status === "working").length, hint: "현재 생산 진행 건", tone: "stat-working" },
+    { key: "complete", label: "작업 완료", value: state.orders.filter((item) => item.status === "complete").length, hint: "생산 완료 발주", tone: "stat-complete" },
+    { key: "urgent", label: "납기 임박", value: state.orders.filter((item) => item.status !== "complete" && daysUntil(item.dueDate) <= 3).length, hint: "3일 이내 납기 건", tone: "stat-urgent" }
+  ];
+
+  statsGrid.innerHTML = cards
+    .map(
+      (card) => `
+        <button type="button" class="stat-card ${card.tone} ${dashboardFilter === card.key ? "active" : ""}" data-filter="${card.key}">
+          <span>${card.label}</span>
+          <strong>${card.value}</strong>
+          <p>${card.hint}</p>
+        </button>
+      `
+    )
+    .join("");
+
+  statsGrid.querySelectorAll(".stat-card").forEach((card) => {
+    card.addEventListener("click", () => {
+      const nextFilter = card.dataset.filter || "all";
+      if (dashboardFilter === nextFilter && (isDashboardListOpen || isDashboardProgressOpen)) {
+        isDashboardListOpen = false;
+        isDashboardProgressOpen = false;
+      } else {
+        dashboardFilter = nextFilter;
+        isDashboardListOpen = true;
+        isDashboardProgressOpen = true;
+      }
+      renderStats();
+      renderProgress();
+      renderDashboardFilteredList();
+      if (isDashboardListOpen) {
+        dashboardFilteredList.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    });
+  });
+}
+
+renderStats = renderDashboardStatsCollapsedOverride;
+renderProgress = renderDashboardProgressCollapsedOverride;
+setTimeout(render, 0);
+
+function renderStats() {
+  const cards = [
+    { key: "all", label: "전체 발주", value: state.orders.length, hint: "등록된 전체 발주 건", tone: "stat-all" },
+    { key: "ready", label: "작업 대기", value: state.orders.filter((item) => item.status === "ready").length, hint: "작업 시작 전 발주", tone: "stat-ready" },
+    { key: "working", label: "작업 중", value: state.orders.filter((item) => item.status === "working").length, hint: "현재 생산 진행 건", tone: "stat-working" },
+    { key: "complete", label: "작업 완료", value: state.orders.filter((item) => item.status === "complete").length, hint: "생산 완료 발주", tone: "stat-complete" },
+    { key: "urgent", label: "납기 임박", value: state.orders.filter((item) => item.status !== "complete" && daysUntil(item.dueDate) <= 3).length, hint: "3일 이내 납기 건", tone: "stat-urgent" }
+  ];
+
+  statsGrid.innerHTML = cards
+    .map(
+      (card) => `
+        <button type="button" class="stat-card ${card.tone} ${dashboardFilter === card.key ? "active" : ""}" data-filter="${card.key}">
+          <span>${card.label}</span>
+          <strong>${card.value}</strong>
+          <p>${card.hint}</p>
+        </button>
+      `
+    )
+    .join("");
+
+  statsGrid.querySelectorAll(".stat-card").forEach((card) => {
+    card.addEventListener("click", () => {
+      const nextFilter = card.dataset.filter || "all";
+      if (dashboardFilter === nextFilter && (isDashboardListOpen || isDashboardProgressOpen)) {
+        isDashboardListOpen = false;
+        isDashboardProgressOpen = false;
+      } else {
+        dashboardFilter = nextFilter;
+        isDashboardListOpen = true;
+        isDashboardProgressOpen = true;
+      }
+      renderStats();
+      renderProgress();
+      renderDashboardFilteredList();
+      if (isDashboardListOpen) {
+        dashboardFilteredList.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    });
+  });
+}
+
+function renderProgress() {
+  const filteredOrders = getSortedOrders(getDashboardFilteredOrders());
+  const titleMap = {
+    all: "전체 발주 진행률",
+    ready: "작업 대기 진행률",
+    working: "작업 중 진행률",
+    complete: "작업 완료 진행률",
+    urgent: "납기 임박 진행률"
+  };
+  progressTitle.textContent = titleMap[dashboardFilter] || "전체 발주 진행률";
+
+  if (!isDashboardProgressOpen) {
+    progressBoard.innerHTML = `<div class="empty-state">카드를 누르면 해당 진행률이 표시됩니다.</div>`;
+    return;
+  }
+
+  if (filteredOrders.length === 0) {
+    progressBoard.innerHTML = `<div class="empty-state">진행 중인 생산 데이터가 없습니다.</div>`;
+    return;
+  }
+
+  progressBoard.innerHTML = filteredOrders
+    .map((order) => {
+      const percent = getProgressPercent(order);
+      const urgent = order.status !== "complete" && daysUntil(order.dueDate) <= 3;
+      return `
+        <article class="progress-card ${order.status === "paused" ? "paused-card" : ""}">
+          <div class="progress-top">
+            <div>
+              <strong>${escapeHtml(order.product)}</strong>
+              <p class="progress-meta">${escapeHtml(order.company)}</p>
+            </div>
+            ${statusBadgeClean(order, urgent)}
+          </div>
+          <div class="bar-track">
+            <div class="bar-fill" style="width: ${percent}%"></div>
+          </div>
+          ${renderProgressMetaGrid(order)}
+          ${order.status === "paused" ? `<div class="paused-flag">작업 중지 / ${escapeHtml(order.pauseReason || "사유 미입력")}</div>` : ""}
+        </article>
+      `;
+    })
+    .join("");
 }
 
 function renderWorkerEfficiency() {
@@ -4583,11 +4779,13 @@ function renderStats() {
   statsGrid.querySelectorAll(".stat-card").forEach((card) => {
     card.addEventListener("click", () => {
       const nextFilter = card.dataset.filter || "all";
-      if (dashboardFilter === nextFilter && isDashboardListOpen) {
+      if (dashboardFilter === nextFilter && (isDashboardListOpen || isDashboardProgressOpen)) {
         isDashboardListOpen = false;
+        isDashboardProgressOpen = false;
       } else {
         dashboardFilter = nextFilter;
         isDashboardListOpen = true;
+        isDashboardProgressOpen = true;
       }
       renderStats();
       renderProgress();
@@ -5507,11 +5705,13 @@ function renderStats() {
   statsGrid.querySelectorAll(".stat-card").forEach((card) => {
     card.addEventListener("click", () => {
       const nextFilter = card.dataset.filter || "all";
-      if (dashboardFilter === nextFilter && isDashboardListOpen) {
+      if (dashboardFilter === nextFilter && (isDashboardListOpen || isDashboardProgressOpen)) {
         isDashboardListOpen = false;
+        isDashboardProgressOpen = false;
       } else {
         dashboardFilter = nextFilter;
         isDashboardListOpen = true;
+        isDashboardProgressOpen = true;
       }
       renderStats();
       renderProgress();
