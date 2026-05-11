@@ -114,6 +114,7 @@ let adminActiveSection = "overview";
 let adminSearchKeyword = "";
 let isActivityFeedOpen = false;
 let shippingFilter = "all";
+let isShippingListOpen = false;
 let shippingSearchKeyword = "";
 let lastStateSnapshot = "";
 let syncTimerId = null;
@@ -388,6 +389,7 @@ function bindEvents() {
 
   function openShippingList(filter) {
     shippingFilter = filter;
+    isShippingListOpen = true;
     renderShippingPage();
     shippingSummary.scrollIntoView({ behavior: "smooth", block: "start" });
   }
@@ -412,6 +414,7 @@ function bindEvents() {
 
   shippingSearchInput.addEventListener("input", () => {
     shippingSearchKeyword = String(shippingSearchInput.value || "").trim().toLowerCase();
+    isShippingListOpen = Boolean(shippingSearchKeyword);
     renderShippingPage();
   });
 }
@@ -2274,6 +2277,11 @@ function renderShippingPageCardOverride() {
       `
     )
     .join("");
+
+  if (!isShippingListOpen) {
+    shippingTableBody.innerHTML = `<tr class="shipping-card-host"><td colspan="9"><div class="empty-state">위의 출하 현황 카드를 누르면 해당 목록이 표시됩니다.</div></td></tr>`;
+    return;
+  }
 
   if (!orders.length) {
     shippingTableBody.innerHTML = `<tr class="shipping-card-host"><td colspan="9"><div class="empty-state">${TEXT.noOrders}</div></td></tr>`;
