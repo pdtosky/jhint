@@ -1,0 +1,19 @@
+{
+  "name": "생산일정 관리",
+  "short_name": "생산관리",
+  "description": "발주, 작업자 입력, 출하, 관리자 현황을 확인하는 생산일정 관리 앱",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#dcebff",
+  "theme_color": "#dcebff",
+  "icons": [
+    {
+      "src": "/app-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

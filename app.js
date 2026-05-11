@@ -2224,6 +2224,12 @@ function renderShippingPageCardModeLastOverride() {
 renderShippingPage = renderShippingPageCardModeLastOverride;
 setTimeout(render, 0);
 
+if ("serviceWorker" in navigator && location.protocol === "https:") {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js").catch(() => {});
+  });
+}
+
 function renderShippingPageCardModeFinalOverride() {
   const wrap = shippingTableBody?.closest(".shipping-table-wrap");
   if (wrap) {
