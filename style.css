@@ -3127,6 +3127,70 @@ html {
   vertical-align: middle;
 }
 
+.shipping-table-wrap table {
+  min-width: 1180px;
+  table-layout: fixed;
+}
+
+.shipping-table-wrap th,
+.shipping-table-wrap td {
+  padding: 13px 10px;
+}
+
+.shipping-table-wrap th:nth-child(1),
+.shipping-table-wrap td:nth-child(1) {
+  width: 13%;
+}
+
+.shipping-table-wrap th:nth-child(2),
+.shipping-table-wrap td:nth-child(2) {
+  width: 19%;
+}
+
+.shipping-table-wrap th:nth-child(3),
+.shipping-table-wrap td:nth-child(3),
+.shipping-table-wrap th:nth-child(7),
+.shipping-table-wrap td:nth-child(7) {
+  width: 100px;
+  white-space: nowrap;
+}
+
+.shipping-table-wrap th:nth-child(4),
+.shipping-table-wrap td:nth-child(4) {
+  width: 118px;
+}
+
+.shipping-table-wrap th:nth-child(5),
+.shipping-table-wrap td:nth-child(5),
+.shipping-table-wrap th:nth-child(6),
+.shipping-table-wrap td:nth-child(6) {
+  width: 92px;
+  text-align: center;
+}
+
+.shipping-table-wrap th:nth-child(8),
+.shipping-table-wrap td:nth-child(8) {
+  width: 250px;
+}
+
+.shipping-table-wrap th:nth-child(9),
+.shipping-table-wrap td:nth-child(9) {
+  width: 190px;
+}
+
+.shipping-table-wrap td[data-label="수량"] strong,
+.shipping-progress-text,
+.shipping-history,
+.shipping-table-wrap td[data-label="출하일"] {
+  white-space: nowrap;
+}
+
+.shipping-table-wrap td[data-label="제품명"],
+.shipping-table-wrap td[data-label="업체명"] {
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
 .shipping-table-wrap td[data-label="작업 상태"],
 .shipping-table-wrap td[data-label="출하 상태"],
 .shipping-table-wrap td[data-label="출하일"] {
@@ -3174,6 +3238,11 @@ html {
 }
 
 @media (max-width: 760px) {
+  .shipping-table-wrap table {
+    min-width: 0;
+    table-layout: auto;
+  }
+
   .shipping-table-wrap.mobile-card-table td[data-label="작업 상태"],
   .shipping-table-wrap.mobile-card-table td[data-label="출하 상태"],
   .shipping-table-wrap.mobile-card-table td[data-label="출하일"] {
