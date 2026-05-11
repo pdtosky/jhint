@@ -1,7 +1,7 @@
 {
-  "name": "생산일정 관리",
-  "short_name": "생산관리",
-  "description": "발주, 작업자 입력, 출하, 관리자 현황을 확인하는 생산일정 관리 앱",
+  "name": "\uc0dd\uc0b0\uc77c\uc815 \uad00\ub9ac",
+  "short_name": "\uc0dd\uc0b0\uad00\ub9ac",
+  "description": "\ubc1c\uc8fc, \uc791\uc5c5\uc790 \uc785\ub825, \ucd9c\ud558, \uad00\ub9ac\uc790 \ud604\ud669\uc744 \ud655\uc778\ud558\ub294 \uc0dd\uc0b0\uc77c\uc815 \uad00\ub9ac \uc571",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
@@ -10,10 +10,10 @@
   "theme_color": "#dcebff",
   "icons": [
     {
-      "src": "/app-icon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "src": "/app-icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
     }
   ]
 }
