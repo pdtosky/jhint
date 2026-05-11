@@ -108,7 +108,7 @@ let dashboardTimerId = null;
 let isAdminLoggedIn = false;
 let isDashboardListOpen = false;
 let calendarCursor = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
-let adminMonthFilter = toMonthKey(new Date());
+let adminMonthFilter = "all";
 let adminActiveSection = "overview";
 let adminSearchKeyword = "";
 let isActivityFeedOpen = false;
@@ -4177,15 +4177,19 @@ function renderWorkerEfficiency() {
       workerMap.set(order.workerName, {
         workerName: order.workerName,
         totalQty: 0,
+        totalHitQty: 0,
         totalMs: 0,
         pausedCount: 0,
-        completeCount: 0
+        completeCount: 0,
+        jobCount: 0
       });
     }
 
     const worker = workerMap.get(order.workerName);
     worker.totalQty += Number(order.productionQty || 0);
+    worker.totalHitQty += Number(order.totalHitQty || order.hitQty || 0);
     worker.totalMs += Number(order.elapsedMs || 0);
+    worker.jobCount += 1;
     if (order.pauseReason) worker.pausedCount += 1;
     if (order.status === "complete") worker.completeCount += 1;
   });
@@ -4860,8 +4864,10 @@ function renderOrderOptions() {
 
 function buildEquipmentSummary() {
   const equipmentMap = new Map();
+  const plannedMsPerMachine = getAdminMonthlyAvailableMs();
+  const workingDayCount = getAdminWorkingDayKeys().length;
 
-  getAdminMonthOrders().forEach((order) => {
+  getFilteredAdminMonthOrders().forEach((order) => {
     const name = order.machineName || "미지정 장비";
     if (!equipmentMap.has(name)) {
       equipmentMap.set(name, { name, actualMs: 0, jobCount: 0, workerSet: new Set() });
@@ -4879,7 +4885,7 @@ function buildEquipmentSummary() {
   return [...equipmentMap.values()]
     .filter((item) => item.jobCount > 0)
     .map((item) => {
-      const plannedMs = item.jobCount * 8 * 60 * 60 * 1000;
+      const plannedMs = plannedMsPerMachine;
       const percent = plannedMs > 0 ? Math.round((item.actualMs / plannedMs) * 100) : 0;
       return {
         name: item.name,
@@ -4887,7 +4893,8 @@ function buildEquipmentSummary() {
         plannedMs,
         percent: Math.min(percent, 100),
         jobCount: item.jobCount,
-        workerCount: item.workerSet.size
+        workerCount: item.workerSet.size,
+        workingDayCount
       };
     });
 }
@@ -4929,6 +4936,7 @@ function renderEquipmentList() {
           <span class="status-badge ${item.percent >= 85 ? "status-working" : item.percent >= 60 ? "status-ready" : "status-warning"}">${item.percent}%</span>
         </div>
         <p class="progress-meta">총 작업시간 ${formatElapsedMs(item.actualMs)} / 기준시간 ${formatElapsedMs(item.plannedMs)}</p>
+        <p class="progress-meta">근무 가능일 ${item.workingDayCount}일 기준 / 주말 및 공휴일 제외 / 1일 8시간</p>
         <p class="progress-meta">작업건수 ${item.jobCount} / 작업자 ${item.workerCount}</p>
         <div class="bar-track"><div class="bar-fill" style="width:${Math.min(item.percent, 100)}%"></div></div>
       </article>
@@ -4989,15 +4997,19 @@ function renderWorkerEfficiency() {
       workerMap.set(order.workerName, {
         workerName: order.workerName,
         totalQty: 0,
+        totalHitQty: 0,
         totalMs: 0,
         pausedCount: 0,
-        completeCount: 0
+        completeCount: 0,
+        jobCount: 0
       });
     }
 
     const worker = workerMap.get(order.workerName);
     worker.totalQty += Number(order.productionQty || 0);
+    worker.totalHitQty += Number(order.totalHitQty || order.hitQty || 0);
     worker.totalMs += Number(order.elapsedMs || 0);
+    worker.jobCount += 1;
     if (order.pauseReason) worker.pausedCount += 1;
     if (order.status === "complete") worker.completeCount += 1;
   });
