@@ -3191,6 +3191,139 @@ html {
   overflow-wrap: anywhere;
 }
 
+.shipping-card-host,
+.shipping-card-host td {
+  display: block;
+  width: 100%;
+  border: 0;
+  padding: 0;
+}
+
+.shipping-card-host::before,
+.shipping-card-host td::before {
+  display: none !important;
+}
+
+.shipping-card-list {
+  display: grid;
+  gap: 14px;
+}
+
+.shipping-order-card {
+  display: grid;
+  gap: 14px;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  padding: 18px;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 16px 36px rgba(36, 64, 110, 0.08);
+}
+
+.shipping-card-main,
+.shipping-card-bottom {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 0.75fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.shipping-card-company {
+  margin: 0 0 5px;
+  color: var(--brand);
+  font-size: 0.86rem;
+  font-weight: 900;
+}
+
+.shipping-order-card h3 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 1.06rem;
+  line-height: 1.35;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.shipping-card-badges {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.shipping-card-facts {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.shipping-card-facts span {
+  display: grid;
+  gap: 4px;
+  border-radius: 14px;
+  padding: 9px 10px;
+  background: rgba(232, 242, 255, 0.78);
+  color: var(--ink);
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.shipping-card-facts strong,
+.shipping-note-area label,
+.shipping-manage-area label {
+  color: var(--sub);
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.shipping-card-note {
+  margin: 0;
+}
+
+.shipping-note-area,
+.shipping-manage-area {
+  display: grid;
+  gap: 8px;
+}
+
+.shipping-card-bottom .shipping-note-wrap,
+.shipping-card-bottom .shipping-manage-wrap {
+  min-width: 0;
+}
+
+.shipping-card-bottom .shipping-note-wrap {
+  grid-template-columns: minmax(0, 1fr) minmax(96px, auto);
+  align-items: stretch;
+}
+
+.shipping-card-bottom .shipping-manage-wrap {
+  grid-template-columns: minmax(0, 1fr) minmax(150px, auto);
+}
+
+.shipping-card-bottom .shipping-manage-wrap button {
+  grid-column: 1 / -1;
+}
+
+.shipping-card-bottom input {
+  min-width: 0;
+}
+
+.shipping-card-bottom .shipping-history {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  white-space: normal;
+}
+
+.shipping-card-bottom .shipping-history strong {
+  flex: 0 0 100%;
+}
+
+.shipping-card-bottom .shipping-history span {
+  border-radius: 999px;
+  padding: 5px 8px;
+  background: rgba(248, 251, 255, 0.95);
+}
+
 .shipping-table-wrap td[data-label="작업 상태"],
 .shipping-table-wrap td[data-label="출하 상태"],
 .shipping-table-wrap td[data-label="출하일"] {
@@ -3241,6 +3374,29 @@ html {
   .shipping-table-wrap table {
     min-width: 0;
     table-layout: auto;
+  }
+
+  .shipping-order-card {
+    padding: 14px;
+    border-radius: 18px;
+  }
+
+  .shipping-card-main,
+  .shipping-card-bottom {
+    grid-template-columns: 1fr;
+  }
+
+  .shipping-card-badges {
+    justify-content: flex-start;
+  }
+
+  .shipping-card-facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .shipping-card-bottom .shipping-note-wrap,
+  .shipping-card-bottom .shipping-manage-wrap {
+    grid-template-columns: 1fr;
   }
 
   .shipping-table-wrap.mobile-card-table td[data-label="작업 상태"],
