@@ -946,6 +946,108 @@ tbody tr:last-child td {
   padding: 14px;
 }
 
+.journal-worker-group {
+  border: 1px solid rgba(45, 98, 157, 0.18);
+  background: rgba(255, 255, 255, 0.86);
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 12px 28px rgba(36, 64, 110, 0.07);
+}
+
+.journal-worker-group + .journal-worker-group {
+  margin-top: 10px;
+}
+
+.journal-worker-group summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 16px 18px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.journal-worker-group summary::-webkit-details-marker {
+  display: none;
+}
+
+.journal-worker-group summary::after {
+  content: "펼치기";
+  flex: 0 0 auto;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: rgba(240, 247, 255, 0.9);
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.journal-worker-group[open] summary::after {
+  content: "접기";
+  background: rgba(18, 121, 105, 0.12);
+  color: var(--green);
+}
+
+.journal-worker-name {
+  color: var(--ink);
+  font-size: 1.05rem;
+  font-weight: 900;
+}
+
+.journal-worker-summary {
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 700;
+  text-align: right;
+}
+
+.journal-worker-list {
+  display: grid;
+  gap: 8px;
+  padding: 0 14px 14px;
+}
+
+.journal-work-card {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.8fr) minmax(220px, 1.5fr) minmax(260px, 1.3fr);
+  gap: 12px;
+  align-items: center;
+  border: 1px solid rgba(211, 224, 236, 0.9);
+  border-radius: 16px;
+  padding: 12px;
+  background: rgba(248, 251, 255, 0.94);
+}
+
+.journal-work-date,
+.journal-work-main,
+.journal-work-numbers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  align-items: center;
+}
+
+.journal-work-date strong,
+.journal-work-main strong {
+  color: var(--ink);
+}
+
+.journal-work-date span,
+.journal-work-main span,
+.journal-work-numbers span,
+.journal-work-card p {
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.journal-work-card p {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
 .empty-state {
   color: var(--sub);
   border: 1px dashed var(--line);
@@ -3163,6 +3265,23 @@ html {
 
   .admin-overview-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .journal-worker-group summary {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .journal-worker-summary {
+    text-align: left;
+  }
+
+  .journal-worker-group summary::after {
+    align-self: flex-start;
+  }
+
+  .journal-work-card {
+    grid-template-columns: 1fr;
   }
 }
 

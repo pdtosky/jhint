@@ -4973,19 +4973,60 @@ function renderJournalList() {
     return;
   }
 
-  journalList.innerHTML = rows
-    .map((item) => `
-      <article class="feed-item">
-        <div class="feed-item-top">
-          <strong>${formatDate(item.date)}</strong>
-          <span class="status-badge status-ready">${escapeHtml(item.statusText)}</span>
-        </div>
-        <p class="feed-meta">${escapeHtml(item.orderText)} / 작업자 ${escapeHtml(item.workerName)} / 장비 ${escapeHtml(item.machineName || "-")}</p>
-        <p class="feed-meta">생산수량 ${Number(item.qty || 0).toLocaleString()} / 작업시간 ${formatElapsedMs(item.elapsedMs || 0)}</p>
-        <p class="feed-meta">${escapeHtml(item.note)}</p>
-      </article>
-    `)
+  const workerGroups = rows.reduce((map, item) => {
+    const workerName = item.workerName || "작업자 미지정";
+    if (!map.has(workerName)) {
+      map.set(workerName, []);
+    }
+    map.get(workerName).push(item);
+    return map;
+  }, new Map());
+
+  journalList.innerHTML = [...workerGroups.entries()]
+    .sort(([leftName], [rightName]) => leftName.localeCompare(rightName, "ko-KR"))
+    .map(([workerName, items]) => {
+      const sortedItems = items.sort((a, b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime());
+      const totalQty = sortedItems.reduce((sum, item) => sum + Number(item.qty || 0), 0);
+      const totalHitQty = sortedItems.reduce((sum, item) => sum + Number(item.hitQty || 0), 0);
+      const totalMs = sortedItems.reduce((sum, item) => sum + Number(item.elapsedMs || 0), 0);
+
+      return `
+        <details class="journal-worker-group">
+          <summary>
+            <span class="journal-worker-name">${escapeHtml(workerName)}</span>
+            <span class="journal-worker-summary">작업 ${sortedItems.length}건 · 생산 ${totalQty.toLocaleString()} · 타발 ${totalHitQty.toLocaleString()} · ${formatElapsedMs(totalMs)}</span>
+          </summary>
+          <div class="journal-worker-list">
+            ${sortedItems
+              .map((item) => `
+                <article class="journal-work-card">
+                  <div class="journal-work-date">
+                    <strong>${formatDate(item.date)}</strong>
+                    <span>${getKoreanWeekday(item.date)}</span>
+                  </div>
+                  <div class="journal-work-main">
+                    <strong>${escapeHtml(item.orderText)}</strong>
+                    <span>${escapeHtml(item.statusText)} · 장비 ${escapeHtml(item.machineName || "-")}</span>
+                  </div>
+                  <div class="journal-work-numbers">
+                    <span>생산 ${Number(item.qty || 0).toLocaleString()}</span>
+                    <span>타발 ${Number(item.hitQty || 0).toLocaleString()}</span>
+                    <span>작업시간 ${formatElapsedMs(item.elapsedMs || 0)}</span>
+                  </div>
+                  <p>${escapeHtml(item.note)}</p>
+                </article>
+              `)
+              .join("")}
+          </div>
+        </details>
+      `;
+    })
     .join("");
+}
+
+function getKoreanWeekday(dateString) {
+  if (!dateString) return "-";
+  return new Intl.DateTimeFormat("ko-KR", { weekday: "long" }).format(new Date(dateString));
 }
 
 function renderWorkerEfficiency() {
