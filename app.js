@@ -3163,15 +3163,19 @@ function renderWorkerEfficiency() {
       workerMap.set(order.workerName, {
         workerName: order.workerName,
         totalQty: 0,
+        totalHitQty: 0,
         totalMs: 0,
         pausedCount: 0,
-        completeCount: 0
+        completeCount: 0,
+        jobCount: 0
       });
     }
 
     const worker = workerMap.get(order.workerName);
     worker.totalQty += Number(order.productionQty || 0);
+    worker.totalHitQty += Number(order.totalHitQty || 0);
     worker.totalMs += Number(order.elapsedMs || 0);
+    worker.jobCount += 1;
     if (order.pauseReason) worker.pausedCount += 1;
     if (order.status === "complete") worker.completeCount += 1;
   });
@@ -4990,16 +4994,21 @@ function renderWorkerEfficiency() {
   workerEfficiencyList.innerHTML = rows
     .sort((a, b) => b.totalQty - a.totalQty)
     .map((item) => {
-      const hours = item.totalMs / (1000 * 60 * 60);
-      const efficiency = hours > 0 ? (item.totalQty / hours).toFixed(1) : "0.0";
+      const actualHours = item.totalMs / (1000 * 60 * 60);
+      const basisHours = Math.max(actualHours, 1);
+      const hourlyQty = Math.round(item.totalQty / basisHours);
+      const avgMs = item.jobCount > 0 ? item.totalMs / item.jobCount : 0;
+      const reliabilityText = actualHours < 1 ? "작업시간 1시간 미만으로 참고용" : "작업시간 기준";
       return `
         <article class="progress-card">
           <div class="progress-top">
             <strong>${escapeHtml(item.workerName)}</strong>
-            <span class="status-badge status-working">효율 ${efficiency}</span>
+            <span class="status-badge status-working">시간당 ${hourlyQty.toLocaleString()}개</span>
           </div>
-          <p class="progress-meta">누적 생산수 ${item.totalQty.toLocaleString()} / 누적 작업시간 ${formatElapsedMs(item.totalMs)}</p>
-          <p class="progress-meta">완료건 ${item.completeCount} / 중지이력 ${item.pausedCount} / 시간당 생산 ${efficiency}</p>
+          <p class="progress-meta">누적 생산수 ${item.totalQty.toLocaleString()} / 누적 타발수 ${item.totalHitQty.toLocaleString()}</p>
+          <p class="progress-meta">누적 작업시간 ${formatElapsedMs(item.totalMs)} / 평균 작업시간 ${formatElapsedMs(avgMs)}</p>
+          <p class="progress-meta">작업건 ${item.jobCount} / 완료건 ${item.completeCount} / 중지이력 ${item.pausedCount}</p>
+          <p class="progress-meta">효율 기준: ${reliabilityText} / 최소 1시간 기준으로 과대 표시 방지</p>
         </article>
       `;
     })
