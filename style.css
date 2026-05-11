@@ -1022,9 +1022,9 @@ tbody tr:last-child td {
 
 .journal-work-card {
   display: grid;
-  grid-template-columns: minmax(118px, 0.75fr) minmax(260px, 1.7fr) minmax(300px, 1.45fr);
-  gap: 14px;
-  align-items: center;
+  grid-template-columns: minmax(112px, 0.55fr) minmax(0, 1.45fr);
+  gap: 10px 14px;
+  align-items: start;
   border: 1px solid rgba(211, 224, 236, 0.9);
   border-radius: 16px;
   padding: 12px;
@@ -1063,6 +1063,7 @@ tbody tr:last-child td {
 }
 
 .journal-work-numbers {
+  grid-column: 1 / -1;
   justify-content: flex-start;
 }
 
@@ -1084,13 +1085,9 @@ tbody tr:last-child td {
     gap: 5px;
   }
 
-  .journal-work-numbers {
-    justify-content: flex-end;
-  }
-
   .journal-work-card p {
-    margin-top: -4px;
-    padding-left: calc(118px + 14px);
+    margin-top: 0;
+    padding-left: calc(112px + 14px);
   }
 }
 
@@ -3347,11 +3344,6 @@ html {
   .journal-work-date,
   .journal-work-main {
     display: flex;
-  }
-
-  .journal-work-numbers {
-    grid-column: 1 / -1;
-    justify-content: flex-start;
   }
 
   .journal-work-card p {
