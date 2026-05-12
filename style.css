@@ -1141,6 +1141,57 @@ tbody tr:last-child td {
   white-space: pre-line;
 }
 
+.work-start-confirm-card {
+  max-width: 460px;
+}
+
+.work-start-confirm-list {
+  display: grid;
+  gap: 10px;
+  margin: 18px 0 0;
+}
+
+.work-start-confirm-list div {
+  display: grid;
+  grid-template-columns: 82px 1fr;
+  gap: 12px;
+  align-items: center;
+  padding: 13px 14px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: #f3f8ff;
+}
+
+.work-start-confirm-list dt {
+  color: var(--sub);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.work-start-confirm-list dd {
+  margin: 0;
+  color: var(--ink);
+  font-weight: 900;
+  line-height: 1.4;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.work-start-confirm-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.work-start-confirm-actions .primary-btn,
+.work-start-confirm-actions .tab-btn {
+  width: 100%;
+  justify-content: center;
+  min-height: 52px;
+  font-size: 16px;
+}
+
 #calendarDetailBody {
   overflow-y: auto;
   padding-right: 4px;

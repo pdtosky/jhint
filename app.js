@@ -366,7 +366,7 @@ function bindEvents() {
     closeOrderEditPanel();
   });
 
-  startWorkBtn.addEventListener("click", () => updateWorkState("working"));
+  startWorkBtn.addEventListener("click", confirmWorkStart);
   pauseWorkBtn.addEventListener("click", preparePause);
   endWorkBtn.addEventListener("click", prepareCompletion);
   savePauseBtn.addEventListener("click", finalizePause);
@@ -5669,6 +5669,72 @@ function showAppAlert(message) {
   if (messageNode) {
     messageNode.textContent = cleanMessage;
   }
+  modal.hidden = false;
+}
+
+function confirmWorkStart() {
+  const formData = new FormData(workerForm);
+  const workerName = String(formData.get("workerName") || "").trim();
+  const machineName = String(formData.get("machineName") || "").trim();
+  const orderId = String(formData.get("orderId") || "");
+  const order = state.orders.find((item) => item.id === orderId);
+
+  if (!workerName || !machineName || !orderId) {
+    showWorkerAlert("작업자명, 장비명, 작업 선택을 모두 입력해 주세요.");
+    showAppAlert("작업자명, 장비명, 작업 선택을 모두 입력해 주세요.");
+    return;
+  }
+
+  if (!order) {
+    showWorkerAlert("선택한 작업을 찾을 수 없습니다.");
+    showAppAlert("선택한 작업을 찾을 수 없습니다.");
+    return;
+  }
+
+  let modal = document.getElementById("workStartConfirmModal");
+  if (!modal) {
+    modal = document.createElement("div");
+    modal.id = "workStartConfirmModal";
+    modal.className = "modal-backdrop";
+    modal.hidden = true;
+    modal.innerHTML = `
+      <div class="modal-card work-start-confirm-card">
+        <p class="panel-kicker">WORK START CHECK</p>
+        <h3>작업 시작 확인</h3>
+        <p class="app-alert-message">선택하신 작업이 맞습니까?</p>
+        <dl class="work-start-confirm-list">
+          <div>
+            <dt>작업</dt>
+            <dd id="workStartConfirmOrder"></dd>
+          </div>
+          <div>
+            <dt>작업자</dt>
+            <dd id="workStartConfirmWorker"></dd>
+          </div>
+          <div>
+            <dt>장비</dt>
+            <dd id="workStartConfirmMachine"></dd>
+          </div>
+        </dl>
+        <div class="modal-actions work-start-confirm-actions">
+          <button type="button" class="primary-btn" id="workStartConfirmYesBtn">YES</button>
+          <button type="button" class="tab-btn" id="workStartConfirmNoBtn">NO</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+    modal.querySelector("#workStartConfirmNoBtn").addEventListener("click", () => {
+      modal.hidden = true;
+    });
+    modal.querySelector("#workStartConfirmYesBtn").addEventListener("click", () => {
+      modal.hidden = true;
+      updateWorkState("working");
+    });
+  }
+
+  modal.querySelector("#workStartConfirmOrder").textContent = `${order.company} / ${order.product}`;
+  modal.querySelector("#workStartConfirmWorker").textContent = workerName;
+  modal.querySelector("#workStartConfirmMachine").textContent = machineName;
   modal.hidden = false;
 }
 
