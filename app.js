@@ -1007,6 +1007,10 @@ function renderProgressMetaGrid(order, includeOrderDate = false) {
   chips.push(renderProgressChip("장비", order.machineName || "미지정"));
   chips.push(renderProgressChip("수량", order.quantity || "-"));
   chips.push(renderProgressChip("생산수", order.productionQty || "-"));
+  const overProductionQty = Math.max(Number(order.productionQty || 0) - Number(order.quantity || 0), 0);
+  if (overProductionQty > 0) {
+    chips.push(`<span class="progress-chip over-qty-chip"><strong>초과생산</strong>${overProductionQty.toLocaleString()}</span>`);
+  }
   chips.push(renderProgressChip("총타수", order.totalHitQty || "-"));
   chips.push(renderProgressChip("작업시간", getCleanWorkTimeValue(order) || "-"));
   chips.push(renderProgressChip("지급", order.paymentRequested ? "요청" : "없음"));
@@ -1120,6 +1124,10 @@ function renderProgressMetaGrid(order, includeOrderDate = false) {
   chips.push(renderProgressChip("장비", order.machineName || "미지정"));
   chips.push(renderProgressChip("수량", order.quantity || "-"));
   chips.push(renderProgressChip("생산수", order.productionQty || "-"));
+  const overProductionQtyFinal = Math.max(Number(order.productionQty || 0) - Number(order.quantity || 0), 0);
+  if (overProductionQtyFinal > 0) {
+    chips.push(`<span class="progress-chip over-qty-chip"><strong>초과생산</strong>${overProductionQtyFinal.toLocaleString()}</span>`);
+  }
   chips.push(renderProgressChip("총타수", order.totalHitQty || "-"));
   chips.push(renderProgressChip("작업시간", workTime));
   chips.push(renderProgressChip("지급", order.paymentRequested ? "요청" : "없음"));
@@ -2302,6 +2310,7 @@ function renderShippingPageCardOverride() {
       const totalQty = getOrderQuantity(order);
       const shippedQty = getShippedQuantity(order);
       const remainingQty = getRemainingShippingQuantity(order);
+      const overShippedQty = Math.max(shippedQty - totalQty, 0);
       const latestShippedDate = getLatestShipmentDate(order);
       const shipments = getShipmentRecords(order);
       const orderNote = getOrderNoteText(order);
@@ -2309,10 +2318,13 @@ function renderShippingPageCardOverride() {
       const historyHtml = shipments.length
         ? shipments.map((item) => `<span>${formatDate(item.date)} ${Number(item.qty || 0).toLocaleString()}개</span>`).join("")
         : `<span>출하 이력 없음</span>`;
-      const qtyValue = isFullyShipped ? shippedQty : "";
+      const qtyValue = isFullyShipped ? "" : "";
       const dateValue = latestShippedDate || new Date().toISOString().slice(0, 10);
       const actionButtons = isFullyShipped
-        ? `<button type="button" class="tab-btn shipping-edit-btn" data-order-id="${order.id}">출하 수정 저장</button>`
+        ? `
+            <button type="button" class="tab-btn shipping-action-btn" data-order-id="${order.id}">추가 출하 등록</button>
+            <button type="button" class="tab-btn shipping-edit-btn" data-order-id="${order.id}">출하 수정 저장</button>
+          `
         : `
             <button type="button" class="tab-btn shipping-action-btn" data-order-id="${order.id}">부분 출하 등록</button>
             <button type="button" class="tab-btn shipping-complete-btn" data-order-id="${order.id}">잔량 출하 완료</button>
@@ -2337,6 +2349,7 @@ function renderShippingPageCardOverride() {
               <span><strong>수량</strong>${totalQty.toLocaleString()}개</span>
               <span><strong>출하</strong>${shippedQty.toLocaleString()}개</span>
               <span><strong>잔량</strong>${remainingQty.toLocaleString()}개</span>
+              ${overShippedQty > 0 ? `<span class="over-qty-chip"><strong>초과</strong>${overShippedQty.toLocaleString()}개</span>` : ""}
               <span><strong>출하일</strong>${latestShippedDate ? formatDate(latestShippedDate) : "-"}</span>
             </div>
 
@@ -2355,7 +2368,7 @@ function renderShippingPageCardOverride() {
               <div class="shipping-manage-area">
                 <label>출하 관리</label>
                 <div class="shipping-manage-wrap">
-                  <input type="number" min="1" max="${Math.max(totalQty, 1)}" value="${qtyValue}" placeholder="출하 수량" data-ship-qty-order-id="${order.id}" />
+                  <input type="number" min="1" value="${qtyValue}" placeholder="출하 수량" data-ship-qty-order-id="${order.id}" />
                   <input type="date" value="${dateValue}" data-ship-date-order-id="${order.id}" />
                   ${actionButtons}
                 </div>
@@ -2382,15 +2395,8 @@ function renderShippingPageCardOverride() {
   });
 
   const saveShipmentFromRow = (order, shipQty, shipDate, replaceExisting = false) => {
-    const totalQty = getOrderQuantity(order);
-    const maxQty = replaceExisting ? totalQty : getRemainingShippingQuantity(order);
-
     if (!shipQty || shipQty <= 0) {
       showAppAlert("출하 수량을 입력해 주세요.");
-      return;
-    }
-    if (shipQty > maxQty) {
-      showAppAlert(replaceExisting ? "출하 수량이 발주 수량보다 많습니다." : "출하 수량이 잔량보다 많습니다.");
       return;
     }
     if (!shipDate) {
@@ -2827,15 +2833,8 @@ function renderEquipmentList() {
 }
 
 function saveShippingRecordFinal(order, shipQty, shipDate, replaceExisting = false) {
-  const totalQty = getOrderQuantity(order);
-  const maxQty = replaceExisting ? totalQty : getRemainingShippingQuantity(order);
-
   if (!shipQty || shipQty <= 0) {
     showAppAlert("출하 수량을 입력해 주세요.");
-    return;
-  }
-  if (shipQty > maxQty) {
-    showAppAlert(replaceExisting ? "출하 수량이 발주 수량보다 많습니다." : "출하 수량이 잔량보다 많습니다.");
     return;
   }
   if (!shipDate) {
@@ -2955,7 +2954,7 @@ function renderShippingPage() {
           </td>
           <td data-label="관리">
             <div class="shipping-manage-wrap">
-              <input type="number" min="1" max="${Math.max(totalQty, 1)}" value="${qtyValue}" placeholder="출하 수량" data-ship-qty-order-id="${order.id}" />
+              <input type="number" min="1" value="${qtyValue}" placeholder="출하 수량" data-ship-qty-order-id="${order.id}" />
               <input type="date" value="${dateValue}" data-ship-date-order-id="${order.id}" />
               ${actionButtons}
             </div>
@@ -3024,16 +3023,10 @@ function renderShippingPage() {
 }
 
 function saveShippingRecord(order, shipQty, shipDate, replaceExisting = false) {
-  const totalQty = getOrderQuantity(order);
   const currentShippedQty = getShippedQuantity(order);
-  const maxQty = replaceExisting ? totalQty : getRemainingShippingQuantity(order);
 
   if (!shipQty || shipQty <= 0) {
     showAppAlert("출하 수량을 입력해 주세요.");
-    return;
-  }
-  if (shipQty > maxQty) {
-    showAppAlert(replaceExisting ? "출하 수량이 발주 수량보다 많습니다." : "출하 수량이 잔량보다 많습니다.");
     return;
   }
   if (!shipDate) {
@@ -3155,7 +3148,7 @@ function renderShippingPage() {
           </td>
           <td data-label="관리">
             <div class="shipping-manage-wrap">
-              <input type="number" min="1" max="${Math.max(totalQty, 1)}" value="${qtyValue}" placeholder="출하 수량" data-ship-qty-order-id="${order.id}" />
+              <input type="number" min="1" value="${qtyValue}" placeholder="출하 수량" data-ship-qty-order-id="${order.id}" />
               <input type="date" value="${dateValue}" data-ship-date-order-id="${order.id}" />
               ${actionButtons}
             </div>
@@ -3305,8 +3298,8 @@ function renderShippingPage() {
           </td>
           <td data-label="관리">
             <div class="shipping-manage-wrap">
-              <input type="number" min="1" max="${Math.max(remainingQty, 1)}" placeholder="출하 수량" data-ship-qty-order-id="${order.id}" ${remainingQty === 0 ? "disabled" : ""} />
-              <input type="date" value="${new Date().toISOString().slice(0, 10)}" data-ship-date-order-id="${order.id}" ${remainingQty === 0 ? "disabled" : ""} />
+              <input type="number" min="1" placeholder="출하 수량" data-ship-qty-order-id="${order.id}" />
+              <input type="date" value="${new Date().toISOString().slice(0, 10)}" data-ship-date-order-id="${order.id}" />
               ${actionButtons}
             </div>
           </td>
@@ -3316,13 +3309,8 @@ function renderShippingPage() {
     .join("");
 
   const registerShipment = (order, shipQty, shipDate) => {
-    const remainingQty = getRemainingShippingQuantity(order);
     if (!shipQty || shipQty <= 0) {
       showAppAlert("출하 수량을 입력해 주세요.");
-      return;
-    }
-    if (shipQty > remainingQty) {
-      showAppAlert("출하 수량이 잔량보다 많습니다.");
       return;
     }
     if (!shipDate) {
@@ -4887,10 +4875,10 @@ function renderShippingPage() {
           </td>
           <td data-label="관리">
             <div class="shipping-manage-wrap">
-              <input type="number" min="1" max="${Math.max(remainingQty, 1)}" placeholder="출하 수량" data-ship-qty-order-id="${order.id}" ${remainingQty === 0 ? "disabled" : ""} />
-              <input type="date" value="${new Date().toISOString().slice(0, 10)}" data-ship-date-order-id="${order.id}" ${remainingQty === 0 ? "disabled" : ""} />
-              <button type="button" class="tab-btn shipping-action-btn" data-order-id="${order.id}" ${remainingQty === 0 ? "disabled" : ""}>
-                ${remainingQty === 0 ? "출하 완료" : "부분 출하 등록"}
+              <input type="number" min="1" placeholder="출하 수량" data-ship-qty-order-id="${order.id}" />
+              <input type="date" value="${new Date().toISOString().slice(0, 10)}" data-ship-date-order-id="${order.id}" />
+              <button type="button" class="tab-btn shipping-action-btn" data-order-id="${order.id}">
+                ${remainingQty === 0 ? "추가 출하 등록" : "부분 출하 등록"}
               </button>
             </div>
           </td>
@@ -4925,14 +4913,8 @@ function renderShippingPage() {
       const shipDate = String(dateInput?.value || "").trim();
       const remainingQty = getRemainingShippingQuantity(order);
 
-      if (remainingQty === 0) return;
       if (!shipQty || shipQty < 1) {
         showAppAlert("출하 수량을 입력해 주세요.");
-        qtyInput?.focus();
-        return;
-      }
-      if (shipQty > remainingQty) {
-        showAppAlert(`남은 수량은 ${remainingQty.toLocaleString()}개입니다.`);
         qtyInput?.focus();
         return;
       }
@@ -6493,7 +6475,7 @@ function renderShippingPage() {
           </td>
           <td data-label="관리">
             <div class="shipping-manage-wrap">
-              <input type="number" min="1" max="${Math.max(totalQty, 1)}" value="${qtyValue}" placeholder="출하 수량" data-ship-qty-order-id="${order.id}" />
+              <input type="number" min="1" value="${qtyValue}" placeholder="출하 수량" data-ship-qty-order-id="${order.id}" />
               <input type="date" value="${dateValue}" data-ship-date-order-id="${order.id}" />
               ${actionButtons}
             </div>
@@ -6518,15 +6500,8 @@ function renderShippingPage() {
   });
 
   const saveShipmentFromRow = (order, shipQty, shipDate, replaceExisting = false) => {
-    const totalQty = getOrderQuantity(order);
-    const maxQty = replaceExisting ? totalQty : getRemainingShippingQuantity(order);
-
     if (!shipQty || shipQty <= 0) {
       showAppAlert("출하 수량을 입력해 주세요.");
-      return;
-    }
-    if (shipQty > maxQty) {
-      showAppAlert(replaceExisting ? "출하 수량이 발주 수량보다 많습니다." : "출하 수량이 잔량보다 많습니다.");
       return;
     }
     if (!shipDate) {
@@ -6621,6 +6596,10 @@ function renderProgressMetaGrid(order, includeOrderDate = false) {
   chips.push(renderProgressChip("장비", order.machineName || "미지정"));
   chips.push(renderProgressChip("수량", order.quantity || "-"));
   chips.push(renderProgressChip("생산수", order.productionQty || "-"));
+  const overProductionQtyActive = Math.max(Number(order.productionQty || 0) - Number(order.quantity || 0), 0);
+  if (overProductionQtyActive > 0) {
+    chips.push(`<span class="progress-chip over-qty-chip"><strong>초과생산</strong>${overProductionQtyActive.toLocaleString()}</span>`);
+  }
   chips.push(renderProgressChip("총타수", order.totalHitQty || "-"));
   chips.push(renderProgressChip("작업시간", getCleanWorkTimeValue(order) || "-"));
   chips.push(renderProgressChip("지급", order.paymentRequested ? "요청" : "없음"));

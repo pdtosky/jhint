@@ -787,6 +787,12 @@ select option.paused-option {
   font-weight: 900;
 }
 
+.over-qty-chip {
+  border-color: rgba(216, 58, 52, 0.28) !important;
+  background: rgba(255, 235, 232, 0.9) !important;
+  color: var(--danger) !important;
+}
+
 textarea {
   resize: vertical;
   min-height: 92px;
