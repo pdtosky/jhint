@@ -774,6 +774,19 @@ textarea {
   padding: 14px 16px;
 }
 
+select.paused-selected {
+  border-color: rgba(216, 58, 52, 0.72);
+  background: linear-gradient(180deg, rgba(255, 235, 232, 0.98), rgba(255, 247, 245, 0.98));
+  color: var(--danger);
+  font-weight: 900;
+  box-shadow: 0 0 0 3px rgba(216, 58, 52, 0.12);
+}
+
+select option.paused-option {
+  color: var(--danger);
+  font-weight: 900;
+}
+
 textarea {
   resize: vertical;
   min-height: 92px;

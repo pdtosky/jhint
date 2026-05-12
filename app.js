@@ -375,11 +375,13 @@ function bindEvents() {
   workerForm.addEventListener("input", () => {
     clearWorkerAlert();
     enableWorkerStartInputs();
+    updateWorkerOrderSelectVisual();
   });
 
   workerForm.addEventListener("change", () => {
     clearWorkerAlert();
     enableWorkerStartInputs();
+    updateWorkerOrderSelectVisual();
   });
 
   historyToggleBtn.addEventListener("click", () => {
@@ -7159,15 +7161,27 @@ function renderOrderOptions() {
 
   if (!selectableOrders.length) {
     orderSelect.innerHTML = `<option value="">선택 가능한 작업이 없습니다.</option>`;
+    updateWorkerOrderSelectVisual();
     return;
   }
 
   orderSelect.innerHTML = selectableOrders
     .map((order) => {
-      const statusText = order.status === "paused" ? "작업 중지" : "작업 대기";
-      return `<option value="${order.id}">${escapeHtml(order.company)} / ${escapeHtml(order.product)} / ${statusText}</option>`;
+      const isPaused = order.status === "paused";
+      const statusText = isPaused ? "작업 중지" : "작업 대기";
+      const labelPrefix = isPaused ? "[작업 중지] " : "";
+      return `<option value="${order.id}" data-status="${order.status}" class="${isPaused ? "paused-option" : ""}">${labelPrefix}${escapeHtml(order.company)} / ${escapeHtml(order.product)} / ${statusText}</option>`;
     })
     .join("");
+  updateWorkerOrderSelectVisual();
+}
+
+function updateWorkerOrderSelectVisual() {
+  if (!orderSelect) return;
+  const selectedOption = orderSelect.options[orderSelect.selectedIndex];
+  const isPaused = selectedOption?.dataset?.status === "paused";
+  orderSelect.classList.toggle("paused-selected", Boolean(isPaused));
+  orderSelect.title = isPaused ? "작업 중지된 작업입니다. 다시 시작 전 작업 내용을 확인해 주세요." : "";
 }
 
 function renderWorkerLiveStatus() {
