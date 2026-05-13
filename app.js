@@ -423,6 +423,16 @@ function bindEvents() {
   });
 }
 
+renderDashboardFilteredList = function renderDashboardFilteredListRemoved() {
+  if (dashboardListTitle) {
+    dashboardListTitle.textContent = "";
+  }
+  if (dashboardFilteredList) {
+    dashboardFilteredList.hidden = true;
+    dashboardFilteredList.innerHTML = "";
+  }
+};
+
 function updateWorkState(nextStatus) {
   const formData = new FormData(workerForm);
   const workerName = String(formData.get("workerName") || "").trim();
@@ -2202,6 +2212,26 @@ function renderWorkerLiveStatus() {
       if (button.dataset.action === "complete") prepareCompletion();
     });
   });
+}
+
+renderDashboardFilteredList = function renderDashboardFilteredListRemoved() {
+  if (dashboardListTitle) {
+    dashboardListTitle.textContent = "";
+  }
+  if (dashboardFilteredList) {
+    dashboardFilteredList.hidden = true;
+    dashboardFilteredList.innerHTML = "";
+  }
+};
+
+function renderDashboardFilteredList() {
+  if (dashboardListTitle) {
+    dashboardListTitle.textContent = "";
+  }
+  if (dashboardFilteredList) {
+    dashboardFilteredList.hidden = true;
+    dashboardFilteredList.innerHTML = "";
+  }
 }
 
 function renderProgress() {
@@ -6295,6 +6325,16 @@ function renderDashboardCardTop(order, urgent) {
     </div>
   `;
 }
+
+renderDashboardFilteredList = function renderDashboardFilteredListRemoved() {
+  if (dashboardListTitle) {
+    dashboardListTitle.textContent = "";
+  }
+  if (dashboardFilteredList) {
+    dashboardFilteredList.hidden = true;
+    dashboardFilteredList.innerHTML = "";
+  }
+};
 
 function renderWorkingOperatorSummary(order) {
   if (order.status !== "working") return "";
