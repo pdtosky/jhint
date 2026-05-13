@@ -1053,6 +1053,7 @@ function renderProgress() {
             </div>
             ${statusBadgeClean(order, urgent)}
           </div>
+          ${renderWorkingOperatorSummary(order)}
           <div class="bar-track">
             <div class="bar-fill" style="width: ${percent}%"></div>
           </div>
@@ -1097,6 +1098,7 @@ function renderDashboardFilteredList() {
             </div>
             ${statusBadgeClean(order, urgent)}
           </div>
+          ${renderWorkingOperatorSummary(order)}
           <div class="bar-track">
             <div class="bar-fill" style="width: ${percent}%"></div>
           </div>
@@ -6150,6 +6152,20 @@ function renderDashboardFilteredList() {
       `;
     })
     .join("");
+}
+
+function renderWorkingOperatorSummary(order) {
+  if (order.status !== "working") return "";
+  const workerName = order.workerName || "작업자 미지정";
+  const machineName = order.machineName || "장비 미지정";
+  return `
+    <div class="working-operator-summary">
+      <span class="working-worker">작업자 ${escapeHtml(workerName)}</span>
+      <span>작업 ${escapeHtml(order.product || "-")}</span>
+      <span>장비 ${escapeHtml(machineName)}</span>
+      <span>시간 ${getCleanWorkTimeValue(order) || "-"}</span>
+    </div>
+  `;
 }
 
 function getCalendarStatusClass(order) {
