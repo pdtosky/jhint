@@ -1046,13 +1046,7 @@ function renderProgress() {
       const urgent = order.status !== "complete" && daysUntil(order.dueDate) <= 3;
       return `
         <article class="progress-card ${order.status === "paused" ? "paused-card" : ""}">
-          <div class="progress-top">
-            <div>
-              <strong>${escapeHtml(order.product)}</strong>
-              <p class="progress-meta">${escapeHtml(order.company)}</p>
-            </div>
-            ${statusBadgeClean(order, urgent)}
-          </div>
+          ${renderDashboardCardTop(order, urgent)}
           ${renderWorkingOperatorSummary(order)}
           <div class="bar-track">
             <div class="bar-fill" style="width: ${percent}%"></div>
@@ -1091,13 +1085,7 @@ function renderDashboardFilteredList() {
       const urgent = order.status !== "complete" && daysUntil(order.dueDate) <= 3;
       return `
         <article class="progress-card ${order.status === "paused" ? "paused-card" : ""}">
-          <div class="progress-top">
-            <div>
-              <strong>${escapeHtml(order.product)}</strong>
-              <p class="progress-meta">${escapeHtml(order.company)}</p>
-            </div>
-            ${statusBadgeClean(order, urgent)}
-          </div>
+          ${renderDashboardCardTop(order, urgent)}
           ${renderWorkingOperatorSummary(order)}
           <div class="bar-track">
             <div class="bar-fill" style="width: ${percent}%"></div>
@@ -2213,6 +2201,152 @@ function renderWorkerLiveStatus() {
       if (button.dataset.action === "complete") prepareCompletion();
     });
   });
+}
+
+function renderProgress() {
+  const filteredOrders = getSortedOrders(getDashboardFilteredOrders());
+  const titleMap = {
+    all: "전체 발주 진행률",
+    ready: "작업 대기 진행률",
+    working: "작업 중 진행률",
+    complete: "작업 완료 진행률",
+    urgent: "납기 임박 진행률"
+  };
+  progressTitle.textContent = titleMap[dashboardFilter] || "전체 발주 진행률";
+
+  if (filteredOrders.length === 0) {
+    progressBoard.innerHTML = `<div class="empty-state">진행 중인 생산 데이터가 없습니다.</div>`;
+    return;
+  }
+
+  progressBoard.innerHTML = filteredOrders
+    .map((order) => {
+      const percent = getProgressPercent(order);
+      const urgent = order.status !== "complete" && daysUntil(order.dueDate) <= 3;
+      return `
+        <article class="progress-card ${order.status === "paused" ? "paused-card" : ""}">
+          ${renderDashboardCardTop(order, urgent)}
+          <div class="bar-track">
+            <div class="bar-fill" style="width: ${percent}%"></div>
+          </div>
+          ${renderProgressMetaGrid(order)}
+          ${order.status === "paused" ? `<div class="paused-flag">작업 중지 / ${escapeHtml(order.pauseReason || "사유 미입력")}</div>` : ""}
+        </article>
+      `;
+    })
+    .join("");
+}
+
+function renderDashboardFilteredList() {
+  const filteredOrders = getSortedOrders(getDashboardFilteredOrders());
+  const titleMap = {
+    all: "전체 발주 리스트",
+    ready: "작업 대기 리스트",
+    working: "작업 중 리스트",
+    complete: "작업 완료 리스트",
+    urgent: "납기 임박 리스트"
+  };
+  dashboardListTitle.textContent = titleMap[dashboardFilter] || "전체 발주 리스트";
+
+  if (!isDashboardListOpen) {
+    dashboardFilteredList.innerHTML = `<div class="empty-state">카드를 누르면 해당 리스트가 표시됩니다.</div>`;
+    return;
+  }
+
+  if (filteredOrders.length === 0) {
+    dashboardFilteredList.innerHTML = `<div class="empty-state">표시할 발주가 없습니다.</div>`;
+    return;
+  }
+
+  dashboardFilteredList.innerHTML = filteredOrders
+    .map((order) => {
+      const percent = getProgressPercent(order);
+      const urgent = order.status !== "complete" && daysUntil(order.dueDate) <= 3;
+      return `
+        <article class="progress-card ${order.status === "paused" ? "paused-card" : ""}">
+          ${renderDashboardCardTop(order, urgent)}
+          <div class="bar-track">
+            <div class="bar-fill" style="width: ${percent}%"></div>
+          </div>
+          ${renderProgressMetaGrid(order, true)}
+          ${order.status === "paused" ? `<div class="paused-flag">작업 중지 / ${escapeHtml(order.pauseReason || "사유 미입력")}</div>` : ""}
+        </article>
+      `;
+    })
+    .join("");
+}
+
+function renderProgress() {
+  const filteredOrders = getSortedOrders(getDashboardFilteredOrders());
+  const titleMap = {
+    all: "전체 발주 진행률",
+    ready: "작업 대기 진행률",
+    working: "작업 중 진행률",
+    complete: "작업 완료 진행률",
+    urgent: "납기 임박 진행률"
+  };
+  progressTitle.textContent = titleMap[dashboardFilter] || "전체 발주 진행률";
+
+  if (filteredOrders.length === 0) {
+    progressBoard.innerHTML = `<div class="empty-state">진행 중인 생산 데이터가 없습니다.</div>`;
+    return;
+  }
+
+  progressBoard.innerHTML = filteredOrders
+    .map((order) => {
+      const percent = getProgressPercent(order);
+      const urgent = order.status !== "complete" && daysUntil(order.dueDate) <= 3;
+      return `
+        <article class="progress-card ${order.status === "paused" ? "paused-card" : ""}">
+          ${renderDashboardCardTop(order, urgent)}
+          <div class="bar-track">
+            <div class="bar-fill" style="width: ${percent}%"></div>
+          </div>
+          ${renderProgressMetaGrid(order)}
+          ${order.status === "paused" ? `<div class="paused-flag">작업 중지 / ${escapeHtml(order.pauseReason || "사유 미입력")}</div>` : ""}
+        </article>
+      `;
+    })
+    .join("");
+}
+
+function renderDashboardFilteredList() {
+  const filteredOrders = getSortedOrders(getDashboardFilteredOrders());
+  const titleMap = {
+    all: "전체 발주 리스트",
+    ready: "작업 대기 리스트",
+    working: "작업 중 리스트",
+    complete: "작업 완료 리스트",
+    urgent: "납기 임박 리스트"
+  };
+  dashboardListTitle.textContent = titleMap[dashboardFilter] || "전체 발주 리스트";
+
+  if (!isDashboardListOpen) {
+    dashboardFilteredList.innerHTML = `<div class="empty-state">카드를 누르면 해당 리스트가 표시됩니다.</div>`;
+    return;
+  }
+
+  if (filteredOrders.length === 0) {
+    dashboardFilteredList.innerHTML = `<div class="empty-state">표시할 발주가 없습니다.</div>`;
+    return;
+  }
+
+  dashboardFilteredList.innerHTML = filteredOrders
+    .map((order) => {
+      const percent = getProgressPercent(order);
+      const urgent = order.status !== "complete" && daysUntil(order.dueDate) <= 3;
+      return `
+        <article class="progress-card ${order.status === "paused" ? "paused-card" : ""}">
+          ${renderDashboardCardTop(order, urgent)}
+          <div class="bar-track">
+            <div class="bar-fill" style="width: ${percent}%"></div>
+          </div>
+          ${renderProgressMetaGrid(order, true)}
+          ${order.status === "paused" ? `<div class="paused-flag">작업 중지 / ${escapeHtml(order.pauseReason || "사유 미입력")}</div>` : ""}
+        </article>
+      `;
+    })
+    .join("");
 }
 
 function renderShippingPageCardModeLastOverride() {
@@ -6079,13 +6213,7 @@ function renderProgress() {
       const urgent = order.status !== "complete" && daysUntil(order.dueDate) <= 3;
       return `
         <article class="progress-card ${order.status === "paused" ? "paused-card" : ""}">
-          <div class="progress-top">
-            <div>
-              <strong>${escapeHtml(order.product)}</strong>
-              <p class="progress-meta">${escapeHtml(order.company)}</p>
-            </div>
-            ${statusBadgeClean(order, urgent)}
-          </div>
+          ${renderDashboardCardTop(order, urgent)}
           <div class="bar-track">
             <div class="bar-fill" style="width: ${percent}%"></div>
           </div>
@@ -6124,13 +6252,7 @@ function renderDashboardFilteredList() {
       const urgent = order.status !== "complete" && daysUntil(order.dueDate) <= 3;
       return `
         <article class="progress-card ${order.status === "paused" ? "paused-card" : ""}">
-          <div class="progress-top">
-            <div>
-              <strong>${escapeHtml(order.product)}</strong>
-              <p class="progress-meta">${escapeHtml(order.company)}</p>
-            </div>
-            ${statusBadgeClean(order, urgent)}
-          </div>
+          ${renderDashboardCardTop(order, urgent)}
           <div class="bar-track">
             <div class="bar-fill" style="width: ${percent}%"></div>
           </div>
