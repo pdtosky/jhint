@@ -3899,7 +3899,7 @@ html {
 
 .worker-snapshot-board {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
   gap: 8px;
 }
 
@@ -3959,7 +3959,9 @@ html {
 }
 
 .worker-snapshot-detail p {
+  box-sizing: border-box;
   min-width: 0;
+  max-width: 100%;
   margin: 0;
   padding: 9px 10px;
   border-radius: 12px;
@@ -3976,10 +3978,12 @@ html {
 .worker-snapshot-detail p:first-child {
   grid-column: 1 / -1;
   min-height: 42px;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   white-space: normal;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
   font-size: 0.94rem;
 }
 
@@ -3995,7 +3999,7 @@ html {
 
 @media (min-width: 1000px) {
   .worker-snapshot-board {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
