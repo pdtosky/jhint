@@ -3905,11 +3905,11 @@ html {
 
 .worker-snapshot-card {
   display: grid;
-  grid-template-columns: minmax(92px, 0.68fr) minmax(0, 1.55fr);
-  gap: 8px;
+  grid-template-columns: minmax(118px, 0.72fr) minmax(0, 1.8fr);
+  gap: 10px;
   align-items: stretch;
-  min-height: 86px;
-  padding: 10px;
+  min-height: 108px;
+  padding: 12px;
   border: 1px solid rgba(13, 107, 95, 0.22);
   border-radius: 18px;
   background: linear-gradient(135deg, rgba(219, 245, 239, 0.9), rgba(255, 255, 255, 0.92));
@@ -3927,7 +3927,7 @@ html {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  padding: 9px 10px;
+  padding: 12px;
 }
 
 .worker-snapshot-main span,
@@ -3941,9 +3941,9 @@ html {
 
 .worker-snapshot-main strong {
   display: block;
-  margin-top: 3px;
+  margin-top: 5px;
   color: var(--brand);
-  font-size: clamp(1.2rem, 2vw, 1.55rem);
+  font-size: clamp(1.42rem, 2vw, 1.75rem);
   font-weight: 950;
   line-height: 1.08;
   white-space: nowrap;
@@ -3953,19 +3953,19 @@ html {
 
 .worker-snapshot-detail {
   display: grid;
-  grid-template-columns: minmax(0, 1.5fr) minmax(88px, 0.72fr);
-  gap: 6px;
-  padding: 8px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  padding: 10px;
 }
 
 .worker-snapshot-detail p {
   min-width: 0;
   margin: 0;
-  padding: 7px 8px;
+  padding: 9px 10px;
   border-radius: 12px;
   background: rgba(232, 243, 255, 0.82);
   color: var(--ink);
-  font-size: 0.86rem;
+  font-size: 0.9rem;
   font-weight: 800;
   line-height: 1.22;
   white-space: nowrap;
@@ -3974,11 +3974,13 @@ html {
 }
 
 .worker-snapshot-detail p:first-child {
-  grid-row: span 2;
+  grid-column: 1 / -1;
+  min-height: 42px;
   white-space: normal;
   display: flex;
   flex-direction: column;
   justify-content: center;
+  font-size: 0.96rem;
 }
 
 .worker-snapshot-empty {
@@ -4008,8 +4010,8 @@ html {
   }
 
   .worker-snapshot-card {
-    grid-template-columns: minmax(86px, 0.72fr) minmax(0, 1.4fr);
-    min-height: 78px;
+    grid-template-columns: minmax(90px, 0.7fr) minmax(0, 1.55fr);
+    min-height: 92px;
     padding: 8px;
     border-radius: 16px;
   }
@@ -4019,17 +4021,22 @@ html {
   }
 
   .worker-snapshot-main strong {
-    font-size: 1.18rem;
+    font-size: 1.28rem;
   }
 
   .worker-snapshot-detail {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 5px;
     padding: 6px;
   }
 
   .worker-snapshot-detail p {
-    padding: 6px 7px;
-    font-size: 0.78rem;
+    padding: 6px;
+    font-size: 0.74rem;
+  }
+
+  .worker-snapshot-detail p:first-child {
+    min-height: 32px;
+    font-size: 0.82rem;
   }
 }
