@@ -133,6 +133,7 @@ const orderForm = document.getElementById("orderForm");
 const orderEditPanel = document.getElementById("orderEditPanel");
 const orderEditForm = document.getElementById("orderEditForm");
 const editOrderIdInput = document.getElementById("editOrderId");
+const editProductInput = document.getElementById("editProduct");
 const editDueDateInput = document.getElementById("editDueDate");
 const editQuantityInput = document.getElementById("editQuantity");
 const editPaymentRequestedInput = document.getElementById("editPaymentRequested");
@@ -342,6 +343,7 @@ function bindEvents() {
     const order = state.orders.find((item) => item.id === orderId);
     if (!order) return;
 
+    order.product = String(editProductInput.value || "").trim();
     order.dueDate = String(editDueDateInput.value || "");
     order.quantity = String(editQuantityInput.value || "").trim();
     order.paymentRequested = editPaymentRequestedInput.checked;
@@ -6338,6 +6340,7 @@ function openOrderEditPanel(orderId) {
 
   const editOrderNoteInput = document.getElementById("editOrderNote");
   editOrderIdInput.value = order.id;
+  editProductInput.value = order.product || "";
   editDueDateInput.value = order.dueDate || "";
   editQuantityInput.value = order.quantity || "";
   editPaymentRequestedInput.checked = Boolean(order.paymentRequested);
@@ -6349,7 +6352,7 @@ function openOrderEditPanel(orderId) {
 
   requestAnimationFrame(() => {
     orderEditPanel.scrollIntoView({ behavior: "smooth", block: "start" });
-    editDueDateInput.focus({ preventScroll: true });
+    editProductInput.focus({ preventScroll: true });
   });
 }
 
