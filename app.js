@@ -1166,13 +1166,7 @@ function renderProgress() {
       const urgent = order.status !== "complete" && daysUntil(order.dueDate) <= 3;
       return `
         <article class="progress-card ${order.status === "paused" ? "paused-card" : ""}">
-          <div class="progress-top">
-            <div>
-              <strong>${escapeHtml(order.product)}</strong>
-              <p class="progress-meta">${escapeHtml(order.company)}</p>
-            </div>
-            ${statusBadgeClean(order, urgent)}
-          </div>
+          ${renderDashboardCardTop(order, urgent)}
           <div class="bar-track">
             <div class="bar-fill" style="width: ${percent}%"></div>
           </div>
@@ -1210,13 +1204,7 @@ function renderDashboardFilteredList() {
       const urgent = order.status !== "complete" && daysUntil(order.dueDate) <= 3;
       return `
         <article class="progress-card ${order.status === "paused" ? "paused-card" : ""}">
-          <div class="progress-top">
-            <div>
-              <strong>${escapeHtml(order.product)}</strong>
-              <p class="progress-meta">${escapeHtml(order.company)}</p>
-            </div>
-            ${statusBadgeClean(order, urgent)}
-          </div>
+          ${renderDashboardCardTop(order, urgent)}
           <div class="bar-track">
             <div class="bar-fill" style="width: ${percent}%"></div>
           </div>
@@ -6152,6 +6140,32 @@ function renderDashboardFilteredList() {
       `;
     })
     .join("");
+}
+
+function renderDashboardCardTop(order, urgent) {
+  if (dashboardFilter === "working" || order.status === "working") {
+    return `
+      <div class="progress-top worker-main-top">
+        <div class="worker-main-info">
+          <p class="worker-main-label">작업자</p>
+          <strong>${escapeHtml(order.workerName || "작업자 미지정")}</strong>
+          <p class="progress-meta">${escapeHtml(order.product || "-")} / ${escapeHtml(order.company || "-")}</p>
+          <p class="progress-meta">장비 ${escapeHtml(order.machineName || "미지정")} / ${getCleanWorkTimeValue(order) || "-"}</p>
+        </div>
+        ${statusBadgeClean(order, urgent)}
+      </div>
+    `;
+  }
+
+  return `
+    <div class="progress-top">
+      <div>
+        <strong>${escapeHtml(order.product)}</strong>
+        <p class="progress-meta">${escapeHtml(order.company)}</p>
+      </div>
+      ${statusBadgeClean(order, urgent)}
+    </div>
+  `;
 }
 
 function renderWorkingOperatorSummary(order) {
