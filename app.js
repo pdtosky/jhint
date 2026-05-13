@@ -2017,6 +2017,7 @@ function renderProgress() {
     urgent: "납기 임박 진행률"
   };
   progressTitle.textContent = titleMap[dashboardFilter] || "전체 발주 진행률";
+  progressBoard.classList.toggle("worker-progress-board", dashboardFilter === "working");
 
   if (filteredOrders.length === 0) {
     progressBoard.innerHTML = `<div class="empty-state">진행 중인 생산 데이터가 없습니다.</div>`;
@@ -2224,7 +2225,7 @@ function renderProgress() {
       const percent = getProgressPercent(order);
       const urgent = order.status !== "complete" && daysUntil(order.dueDate) <= 3;
       return `
-        <article class="progress-card ${order.status === "paused" ? "paused-card" : ""}">
+        <article class="progress-card ${dashboardFilter === "working" ? "worker-progress-card" : ""} ${order.status === "paused" ? "paused-card" : ""}">
           ${renderDashboardCardTop(order, urgent)}
           <div class="bar-track">
             <div class="bar-fill" style="width: ${percent}%"></div>
@@ -2239,6 +2240,7 @@ function renderProgress() {
 
 function renderDashboardFilteredList() {
   const filteredOrders = getSortedOrders(getDashboardFilteredOrders());
+  progressBoard.classList.toggle("worker-progress-board", dashboardFilter === "working");
   const titleMap = {
     all: "전체 발주 리스트",
     ready: "작업 대기 리스트",
@@ -6271,8 +6273,12 @@ function renderDashboardCardTop(order, urgent) {
         <div class="worker-main-info">
           <p class="worker-main-label">작업자</p>
           <strong>${escapeHtml(order.workerName || "작업자 미지정")}</strong>
-          <p class="progress-meta">${escapeHtml(order.product || "-")} / ${escapeHtml(order.company || "-")}</p>
-          <p class="progress-meta">장비 ${escapeHtml(order.machineName || "미지정")} / ${getCleanWorkTimeValue(order) || "-"}</p>
+        </div>
+        <div class="worker-main-work">
+          <p><strong>작업</strong>${escapeHtml(order.product || "-")}</p>
+          <p><strong>업체</strong>${escapeHtml(order.company || "-")}</p>
+          <p><strong>장비</strong>${escapeHtml(order.machineName || "미지정")}</p>
+          <p><strong>시간</strong>${getCleanWorkTimeValue(order) || "-"}</p>
         </div>
         ${statusBadgeClean(order, urgent)}
       </div>
