@@ -6350,6 +6350,7 @@ function renderWorkerSnapshotBoard() {
 
   workerSnapshotBoard.innerHTML = workingOrders
     .map((order) => {
+      const dueLabel = order.dueDate ? order.dueDate.slice(5).replace("-", ".") : "-";
       return `
         <article class="worker-snapshot-card">
           <div class="worker-snapshot-main">
@@ -6357,10 +6358,10 @@ function renderWorkerSnapshotBoard() {
             <strong>${escapeHtml(order.workerName || "미지정")}</strong>
           </div>
           <div class="worker-snapshot-detail">
-            <p><strong>작업</strong>${escapeHtml(order.product || "-")}</p>
-            <p><strong>시간</strong>${getCleanWorkTimeValue(order) || "-"}</p>
-            <p><strong>장비</strong>${escapeHtml(order.machineName || "미지정")}</p>
-            <p><strong>납기</strong>${formatDate(order.dueDate)}</p>
+            <p class="worker-snapshot-task"><strong>작업</strong><span>${escapeHtml(order.product || "-")}</span></p>
+            <p><strong>시간</strong><span>${getCleanWorkTimeValue(order) || "-"}</span></p>
+            <p><strong>장비</strong><span>${escapeHtml(order.machineName || "미지정")}</span></p>
+            <p><strong>납기</strong><span>${dueLabel}</span></p>
           </div>
         </article>
       `;
