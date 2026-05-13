@@ -3905,7 +3905,7 @@ html {
 
 .worker-snapshot-card {
   display: grid;
-  grid-template-columns: minmax(118px, 0.72fr) minmax(0, 1.8fr);
+  grid-template-columns: minmax(86px, 0.46fr) minmax(0, 2.15fr);
   gap: 10px;
   align-items: stretch;
   min-height: 108px;
@@ -3927,7 +3927,7 @@ html {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  padding: 12px;
+  padding: 10px 8px;
 }
 
 .worker-snapshot-main span,
@@ -3943,7 +3943,7 @@ html {
   display: block;
   margin-top: 5px;
   color: var(--brand);
-  font-size: clamp(1.42rem, 2vw, 1.75rem);
+  font-size: clamp(1.25rem, 1.7vw, 1.48rem);
   font-weight: 950;
   line-height: 1.08;
   white-space: nowrap;
@@ -3953,7 +3953,7 @@ html {
 
 .worker-snapshot-detail {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(52px, 1fr));
   gap: 8px;
   padding: 10px;
 }
@@ -3980,7 +3980,7 @@ html {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  font-size: 0.96rem;
+  font-size: 0.94rem;
 }
 
 .worker-snapshot-empty {
@@ -4010,7 +4010,7 @@ html {
   }
 
   .worker-snapshot-card {
-    grid-template-columns: minmax(90px, 0.7fr) minmax(0, 1.55fr);
+    grid-template-columns: minmax(76px, 0.52fr) minmax(0, 1.8fr);
     min-height: 92px;
     padding: 8px;
     border-radius: 16px;
@@ -4021,11 +4021,11 @@ html {
   }
 
   .worker-snapshot-main strong {
-    font-size: 1.28rem;
+    font-size: 1.12rem;
   }
 
   .worker-snapshot-detail {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(44px, 1fr));
     gap: 5px;
     padding: 6px;
   }
