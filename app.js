@@ -145,6 +145,7 @@ const orderSelect = document.getElementById("orderSelect");
 const activityFeed = document.getElementById("activityFeed");
 const statsGrid = document.getElementById("statsGrid");
 const progressBoard = document.getElementById("progressBoard");
+const workerSnapshotBoard = document.getElementById("workerSnapshotBoard");
 const progressTitle = document.getElementById("progressTitle");
 const dashboardFilteredList = document.getElementById("dashboardFilteredList");
 const dashboardListTitle = document.getElementById("dashboardListTitle");
@@ -1476,6 +1477,7 @@ function render() {
   renderOrdersTable();
   renderOrderSuggestions();
   renderOrderOptions();
+  renderWorkerSnapshotBoard();
   renderActivities();
   renderWorkerLiveStatus();
   renderShippingPage();
@@ -4172,6 +4174,7 @@ function startDashboardClock() {
     if (!hasWorkingOrder) return;
     renderProgress();
     renderDashboardFilteredList();
+    renderWorkerSnapshotBoard();
     renderWorkerLiveStatus();
     if (!calendarDetailModal.hidden && selectedCalendarDateKey) {
       renderCalendarDetail();
@@ -6335,6 +6338,35 @@ renderDashboardFilteredList = function renderDashboardFilteredListRemoved() {
     dashboardFilteredList.innerHTML = "";
   }
 };
+
+function renderWorkerSnapshotBoard() {
+  if (!workerSnapshotBoard) return;
+  const workingOrders = getSortedOrders(state.orders.filter((order) => order.status === "working"));
+
+  if (!workingOrders.length) {
+    workerSnapshotBoard.innerHTML = `<div class="worker-snapshot-empty">현재 작업 중인 작업자가 없습니다.</div>`;
+    return;
+  }
+
+  workerSnapshotBoard.innerHTML = workingOrders
+    .map((order) => {
+      return `
+        <article class="worker-snapshot-card">
+          <div class="worker-snapshot-main">
+            <span>작업자</span>
+            <strong>${escapeHtml(order.workerName || "미지정")}</strong>
+          </div>
+          <div class="worker-snapshot-detail">
+            <p><strong>작업</strong>${escapeHtml(order.product || "-")}</p>
+            <p><strong>시간</strong>${getCleanWorkTimeValue(order) || "-"}</p>
+            <p><strong>장비</strong>${escapeHtml(order.machineName || "미지정")}</p>
+            <p><strong>납기</strong>${formatDate(order.dueDate)}</p>
+          </div>
+        </article>
+      `;
+    })
+    .join("");
+}
 
 function renderWorkingOperatorSummary(order) {
   if (order.status !== "working") return "";
