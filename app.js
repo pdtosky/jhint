@@ -113,6 +113,7 @@ let adminMonthFilter = "all";
 let adminActiveSection = "overview";
 let adminSearchKeyword = "";
 let isActivityFeedOpen = false;
+let workerHistorySearchKeyword = "";
 let shippingFilter = "all";
 let isShippingListOpen = false;
 let shippingSearchKeyword = "";
@@ -168,6 +169,8 @@ const saveProductionBtn = document.getElementById("saveProductionBtn");
 const workerAlert = document.getElementById("workerAlert");
 const workerLiveStatus = document.getElementById("workerLiveStatus");
 const historyToggleBtn = document.getElementById("historyToggleBtn");
+const workerHistorySearchPanel = document.getElementById("workerHistorySearchPanel");
+const workerHistorySearchInput = document.getElementById("workerHistorySearchInput");
 const adminPageLocked = document.getElementById("adminPageLocked");
 const adminPageContent = document.getElementById("adminPageContent");
 const adminMonthInput = document.getElementById("adminMonthInput");
@@ -389,6 +392,11 @@ function bindEvents() {
 
   historyToggleBtn.addEventListener("click", () => {
     isActivityFeedOpen = !isActivityFeedOpen;
+    renderActivities();
+  });
+
+  workerHistorySearchInput?.addEventListener("input", (event) => {
+    workerHistorySearchKeyword = event.target.value || "";
     renderActivities();
   });
 
@@ -7165,11 +7173,41 @@ function getCleanActivityMessage(activity, order) {
   return "작업 이력이 기록되었습니다.";
 }
 
+function normalizeHistorySearchText(value) {
+  return String(value || "").toLowerCase().replace(/\s+/g, "");
+}
+
+function getWorkerHistorySearchText(order, latestActivity) {
+  return normalizeHistorySearchText([
+    order.workerName,
+    order.company,
+    order.product,
+    order.orderDate,
+    order.dueDate,
+    order.startTime,
+    order.endTime,
+    latestActivity?.timestamp,
+    latestActivity ? formatDateTime(latestActivity.timestamp) : "",
+    latestActivity ? getCleanActivityMessage(latestActivity, order) : ""
+  ].join(" "));
+}
+
 function renderActivities() {
-  const sortedOrders = getSortedOrders(state.orders);
+  const keyword = normalizeHistorySearchText(workerHistorySearchKeyword);
+  const sortedOrders = getSortedOrders(state.orders).filter((order) => {
+    if (!keyword) return true;
+    const latestActivity = state.activities.find((activity) => activity.orderId === order.id);
+    return getWorkerHistorySearchText(order, latestActivity).includes(keyword);
+  });
 
   historyToggleBtn.textContent = isActivityFeedOpen ? "작업 이력 닫기" : "작업 이력 보기";
   historyToggleBtn.setAttribute("aria-expanded", String(isActivityFeedOpen));
+  if (workerHistorySearchPanel) {
+    workerHistorySearchPanel.hidden = !isActivityFeedOpen;
+  }
+  if (workerHistorySearchInput && workerHistorySearchInput.value !== workerHistorySearchKeyword) {
+    workerHistorySearchInput.value = workerHistorySearchKeyword;
+  }
 
   if (!isActivityFeedOpen) {
     activityFeed.innerHTML = `<div class="empty-state">작업 이력은 버튼을 누르면 표시됩니다.</div>`;
@@ -7177,7 +7215,7 @@ function renderActivities() {
   }
 
   if (sortedOrders.length === 0) {
-    activityFeed.innerHTML = `<div class="empty-state">${TEXT.noActivity}</div>`;
+    activityFeed.innerHTML = `<div class="empty-state">${keyword ? "검색 결과가 없습니다." : TEXT.noActivity}</div>`;
     return;
   }
 
