@@ -1267,8 +1267,8 @@ function renderProgress() {
         <article class="progress-card ${order.status === "paused" ? "paused-card" : ""}">
           <div class="progress-top">
             <div>
-              <strong>${escapeHtml(order.product)}</strong>
-              <p class="progress-meta">${escapeHtml(order.company)}</p>
+              <strong>${escapeHtml(getCleanDisplayText(order.product))}</strong>
+              <p class="progress-meta">${escapeHtml(getCleanDisplayText(order.company))}</p>
             </div>
             ${statusBadgeClean(order, urgent)}
           </div>
@@ -2012,7 +2012,7 @@ function renderCalendarDetail() {
             ${statusBadgeClean(order, urgent)}
           </div>
           <div class="detail-lines">
-            <p class="detail-line"><strong>제품명</strong> ${escapeHtml(order.product)}</p>
+            <p class="detail-line"><strong>제품명</strong> ${escapeHtml(getCleanDisplayText(order.product))}</p>
             <p class="detail-line"><strong>상태</strong> ${getOrderStatusTextClean(order)}</p>
             <p class="detail-line"><strong>납기일</strong> ${formatDate(order.dueDate)}</p>
             <p class="detail-line"><strong>장비</strong> ${escapeHtml(order.machineName || "-")}</p>
@@ -2138,7 +2138,7 @@ function renderActivities() {
 
   const grouped = new Map();
   sortedOrders.forEach((order) => {
-    const workerKey = order.workerName || "관리자";
+    const workerKey = getCleanDisplayText(order.workerName, "관리자");
     if (!grouped.has(workerKey)) grouped.set(workerKey, []);
     grouped.get(workerKey).push(order);
   });
@@ -2155,7 +2155,7 @@ function renderActivities() {
           return `
             <article class="feed-item ${order.status === "paused" ? "paused-card" : ""}">
               <div class="feed-item-top">
-                <strong>${escapeHtml(order.company)} / ${escapeHtml(order.product)}</strong>
+                <strong>${escapeHtml(getCleanDisplayText(order.company))} / ${escapeHtml(getCleanDisplayText(order.product))}</strong>
                 <span class="status-badge ${badgeClass}">${badgeText}</span>
               </div>
               <p class="feed-meta">${escapeHtml(activityMessage)} / ${activityTime}</p>
@@ -6313,12 +6313,12 @@ function renderDashboardCardTop(order, urgent) {
       <div class="progress-top worker-main-top">
         <div class="worker-main-info">
           <p class="worker-main-label">작업자</p>
-          <strong>${escapeHtml(order.workerName || "작업자 미지정")}</strong>
+          <strong>${escapeHtml(getCleanDisplayText(order.workerName, "작업자 미지정"))}</strong>
         </div>
         <div class="worker-main-work">
-          <p><strong>작업</strong>${escapeHtml(order.product || "-")}</p>
-          <p><strong>업체</strong>${escapeHtml(order.company || "-")}</p>
-          <p><strong>장비</strong>${escapeHtml(order.machineName || "미지정")}</p>
+          <p><strong>작업</strong>${escapeHtml(getCleanDisplayText(order.product))}</p>
+          <p><strong>업체</strong>${escapeHtml(getCleanDisplayText(order.company))}</p>
+          <p><strong>장비</strong>${escapeHtml(getCleanDisplayText(order.machineName, "미지정"))}</p>
           <p><strong>시간</strong>${getCleanWorkTimeValue(order) || "-"}</p>
         </div>
         ${statusBadgeClean(order, urgent)}
@@ -6329,8 +6329,8 @@ function renderDashboardCardTop(order, urgent) {
   return `
     <div class="progress-top">
       <div>
-        <strong>${escapeHtml(order.product)}</strong>
-        <p class="progress-meta">${escapeHtml(order.company)}</p>
+        <strong>${escapeHtml(getCleanDisplayText(order.product))}</strong>
+        <p class="progress-meta">${escapeHtml(getCleanDisplayText(order.company))}</p>
       </div>
       ${statusBadgeClean(order, urgent)}
     </div>
@@ -6363,12 +6363,12 @@ function renderWorkerSnapshotBoard() {
         <article class="worker-snapshot-card">
           <div class="worker-snapshot-main">
             <span>작업자</span>
-            <strong>${escapeHtml(order.workerName || "미지정")}</strong>
+            <strong>${escapeHtml(getCleanDisplayText(order.workerName, "미지정"))}</strong>
           </div>
           <div class="worker-snapshot-detail">
-            <p class="worker-snapshot-task"><strong>작업</strong><span>${escapeHtml(order.product || "-")}</span></p>
+            <p class="worker-snapshot-task"><strong>작업</strong><span>${escapeHtml(getCleanDisplayText(order.product))}</span></p>
             <p><strong>시간</strong><span>${getCleanWorkTimeValue(order) || "-"}</span></p>
-            <p><strong>장비</strong><span>${escapeHtml(order.machineName || "미지정")}</span></p>
+            <p><strong>장비</strong><span>${escapeHtml(getCleanDisplayText(order.machineName, "미지정"))}</span></p>
             <p><strong>납기</strong><span>${dueLabel}</span></p>
           </div>
         </article>
@@ -7100,9 +7100,9 @@ function renderCalendarDetail() {
             <p class="detail-line"><strong>제품명</strong> ${escapeHtml(order.product)}</p>
             <p class="detail-line"><strong>상태</strong> ${getOrderStatusTextClean(order)}</p>
             <p class="detail-line"><strong>납기일</strong> ${formatDate(order.dueDate)}</p>
-            <p class="detail-line"><strong>작업자</strong> ${escapeHtml(order.workerName || "미지정")}</p>
-            <p class="detail-line"><strong>장비명</strong> ${escapeHtml(order.machineName || "미지정")}</p>
-            <p class="detail-line"><strong>수량</strong> ${escapeHtml(order.quantity || "-")}</p>
+            <p class="detail-line"><strong>작업자</strong> ${escapeHtml(getCleanDisplayText(order.workerName, "미지정"))}</p>
+            <p class="detail-line"><strong>장비명</strong> ${escapeHtml(getCleanDisplayText(order.machineName, "미지정"))}</p>
+            <p class="detail-line"><strong>수량</strong> ${escapeHtml(getCleanDisplayText(order.quantity))}</p>
             <p class="detail-line"><strong>구분</strong> ${getPaymentLabel(order)} / ${getDeliveryLabel(order)}</p>
             <p class="detail-line"><strong>비고</strong> ${note ? escapeHtml(note) : "-"}</p>
             <p class="detail-line"><strong>작업시간</strong> ${getCleanWorkTimeValue(order) || "-"}</p>
@@ -7135,7 +7135,13 @@ function renderOrderSuggestions() {
 }
 
 function hasBrokenKoreanText(value) {
-  return /[�]|쨌|異|묒|뾽|웾|ㅻ|닛|젰|蹂|濡|愿|꾨|덈|듬|땲|\?[^\s]/.test(String(value || ""));
+  return /[�]|쨌|異|묒|뾽|웾|ㅻ|닛|젰|蹂|濡|愿|꾨|덈|듬|땲|珥|諛|깮|곗|꽭|좎|쭨|놁|뒿|덈|떎|援|텇|紐|쒗|λ|⑷|대젰|リ|踰|꾪|Ⅴ|쒖|떆|⑸|쒓|컙|앹|궛|섎|퀎|\?[^\s]/.test(String(value || ""));
+}
+
+function getCleanDisplayText(value, fallback = "-") {
+  const text = String(value || "").trim();
+  if (!text || hasBrokenKoreanText(text)) return fallback;
+  return text;
 }
 
 function getCleanActivityMessage(activity, order) {
@@ -7150,7 +7156,7 @@ function getCleanActivityMessage(activity, order) {
   }
   if (type === "pause") {
     const parts = ["작업을 중지했습니다."];
-    if (order.pauseReason) parts.push(`사유 ${order.pauseReason}`);
+    if (getCleanDisplayText(order.pauseReason, "")) parts.push(`사유 ${getCleanDisplayText(order.pauseReason, "")}`);
     if (order.workQty) parts.push(`작업수량 ${Number(order.workQty).toLocaleString()}`);
     if (order.workHitQty) parts.push(`작업타수 ${Number(order.workHitQty).toLocaleString()}`);
     return parts.join(" / ");
@@ -7238,12 +7244,12 @@ function renderActivities() {
           return `
             <article class="feed-item ${order.status === "paused" ? "paused-card" : ""}">
               <div class="feed-item-top">
-                <strong>${escapeHtml(order.company)} / ${escapeHtml(order.product)}</strong>
+                <strong>${escapeHtml(getCleanDisplayText(order.company))} / ${escapeHtml(getCleanDisplayText(order.product))}</strong>
                 <span class="status-badge ${badgeClass}">${badgeText}</span>
               </div>
               <p class="feed-meta">${escapeHtml(activityMessage)} / ${activityTime}</p>
-              <p class="feed-meta">납기일 ${formatDate(order.dueDate)} / 장비 ${escapeHtml(order.machineName || "-")} / 수량 ${escapeHtml(order.quantity || "-")} / ${getPaymentLabel(order)} / ${getDeliveryLabel(order)}</p>
-              ${order.pauseReason ? `<p class="feed-meta">중지 사유 ${escapeHtml(order.pauseReason)}${order.workQty ? ` / 작업수량 ${escapeHtml(order.workQty)}` : ""}${order.workHitQty ? ` / 작업타수 ${escapeHtml(order.workHitQty)}` : ""}</p>` : ""}
+              <p class="feed-meta">납기일 ${formatDate(order.dueDate)} / 장비 ${escapeHtml(getCleanDisplayText(order.machineName))} / 수량 ${escapeHtml(getCleanDisplayText(order.quantity))} / ${getPaymentLabel(order)} / ${getDeliveryLabel(order)}</p>
+              ${getCleanDisplayText(order.pauseReason, "") ? `<p class="feed-meta">중지 사유 ${escapeHtml(getCleanDisplayText(order.pauseReason, ""))}${order.workQty ? ` / 작업수량 ${escapeHtml(order.workQty)}` : ""}${order.workHitQty ? ` / 작업타수 ${escapeHtml(order.workHitQty)}` : ""}</p>` : ""}
               <div class="feed-actions">
                 <button type="button" class="tab-btn history-edit-btn" data-order-id="${order.id}">작업 수정</button>
               </div>
@@ -7341,7 +7347,7 @@ function openWorkerHistoryEdit(orderId) {
   }
 
   const form = modal.querySelector("#workerHistoryEditForm");
-  modal.querySelector("#workerHistoryEditTitle").textContent = `${order.company} / ${order.product}`;
+  modal.querySelector("#workerHistoryEditTitle").textContent = `${getCleanDisplayText(order.company)} / ${getCleanDisplayText(order.product)}`;
   form.elements.orderId.value = order.id;
   form.elements.workerName.value = order.workerName || "";
   form.elements.machineName.value = order.machineName || "";
@@ -7421,7 +7427,7 @@ function renderOrderOptions() {
       const isPaused = order.status === "paused";
       const statusText = isPaused ? "작업 중지" : "작업 대기";
       const labelPrefix = isPaused ? "[작업 중지] " : "";
-      return `<option value="${order.id}" data-status="${order.status}" class="${isPaused ? "paused-option" : ""}">${labelPrefix}${escapeHtml(order.company)} / ${escapeHtml(order.product)} / ${statusText}</option>`;
+      return `<option value="${order.id}" data-status="${order.status}" class="${isPaused ? "paused-option" : ""}">${labelPrefix}${escapeHtml(getCleanDisplayText(order.company))} / ${escapeHtml(getCleanDisplayText(order.product))} / ${statusText}</option>`;
     })
     .join("");
   updateWorkerOrderSelectVisual();
@@ -7450,15 +7456,15 @@ function renderWorkerLiveStatus() {
         <article class="progress-card ${isPaused ? "paused-card" : ""}">
           <div class="progress-top">
             <div>
-              <strong>${escapeHtml(order.product)}</strong>
-              <p class="progress-meta">${escapeHtml(order.company)}</p>
+              <strong>${escapeHtml(getCleanDisplayText(order.product))}</strong>
+              <p class="progress-meta">${escapeHtml(getCleanDisplayText(order.company))}</p>
             </div>
             <span class="status-badge ${isPaused ? "status-warning" : "status-working"}">${isPaused ? "작업 중지" : "작업 중"}</span>
           </div>
-          <p class="progress-meta">${order.workerName ? `작업자 ${escapeHtml(order.workerName)}` : "작업자 미지정"}</p>
-          <p class="progress-meta">${order.machineName ? `장비 ${escapeHtml(order.machineName)}` : "장비 미지정"}</p>
+          <p class="progress-meta">${getCleanDisplayText(order.workerName, "") ? `작업자 ${escapeHtml(getCleanDisplayText(order.workerName))}` : "작업자 미지정"}</p>
+          <p class="progress-meta">${getCleanDisplayText(order.machineName, "") ? `장비 ${escapeHtml(getCleanDisplayText(order.machineName))}` : "장비 미지정"}</p>
           <p class="progress-meta">${getWorkTimeLabel(order)}</p>
-          ${order.pauseReason ? `<p class="progress-meta">중지 사유 ${escapeHtml(order.pauseReason)}${order.workQty ? ` / 작업수량 ${escapeHtml(order.workQty)}` : ""}${order.workHitQty ? ` / 작업타수 ${escapeHtml(order.workHitQty)}` : ""}</p>` : ""}
+          ${getCleanDisplayText(order.pauseReason, "") ? `<p class="progress-meta">중지 사유 ${escapeHtml(getCleanDisplayText(order.pauseReason, ""))}${order.workQty ? ` / 작업수량 ${escapeHtml(order.workQty)}` : ""}${order.workHitQty ? ` / 작업타수 ${escapeHtml(order.workHitQty)}` : ""}</p>` : ""}
           <div class="feed-actions">
             ${order.status === "working" ? `<button type="button" class="tab-btn live-action-btn" data-order-id="${order.id}" data-action="pause">작업중지</button>` : ""}
             <button type="button" class="tab-btn live-action-btn" data-order-id="${order.id}" data-action="complete">작업종료</button>
