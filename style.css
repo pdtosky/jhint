@@ -3895,11 +3895,16 @@ html {
   cursor: default;
 }
 
+.admin-grid > .admin-block:not([hidden]),
+.admin-grid-wide > .admin-block:not([hidden]) {
+  grid-column: 1 / -1;
+}
+
 [data-admin-panel="equipment"] .progress-board,
 [data-admin-panel="mold"] .progress-board,
 [data-admin-panel="worker"] .progress-board {
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 10px;
 }
 
 .admin-compact-card {
@@ -3907,15 +3912,24 @@ html {
   gap: 8px;
   padding: 10px 12px;
   border-radius: 16px;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .admin-compact-top {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .admin-compact-top strong {
+  display: block;
   min-width: 0;
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -3932,10 +3946,14 @@ html {
   display: flex;
   flex-wrap: wrap;
   gap: 5px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .admin-compact-meta span {
+  min-width: 0;
   max-width: 100%;
+  flex: 0 1 auto;
   padding: 5px 8px;
   border-radius: 999px;
   background: rgba(232, 243, 255, 0.86);
@@ -3949,8 +3967,15 @@ html {
 }
 
 .admin-compact-card .bar-track {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   height: 8px;
   margin-top: 0;
+}
+
+.admin-compact-card .bar-fill {
+  max-width: 100%;
 }
 
 [data-admin-panel][hidden] {
