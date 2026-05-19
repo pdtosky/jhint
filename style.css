@@ -3895,6 +3895,64 @@ html {
   cursor: default;
 }
 
+[data-admin-panel="equipment"] .progress-board,
+[data-admin-panel="mold"] .progress-board,
+[data-admin-panel="worker"] .progress-board {
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 8px;
+}
+
+.admin-compact-card {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 16px;
+}
+
+.admin-compact-top {
+  align-items: center;
+  gap: 8px;
+}
+
+.admin-compact-top strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.98rem;
+}
+
+.admin-compact-top .status-badge {
+  min-height: 34px;
+  padding: 6px 10px;
+  white-space: nowrap;
+}
+
+.admin-compact-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.admin-compact-meta span {
+  max-width: 100%;
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: rgba(232, 243, 255, 0.86);
+  color: var(--sub);
+  font-size: 0.76rem;
+  font-weight: 800;
+  line-height: 1.1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.admin-compact-card .bar-track {
+  height: 8px;
+  margin-top: 0;
+}
+
 [data-admin-panel][hidden] {
   display: none !important;
 }

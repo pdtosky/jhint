@@ -3009,14 +3009,17 @@ function renderEquipmentList() {
 
   equipmentList.innerHTML = rows
     .map((item) => `
-      <article class="progress-card">
-        <div class="progress-top">
+      <article class="progress-card admin-compact-card">
+        <div class="progress-top admin-compact-top">
           <strong>${escapeHtml(item.name)}</strong>
           <span class="status-badge ${item.percent >= 85 ? "status-working" : item.percent >= 60 ? "status-ready" : "status-warning"}">${item.percent}%</span>
         </div>
-        <p class="progress-meta">총 작업시간 ${formatElapsedMs(item.actualMs)} / 기준시간 ${formatElapsedMs(item.plannedMs)}</p>
-        <p class="progress-meta">근무 가능일 ${item.workingDayCount}일 기준 / 주말 및 공휴일 제외 / 1일 8시간</p>
-        <p class="progress-meta">작업건수 ${item.jobCount} / 작업자 ${item.workerCount}</p>
+        <div class="admin-compact-meta">
+          <span>작업 ${item.jobCount}건</span>
+          <span>작업자 ${item.workerCount}명</span>
+          <span>${formatElapsedMs(item.actualMs)}</span>
+          <span>기준 ${item.workingDayCount}일</span>
+        </div>
         <div class="bar-track"><div class="bar-fill" style="width:${Math.min(item.percent, 100)}%"></div></div>
       </article>
     `)
@@ -5603,13 +5606,17 @@ function renderMoldList() {
 
   moldList.innerHTML = rows
     .map((item) => `
-      <article class="progress-card">
-        <div class="progress-top">
+      <article class="progress-card admin-compact-card">
+        <div class="progress-top admin-compact-top">
           <strong>${escapeHtml(item.name)}</strong>
           <span class="status-badge ${item.percent >= 90 ? "status-warning" : "status-working"}">${item.percent}%</span>
         </div>
-        <p class="progress-meta">현재 타수 ${item.currentShots.toLocaleString()} / 목표 추정 ${item.targetShots.toLocaleString()}타</p>
-        <p class="progress-meta">완료수량 ${item.completedQty.toLocaleString()} / 진행수량 ${item.inProgressQty.toLocaleString()}</p>
+        <div class="admin-compact-meta">
+          <span>현재 ${item.currentShots.toLocaleString()}타</span>
+          <span>목표 ${item.targetShots.toLocaleString()}타</span>
+          <span>완료 ${item.completedQty.toLocaleString()}</span>
+          <span>진행 ${item.inProgressQty.toLocaleString()}</span>
+        </div>
         <div class="bar-track"><div class="bar-fill" style="width:${Math.min(item.percent, 100)}%"></div></div>
       </article>
     `)
@@ -5720,15 +5727,19 @@ function renderWorkerEfficiency() {
       const avgMs = item.jobCount > 0 ? item.totalMs / item.jobCount : 0;
       const reliabilityText = actualHours < 1 ? "작업시간 1시간 미만으로 참고용" : "작업시간 기준";
       return `
-        <article class="progress-card">
-          <div class="progress-top">
+        <article class="progress-card admin-compact-card">
+          <div class="progress-top admin-compact-top">
             <strong>${escapeHtml(item.workerName)}</strong>
             <span class="status-badge status-working">시간당 ${hourlyQty.toLocaleString()}개</span>
           </div>
-          <p class="progress-meta">누적 생산수 ${item.totalQty.toLocaleString()} / 누적 타발수 ${item.totalHitQty.toLocaleString()}</p>
-          <p class="progress-meta">누적 작업시간 ${formatElapsedMs(item.totalMs)} / 평균 작업시간 ${formatElapsedMs(avgMs)}</p>
-          <p class="progress-meta">작업건 ${item.jobCount} / 완료건 ${item.completeCount} / 중지이력 ${item.pausedCount}</p>
-          <p class="progress-meta">효율 기준: ${reliabilityText} / 최소 1시간 기준으로 과대 표시 방지</p>
+          <div class="admin-compact-meta">
+            <span>생산 ${item.totalQty.toLocaleString()}</span>
+            <span>타발 ${item.totalHitQty.toLocaleString()}</span>
+            <span>작업 ${item.jobCount}건</span>
+            <span>완료 ${item.completeCount}건</span>
+            <span>${formatElapsedMs(item.totalMs)}</span>
+            <span>${reliabilityText}</span>
+          </div>
         </article>
       `;
     })
