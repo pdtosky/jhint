@@ -114,6 +114,9 @@ let adminActiveSection = "overview";
 let adminSearchKeyword = "";
 let isActivityFeedOpen = false;
 let workerHistorySearchKeyword = "";
+let activeOrderSearchKeyword = "";
+let completedOrderSearchKeyword = "";
+let isCompletedOrdersOpen = false;
 let shippingFilter = "all";
 let isShippingListOpen = false;
 let shippingSearchKeyword = "";
@@ -142,6 +145,11 @@ const editDeliveryTypeInput = document.getElementById("editDeliveryType");
 const cancelEditBtn = document.getElementById("cancelEditBtn");
 const workerForm = document.getElementById("workerForm");
 const ordersTableBody = document.getElementById("ordersTableBody");
+const activeOrderSearchInput = document.getElementById("activeOrderSearchInput");
+const completedOrdersToggleBtn = document.getElementById("completedOrdersToggleBtn");
+const completedOrdersPanel = document.getElementById("completedOrdersPanel");
+const completedOrderSearchInput = document.getElementById("completedOrderSearchInput");
+const completedOrdersTableBody = document.getElementById("completedOrdersTableBody");
 const orderSelect = document.getElementById("orderSelect");
 const activityFeed = document.getElementById("activityFeed");
 const statsGrid = document.getElementById("statsGrid");
@@ -370,6 +378,21 @@ function bindEvents() {
 
   cancelEditBtn.addEventListener("click", () => {
     closeOrderEditPanel();
+  });
+
+  activeOrderSearchInput?.addEventListener("input", (event) => {
+    activeOrderSearchKeyword = event.target.value || "";
+    renderOrdersTable();
+  });
+
+  completedOrdersToggleBtn?.addEventListener("click", () => {
+    isCompletedOrdersOpen = !isCompletedOrdersOpen;
+    renderOrdersTable();
+  });
+
+  completedOrderSearchInput?.addEventListener("input", (event) => {
+    completedOrderSearchKeyword = event.target.value || "";
+    renderOrdersTable();
   });
 
   startWorkBtn.addEventListener("click", confirmWorkStart);
@@ -7027,26 +7050,45 @@ async function deleteOrder(orderId) {
   showAppAlert("발주가 삭제되었습니다.");
 }
 
-function renderOrdersTable() {
-  if (state.orders.length === 0) {
-    ordersTableBody.innerHTML = `<tr><td colspan="10"><div class="empty-state">${TEXT.noOrders}</div></td></tr>`;
-    return;
+function getOrderSearchText(order) {
+  return normalizeHistorySearchText([
+    order.company,
+    order.product,
+    order.orderDate,
+    order.dueDate,
+    formatDate(order.orderDate),
+    formatDate(order.dueDate),
+    order.quantity,
+    order.deliveryType,
+    getOrderNoteText(order)
+  ].join(" "));
+}
+
+function filterOrdersByKeyword(orders, keyword) {
+  const normalizedKeyword = normalizeHistorySearchText(keyword);
+  if (!normalizedKeyword) return orders;
+  return orders.filter((order) => getOrderSearchText(order).includes(normalizedKeyword));
+}
+
+function renderOrderTableRows(orders, emptyMessage) {
+  if (!orders.length) {
+    return `<tr><td colspan="10"><div class="empty-state">${emptyMessage}</div></td></tr>`;
   }
 
-  ordersTableBody.innerHTML = getSortedOrders(state.orders)
+  return getSortedOrders(orders)
     .map((order) => {
       const urgent = order.status !== "complete" && daysUntil(order.dueDate) <= 3;
       const note = getOrderNoteText(order);
       return `
         <tr class="${urgent ? "danger-row" : ""}">
           <td data-label="발주일">${formatDate(order.orderDate)}</td>
-          <td data-label="업체명">${escapeHtml(order.company)}</td>
-          <td data-label="제품명">${escapeHtml(order.product)}</td>
-          <td data-label="수량">${escapeHtml(order.quantity || "-")}</td>
+          <td data-label="업체명">${escapeHtml(getCleanDisplayText(order.company))}</td>
+          <td data-label="제품명">${escapeHtml(getCleanDisplayText(order.product))}</td>
+          <td data-label="수량">${escapeHtml(getCleanDisplayText(order.quantity))}</td>
           <td data-label="지급요청">${order.paymentRequested ? "요청" : "-"}</td>
-          <td data-label="구분">${escapeHtml(order.deliveryType || "-")}</td>
+          <td data-label="구분">${escapeHtml(getCleanDisplayText(order.deliveryType))}</td>
           <td data-label="납기일" class="${urgent ? "danger-text" : ""}">${formatDate(order.dueDate)}</td>
-          <td data-label="비고">${note ? escapeHtml(note) : "-"}</td>
+          <td data-label="비고">${note ? escapeHtml(getCleanDisplayText(note)) : "-"}</td>
           <td data-label="상태">${statusBadgeClean(order, urgent)}</td>
           <td data-label="관리">
             <div class="order-action-buttons">
@@ -7058,8 +7100,12 @@ function renderOrdersTable() {
       `;
     })
     .join("");
+}
 
-  ordersTableBody.querySelectorAll(".edit-order-btn").forEach((button) => {
+function bindOrderTableActions(container) {
+  if (!container) return;
+
+  container.querySelectorAll(".edit-order-btn").forEach((button) => {
     button.addEventListener("click", () => {
       if (!isAdminLoggedIn) {
         showAppAlert("관리자 로그인 후 발주를 수정할 수 있습니다.");
@@ -7069,11 +7115,47 @@ function renderOrdersTable() {
     });
   });
 
-  ordersTableBody.querySelectorAll(".delete-order-btn").forEach((button) => {
+  container.querySelectorAll(".delete-order-btn").forEach((button) => {
     button.addEventListener("click", () => {
       deleteOrder(button.dataset.orderId || "");
     });
   });
+}
+
+function renderOrdersTable() {
+  if (activeOrderSearchInput && activeOrderSearchInput.value !== activeOrderSearchKeyword) {
+    activeOrderSearchInput.value = activeOrderSearchKeyword;
+  }
+  if (completedOrderSearchInput && completedOrderSearchInput.value !== completedOrderSearchKeyword) {
+    completedOrderSearchInput.value = completedOrderSearchKeyword;
+  }
+  if (completedOrdersPanel) {
+    completedOrdersPanel.hidden = !isCompletedOrdersOpen;
+  }
+  if (completedOrdersToggleBtn) {
+    completedOrdersToggleBtn.textContent = isCompletedOrdersOpen ? "발주내역 닫기" : "발주내역 보기";
+    completedOrdersToggleBtn.setAttribute("aria-expanded", String(isCompletedOrdersOpen));
+  }
+
+  const activeOrders = state.orders.filter((order) => order.status !== "complete");
+  const completedOrders = state.orders.filter((order) => order.status === "complete");
+  const filteredActiveOrders = filterOrdersByKeyword(activeOrders, activeOrderSearchKeyword);
+  const filteredCompletedOrders = filterOrdersByKeyword(completedOrders, completedOrderSearchKeyword);
+
+  ordersTableBody.innerHTML = renderOrderTableRows(
+    filteredActiveOrders,
+    activeOrderSearchKeyword ? "검색 결과가 없습니다." : "진행 중이거나 대기 중인 발주서가 없습니다."
+  );
+
+  if (completedOrdersTableBody) {
+    completedOrdersTableBody.innerHTML = renderOrderTableRows(
+      filteredCompletedOrders,
+      completedOrderSearchKeyword ? "검색 결과가 없습니다." : "작업 완료된 발주내역이 없습니다."
+    );
+  }
+
+  bindOrderTableActions(ordersTableBody);
+  bindOrderTableActions(completedOrdersTableBody);
 }
 
 function renderCalendarDetail() {

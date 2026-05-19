@@ -1100,6 +1100,51 @@ tbody tr:last-child td {
   font-weight: 700;
 }
 
+.order-list-tools {
+  margin: 10px 0 12px;
+  padding: 10px;
+  border: 1px solid rgba(75, 104, 146, 0.16);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.68);
+}
+
+.order-list-tools label {
+  display: grid;
+  gap: 6px;
+  color: var(--ink);
+  font-weight: 800;
+}
+
+.order-list-tools input {
+  width: 100%;
+  min-height: 46px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.94);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 700;
+}
+
+.order-history-section {
+  margin-top: 14px;
+}
+
+.order-history-toggle-btn {
+  width: 100%;
+  min-height: 48px;
+  justify-content: center;
+  border-color: rgba(13, 107, 95, 0.22);
+  background: rgba(219, 245, 239, 0.72);
+  color: var(--brand);
+  font-weight: 900;
+}
+
+#completedOrdersPanel {
+  margin-top: 12px;
+}
+
 .feed-actions {
   display: flex;
   gap: 8px;

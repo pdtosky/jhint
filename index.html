@@ -9,13 +9,13 @@
   <meta name="apple-mobile-web-app-title" content="생산일정 관리" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <title>&#49373;&#49328;&#51068;&#51221; &#44288;&#47532; &#45824;&#49884;&#48372;&#46300;</title>
-  <link rel="manifest" href="manifest.webmanifest?v=20260515-02" />
-  <link rel="icon" href="app-icon.png?v=20260515-02" type="image/png" />
-  <link rel="apple-touch-icon" href="app-icon.png?v=20260515-02" />
+  <link rel="manifest" href="manifest.webmanifest?v=20260519-01" />
+  <link rel="icon" href="app-icon.png?v=20260519-01" type="image/png" />
+  <link rel="apple-touch-icon" href="app-icon.png?v=20260519-01" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="style.css?v=20260515-02" />
+    <link rel="stylesheet" href="style.css?v=20260519-01" />
 </head>
 <body>
   <div class="page-shell">
@@ -218,7 +218,14 @@
 
             <div class="section-head compact">
               <h3>&#46321;&#47197;&#46108; &#48156;&#51452;&#49436;</h3>
-              <p>&#45225;&#44592; 3&#51068; &#51060;&#45236; &#54637;&#47785;&#51008; &#48521;&#51008;&#49353;&#51004;&#47196; &#54364;&#49884;</p>
+              <p>&#51089;&#50629; &#45824;&#44592;&#50752; &#51652;&#54665; &#51473;&#51064; &#48156;&#51452;&#47564; &#54364;&#49884;</p>
+            </div>
+
+            <div class="order-list-tools">
+              <label>
+                진행 발주 검색
+                <input type="search" id="activeOrderSearchInput" placeholder="업체명, 제품명, 날짜 검색" autocomplete="off" />
+              </label>
             </div>
 
             <div class="table-wrap orders-table-wrap mobile-card-table">
@@ -239,6 +246,41 @@
                 </thead>
                 <tbody id="ordersTableBody"></tbody>
               </table>
+            </div>
+
+            <div class="order-history-section">
+              <button type="button" class="tab-btn order-history-toggle-btn" id="completedOrdersToggleBtn">발주내역 보기</button>
+              <div id="completedOrdersPanel" hidden>
+                <div class="section-head compact">
+                  <h3>발주내역</h3>
+                  <p>작업 완료된 발주서만 표시</p>
+                </div>
+                <div class="order-list-tools">
+                  <label>
+                    발주내역 검색
+                    <input type="search" id="completedOrderSearchInput" placeholder="업체명, 제품명, 날짜 검색" autocomplete="off" />
+                  </label>
+                </div>
+                <div class="table-wrap orders-table-wrap mobile-card-table">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>&#48156;&#51452;&#51068;</th>
+                        <th>&#50629;&#52404;&#47749;</th>
+                        <th>&#51228;&#54408;&#47749;</th>
+                        <th>&#49688;&#47049;</th>
+                        <th>&#51648;&#44553;&#50836;&#52397;</th>
+                        <th>&#51649;&#45225;/&#48156;&#49569;</th>
+                        <th>&#45225;&#44592;&#51068;</th>
+                        <th>&#48708;&#44256;</th>
+                        <th>&#49345;&#53468;</th>
+                        <th>&#44288;&#47532;</th>
+                      </tr>
+                    </thead>
+                    <tbody id="completedOrdersTableBody"></tbody>
+                  </table>
+                </div>
+              </div>
             </div>
           </div>
         </section>
@@ -485,8 +527,8 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="config.js?v=20260515-02"></script>
-  <script src="app.js?v=20260515-02"></script>
+  <script src="config.js?v=20260519-01"></script>
+  <script src="app.js?v=20260519-01"></script>
 </body>
 </html>
 
