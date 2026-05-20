@@ -208,6 +208,7 @@ let pendingCompletionOrderId = "";
 let pendingCompletionWorkerName = "";
 let pendingPauseOrderId = "";
 let pendingPauseWorkerName = "";
+let pendingStartSnapshot = null;
 let selectedCalendarDateKey = "";
 const supabaseAuthClient = createSupabaseAuthClient();
 
@@ -465,11 +466,11 @@ renderDashboardFilteredList = function renderDashboardFilteredListRemoved() {
   }
 };
 
-function updateWorkState(nextStatus) {
+function updateWorkState(nextStatus, lockedInput = {}) {
   const formData = new FormData(workerForm);
-  const workerName = String(formData.get("workerName") || "").trim();
-  const machineName = String(formData.get("machineName") || "").trim();
-  const orderId = String(formData.get("orderId") || "");
+  const workerName = String(lockedInput.workerName ?? formData.get("workerName") ?? "").trim();
+  const machineName = String(lockedInput.machineName ?? formData.get("machineName") ?? "").trim();
+  const orderId = String(lockedInput.orderId ?? formData.get("orderId") ?? "");
   if (!workerName || !machineName || !orderId) return;
 
   if (nextStatus === "working") {
@@ -499,6 +500,13 @@ function updateWorkState(nextStatus) {
 
   const order = state.orders.find((item) => item.id === orderId);
   if (!order) return;
+
+  if (nextStatus === "working" && !["ready", "paused"].includes(order.status)) {
+    showWorkerAlert("선택한 작업은 현재 시작할 수 없는 상태입니다. 화면을 새로 확인해 주세요.");
+    showAppAlert("선택한 작업은 현재 시작할 수 없는 상태입니다. 화면을 새로 확인해 주세요.");
+    render();
+    return;
+  }
 
   const previousStatus = order.status;
   order.status = nextStatus;
@@ -5503,6 +5511,7 @@ renderShippingPage = renderShippingPageCardModeFinalOverrideAfterAll;
 setTimeout(render, 0);
 
 function renderOrderOptions() {
+  const previousValue = orderSelect.value;
   const selectableOrders = getSortedOrders(state.orders.filter((order) => order.status === "ready" || order.status === "paused"));
 
   if (!selectableOrders.length) {
@@ -5912,14 +5921,28 @@ function confirmWorkStart() {
     document.body.appendChild(modal);
     modal.querySelector("#workStartConfirmNoBtn").addEventListener("click", () => {
       modal.hidden = true;
+      pendingStartSnapshot = null;
+      delete modal.dataset.orderId;
+      delete modal.dataset.workerName;
+      delete modal.dataset.machineName;
     });
     modal.querySelector("#workStartConfirmYesBtn").addEventListener("click", () => {
+      const lockedInput = pendingStartSnapshot || {
+        orderId: modal.dataset.orderId || "",
+        workerName: modal.dataset.workerName || "",
+        machineName: modal.dataset.machineName || ""
+      };
       modal.hidden = true;
-      updateWorkState("working");
+      pendingStartSnapshot = null;
+      updateWorkState("working", lockedInput);
     });
   }
 
-  modal.querySelector("#workStartConfirmOrder").textContent = `${order.company} / ${order.product}`;
+  pendingStartSnapshot = { orderId, workerName, machineName };
+  modal.dataset.orderId = orderId;
+  modal.dataset.workerName = workerName;
+  modal.dataset.machineName = machineName;
+  modal.querySelector("#workStartConfirmOrder").textContent = `${getCleanDisplayText(order.company)} / ${getCleanDisplayText(order.product)}`;
   modal.querySelector("#workStartConfirmWorker").textContent = workerName;
   modal.querySelector("#workStartConfirmMachine").textContent = machineName;
   modal.hidden = false;
@@ -7507,6 +7530,7 @@ function getWorkTimeLabel(order) {
 }
 
 function renderOrderOptions() {
+  const previousValue = orderSelect.value;
   const selectableOrders = getSortedOrders(state.orders.filter((order) => order.status === "ready" || order.status === "paused"));
 
   if (!selectableOrders.length) {
@@ -7523,6 +7547,9 @@ function renderOrderOptions() {
       return `<option value="${order.id}" data-status="${order.status}" class="${isPaused ? "paused-option" : ""}">${labelPrefix}${escapeHtml(getCleanDisplayText(order.company))} / ${escapeHtml(getCleanDisplayText(order.product))} / ${statusText}</option>`;
     })
     .join("");
+  if (previousValue && selectableOrders.some((order) => order.id === previousValue)) {
+    orderSelect.value = previousValue;
+  }
   updateWorkerOrderSelectVisual();
 }
 
