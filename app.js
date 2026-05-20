@@ -466,7 +466,7 @@ renderDashboardFilteredList = function renderDashboardFilteredListRemoved() {
   }
 };
 
-function updateWorkState(nextStatus, lockedInput = {}) {
+async function updateWorkState(nextStatus, lockedInput = {}) {
   const formData = new FormData(workerForm);
   const workerName = String(lockedInput.workerName ?? formData.get("workerName") ?? "").trim();
   const machineName = String(lockedInput.machineName ?? formData.get("machineName") ?? "").trim();
@@ -509,6 +509,7 @@ function updateWorkState(nextStatus, lockedInput = {}) {
   }
 
   const previousStatus = order.status;
+  const rollbackState = normalizeAppState(state);
   order.status = nextStatus;
   order.workerName = workerName;
   order.machineName = machineName;
@@ -548,9 +549,18 @@ function updateWorkState(nextStatus, lockedInput = {}) {
         : TEXT.endMessage
   });
 
-  persist();
-  if (nextStatus === "complete") {
-    resetCompletionInputs();
+  try {
+    await persist({ throwOnError: true });
+    if (nextStatus === "complete") {
+      resetCompletionInputs();
+    }
+  } catch (error) {
+    state.orders = rollbackState.orders;
+    state.activities = rollbackState.activities;
+    lastStateSnapshot = JSON.stringify(rollbackState);
+    if (nextStatus === "working") {
+      showWorkerAlert("서버 저장에 실패해서 작업 시작을 취소했습니다.");
+    }
   }
   render();
 }
@@ -812,14 +822,20 @@ async function fetchApiState() {
   return response.json();
 }
 
-function saveApiState(payload) {
-  return fetch(API_STATE_URL, {
+async function saveApiState(payload) {
+  const response = await fetch(API_STATE_URL, {
     method: "PUT",
     headers: {
       "Content-Type": "application/json"
     },
     body: payload
   });
+
+  if (!response.ok) {
+    throw new Error(`api save failed (${response.status}) ${await response.text()}`);
+  }
+
+  return response;
 }
 
 function getSupabaseStateUrl() {
@@ -865,12 +881,12 @@ async function fetchSupabaseState() {
   return rows[0].payload;
 }
 
-function saveSupabaseState(nextState) {
+async function saveSupabaseState(nextState) {
   if (!hasSupabaseConfig()) {
     return Promise.reject(new Error("missing supabase config"));
   }
 
-  return fetch(getSupabaseTableUrl(), {
+  const response = await fetch(getSupabaseTableUrl(), {
     method: "POST",
     headers: getSupabaseHeaders({
       Prefer: "resolution=merge-duplicates,return=representation"
@@ -881,12 +897,13 @@ function saveSupabaseState(nextState) {
         payload: nextState
       }
     ])
-  }).then((response) => {
-    if (!response.ok) {
-      throw new Error("supabase save failed");
-    }
-    return response.json();
   });
+
+  if (!response.ok) {
+    throw new Error(`supabase save failed (${response.status}) ${await response.text()}`);
+  }
+
+  return response.json();
 }
 
 function normalizeOrderRecord(order) {
@@ -922,13 +939,36 @@ function addNumericStrings(currentValue, addedValue) {
   return String(toNumber(currentValue) + toNumber(addedValue));
 }
 
-function persist() {
-  const payload = JSON.stringify(normalizeAppState(state));
-  lastStateSnapshot = payload;
-  const request = isSupabaseBackend() ? saveSupabaseState(normalizeAppState(state)) : saveApiState(payload);
-  return request.catch(() => {
-    showAppAlert("서버 저장에 실패했습니다. 네트워크 연결 상태를 확인해 주세요.");
-  });
+function getPersistErrorMessage(error) {
+  const detail = String(error?.message || error || "");
+
+  if (/permission denied|42501|401/i.test(detail)) {
+    return "서버 저장 권한이 막혀 있습니다.\nSupabase app_state 쓰기 정책을 확인해 주세요.";
+  }
+
+  if (/fetch failed|network|Failed to fetch/i.test(detail)) {
+    return "서버 저장에 실패했습니다.\n인터넷 연결 상태를 확인해 주세요.";
+  }
+
+  return "서버 저장에 실패했습니다.\n잠시 후 다시 시도해 주세요.";
+}
+
+function persist(options = {}) {
+  const normalizedState = normalizeAppState(state);
+  const payload = JSON.stringify(normalizedState);
+  const request = isSupabaseBackend() ? saveSupabaseState(normalizedState) : saveApiState(payload);
+  return request
+    .then((result) => {
+      lastStateSnapshot = payload;
+      return result;
+    })
+    .catch((error) => {
+      handlePersistError(error);
+      if (options.throwOnError) {
+        throw error;
+      }
+      return null;
+    });
 }
 
 function startStatePolling() {
@@ -3881,8 +3921,8 @@ function renderWorkerEfficiency() {
     .join("");
 }
 
-function handlePersistError() {
-  showAppAlert("서버 저장에 실패했습니다. 네트워크 연결 상태를 확인해 주세요.");
+function handlePersistError(error) {
+  showAppAlert(getPersistErrorMessage(error));
 }
 
 async function handleAdminLogin(formElement) {
@@ -3923,8 +3963,8 @@ async function handleAdminLogin(formElement) {
   renderAdminSession();
 }
 
-function handlePersistError() {
-  showAppAlert("서버 저장에 실패했습니다. 네트워크 연결 상태를 확인해 주세요.");
+function handlePersistError(error) {
+  showAppAlert(getPersistErrorMessage(error));
 }
 
 async function handleAdminLogin(formElement) {
@@ -4295,8 +4335,8 @@ function escapeHtml(value) {
     .replaceAll("'", "&#39;");
 }
 
-function handlePersistError() {
-  showAppAlert("?쒕쾭 ??μ뿉 ?ㅽ뙣?덉뒿?덈떎. ?쒕쾭 ?곌껐 ?곹깭瑜??뺤씤??二쇱꽭??");
+function handlePersistError(error) {
+  showAppAlert(getPersistErrorMessage(error));
 }
 
 function getCleanWorkTimeValue(order) {
@@ -5765,8 +5805,8 @@ function renderWorkerEfficiency() {
     .join("");
 }
 
-function handlePersistError() {
-  showAppAlert("서버 저장에 실패했습니다. 네트워크 연결 상태를 확인해 주세요.");
+function handlePersistError(error) {
+  showAppAlert(getPersistErrorMessage(error));
 }
 
 async function handleAdminLogin(formElement) {
