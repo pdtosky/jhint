@@ -573,6 +573,16 @@ function enableWorkerStartInputs() {
   startWorkBtn.disabled = false;
 }
 
+function setWorkStartConfirmationLocked(isLocked) {
+  const workerNameInput = workerForm.querySelector('[name="workerName"]');
+  const machineNameInput = workerForm.querySelector('[name="machineName"]');
+  [workerNameInput, machineNameInput, orderSelect, startWorkBtn].forEach((field) => {
+    if (field) {
+      field.disabled = isLocked;
+    }
+  });
+}
+
 function preparePause() {
   const formData = new FormData(workerForm);
   const workerName = String(formData.get("workerName") || "").trim();
@@ -5887,6 +5897,13 @@ function confirmWorkStart() {
     return;
   }
 
+  if (!["ready", "paused"].includes(order.status)) {
+    showWorkerAlert("이미 진행 중이거나 완료된 작업은 시작할 수 없습니다. 다른 작업을 선택해 주세요.");
+    showAppAlert("이미 진행 중이거나 완료된 작업은 시작할 수 없습니다.\n다른 작업을 선택해 주세요.");
+    render();
+    return;
+  }
+
   let modal = document.getElementById("workStartConfirmModal");
   if (!modal) {
     modal = document.createElement("div");
@@ -5925,6 +5942,7 @@ function confirmWorkStart() {
       delete modal.dataset.orderId;
       delete modal.dataset.workerName;
       delete modal.dataset.machineName;
+      setWorkStartConfirmationLocked(false);
     });
     modal.querySelector("#workStartConfirmYesBtn").addEventListener("click", () => {
       const lockedInput = pendingStartSnapshot || {
@@ -5934,6 +5952,7 @@ function confirmWorkStart() {
       };
       modal.hidden = true;
       pendingStartSnapshot = null;
+      setWorkStartConfirmationLocked(false);
       updateWorkState("working", lockedInput);
     });
   }
@@ -5945,6 +5964,7 @@ function confirmWorkStart() {
   modal.querySelector("#workStartConfirmOrder").textContent = `${getCleanDisplayText(order.company)} / ${getCleanDisplayText(order.product)}`;
   modal.querySelector("#workStartConfirmWorker").textContent = workerName;
   modal.querySelector("#workStartConfirmMachine").textContent = machineName;
+  setWorkStartConfirmationLocked(true);
   modal.hidden = false;
 }
 
@@ -7539,7 +7559,8 @@ function renderOrderOptions() {
     return;
   }
 
-  orderSelect.innerHTML = selectableOrders
+  const placeholder = `<option value="">작업을 직접 선택해 주세요.</option>`;
+  const optionMarkup = selectableOrders
     .map((order) => {
       const isPaused = order.status === "paused";
       const statusText = isPaused ? "작업 중지" : "작업 대기";
@@ -7547,8 +7568,11 @@ function renderOrderOptions() {
       return `<option value="${order.id}" data-status="${order.status}" class="${isPaused ? "paused-option" : ""}">${labelPrefix}${escapeHtml(getCleanDisplayText(order.company))} / ${escapeHtml(getCleanDisplayText(order.product))} / ${statusText}</option>`;
     })
     .join("");
+  orderSelect.innerHTML = placeholder + optionMarkup;
   if (previousValue && selectableOrders.some((order) => order.id === previousValue)) {
     orderSelect.value = previousValue;
+  } else {
+    orderSelect.value = "";
   }
   updateWorkerOrderSelectVisual();
 }
