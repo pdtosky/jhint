@@ -4306,6 +4306,9 @@ html {
     text-align: center;
     justify-content: center;
     align-items: center;
+    font-size: clamp(0.54rem, 0.62vw, 0.66rem);
+    line-height: 1.08;
+    padding: 3px 6px;
     white-space: normal;
     overflow: hidden;
     overflow-wrap: anywhere;
