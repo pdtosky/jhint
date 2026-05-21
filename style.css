@@ -1408,7 +1408,54 @@ tbody tr:last-child td {
 #calendarDetailBody {
   overflow-y: auto;
   padding-right: 4px;
-  margin-top: 14px;
+  margin-top: 12px;
+}
+
+#calendarDetailModal .modal-card {
+  width: min(96vw, 1180px);
+  max-height: min(86vh, 820px);
+  padding: 22px;
+}
+
+#calendarDetailModal #calendarDetailBody {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  align-items: start;
+  gap: 10px;
+}
+
+#calendarDetailModal .calendar-detail-card {
+  min-width: 0;
+  padding: 12px;
+  border-radius: 16px;
+}
+
+#calendarDetailModal .feed-item-top {
+  gap: 8px;
+  align-items: start;
+}
+
+#calendarDetailModal .feed-item-top strong {
+  min-width: 0;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+#calendarDetailModal .detail-lines {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px 10px;
+  margin-top: 8px;
+}
+
+#calendarDetailModal .detail-line {
+  font-size: 0.85rem;
+  line-height: 1.28;
+  overflow-wrap: anywhere;
+}
+
+#calendarDetailModal .detail-line:nth-child(1),
+#calendarDetailModal .detail-line:nth-child(8) {
+  grid-column: 1 / -1;
 }
 
 #calendarDetailModal .modal-actions {
@@ -1420,6 +1467,26 @@ tbody tr:last-child td {
 }
 
 @media (max-width: 760px) {
+  #calendarDetailModal .modal-card {
+    width: min(96vw, 520px);
+    max-height: 84vh;
+    padding: 16px;
+  }
+
+  #calendarDetailModal #calendarDetailBody {
+    grid-template-columns: 1fr;
+  }
+
+  #calendarDetailModal .detail-lines {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+
+  #calendarDetailModal .detail-line:nth-child(1),
+  #calendarDetailModal .detail-line:nth-child(8) {
+    grid-column: auto;
+  }
+
   .page-shell {
     padding: 8px;
   }
