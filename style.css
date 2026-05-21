@@ -1412,21 +1412,21 @@ tbody tr:last-child td {
 }
 
 #calendarDetailModal .modal-card {
-  width: min(96vw, 1180px);
-  max-height: min(86vh, 820px);
-  padding: 22px;
+  width: min(100%, 560px);
+  max-height: min(80vh, 720px);
+  padding: 24px;
 }
 
 #calendarDetailModal #calendarDetailBody {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  grid-template-columns: 1fr;
   align-items: start;
   gap: 10px;
 }
 
 #calendarDetailModal .calendar-detail-card {
   min-width: 0;
-  padding: 14px;
+  padding: 13px;
   border-radius: 16px;
 }
 
@@ -1438,22 +1438,22 @@ tbody tr:last-child td {
 #calendarDetailModal .feed-item-top strong {
   min-width: 0;
   color: #10233f;
-  font-size: 1.02rem;
+  font-size: 0.98rem;
   line-height: 1.25;
   font-weight: 900;
   overflow-wrap: anywhere;
 }
 
 #calendarDetailModal .detail-lines {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 7px 12px;
-  margin-top: 10px;
+  grid-template-columns: 1fr;
+  gap: 5px;
+  margin-top: 8px;
 }
 
 #calendarDetailModal .detail-line {
   color: #30435e;
-  font-size: 0.92rem;
-  line-height: 1.36;
+  font-size: 0.9rem;
+  line-height: 1.34;
   letter-spacing: -0.01em;
   overflow-wrap: anywhere;
 }
@@ -1464,11 +1464,6 @@ tbody tr:last-child td {
   margin-right: 4px;
   color: #0f2747;
   font-weight: 900;
-}
-
-#calendarDetailModal .detail-line:nth-child(1),
-#calendarDetailModal .detail-line:nth-child(8) {
-  grid-column: 1 / -1;
 }
 
 #calendarDetailModal .modal-actions {
@@ -1496,13 +1491,8 @@ tbody tr:last-child td {
   }
 
   #calendarDetailModal .detail-line {
-    font-size: 0.95rem;
-    line-height: 1.4;
-  }
-
-  #calendarDetailModal .detail-line:nth-child(1),
-  #calendarDetailModal .detail-line:nth-child(8) {
-    grid-column: auto;
+    font-size: 0.9rem;
+    line-height: 1.36;
   }
 
   .page-shell {
