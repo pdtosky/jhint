@@ -4303,7 +4303,9 @@ html {
 @media (min-width: 900px) {
   .calendar-pill,
   .panel-dashboard .calendar-pill {
-    text-align: left;
+    text-align: center;
+    justify-content: center;
+    align-items: center;
     white-space: normal;
     overflow: hidden;
     overflow-wrap: anywhere;
