@@ -4299,3 +4299,43 @@ html {
     font-size: 0.78rem;
   }
 }
+
+@media (min-width: 900px) {
+  .calendar-pill,
+  .panel-dashboard .calendar-pill {
+    text-align: left;
+    white-space: normal;
+    overflow: hidden;
+    overflow-wrap: anywhere;
+    word-break: keep-all;
+    text-overflow: clip;
+  }
+
+  .calendar-pill-text-long,
+  .panel-dashboard .calendar-pill-text-long {
+    display: inline !important;
+  }
+
+  .calendar-pill-text-short,
+  .panel-dashboard .calendar-pill-text-short {
+    display: none !important;
+  }
+}
+
+@media (max-width: 899px) {
+  .calendar-pill,
+  .panel-dashboard .calendar-pill {
+    text-align: center;
+    white-space: nowrap;
+  }
+
+  .calendar-pill-text-long,
+  .panel-dashboard .calendar-pill-text-long {
+    display: none !important;
+  }
+
+  .calendar-pill-text-short,
+  .panel-dashboard .calendar-pill-text-short {
+    display: inline !important;
+  }
+}
