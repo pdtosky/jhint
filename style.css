@@ -4255,10 +4255,15 @@ html {
   text-overflow: ellipsis;
 }
 
+.worker-snapshot-company,
 .worker-snapshot-task {
   grid-column: 1 / -1;
   min-height: 38px;
   font-size: 0.86rem;
+}
+
+.worker-snapshot-company span {
+  color: var(--brand);
 }
 
 .worker-snapshot-task span {
@@ -4318,6 +4323,7 @@ html {
     font-size: 0.66rem;
   }
 
+  .worker-snapshot-company,
   .worker-snapshot-task {
     min-height: 30px;
   }

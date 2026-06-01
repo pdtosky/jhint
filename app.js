@@ -6483,6 +6483,7 @@ function renderWorkerSnapshotBoard() {
             <strong>${escapeHtml(getCleanDisplayText(order.workerName, "미지정"))}</strong>
           </div>
           <div class="worker-snapshot-detail">
+            <p class="worker-snapshot-company"><strong>업체</strong><span>${escapeHtml(getCleanDisplayText(order.company, "미지정"))}</span></p>
             <p class="worker-snapshot-task"><strong>작업</strong><span>${escapeHtml(getCleanDisplayText(order.product))}</span></p>
             <p><strong>시간</strong><span>${getCleanWorkTimeValue(order) || "-"}</span></p>
             <p><strong>장비</strong><span>${escapeHtml(getCleanDisplayText(order.machineName, "미지정"))}</span></p>
