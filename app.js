@@ -7365,6 +7365,7 @@ function getWorkerHistorySearchText(order, latestActivity) {
     order.workerName,
     order.company,
     order.product,
+    order.machineName,
     order.orderDate,
     order.dueDate,
     order.startTime,
