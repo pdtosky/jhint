@@ -7607,7 +7607,10 @@ function renderOrderOptions() {
       const isPaused = order.status === "paused";
       const statusText = isPaused ? "작업 중지" : "작업 대기";
       const labelPrefix = isPaused ? "[작업 중지] " : "";
-      return `<option value="${order.id}" data-status="${order.status}" class="${isPaused ? "paused-option" : ""}">${labelPrefix}${escapeHtml(getCleanDisplayText(order.company))} / ${escapeHtml(getCleanDisplayText(order.product))} / ${statusText}</option>`;
+      const dueLabel = order.dueDate ? order.dueDate.slice(5).replace("-", ".") : "-";
+      const quantityLabel = getCleanDisplayText(order.quantity, "-");
+      const optionText = `${labelPrefix}${getCleanDisplayText(order.company)} / ${getCleanDisplayText(order.product)} / 납기 ${dueLabel} / 수량 ${quantityLabel} / ${statusText}`;
+      return `<option value="${order.id}" data-status="${order.status}" class="${isPaused ? "paused-option" : ""}">${escapeHtml(optionText)}</option>`;
     })
     .join("");
   orderSelect.innerHTML = placeholder + optionMarkup;
