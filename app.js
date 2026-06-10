@@ -118,12 +118,14 @@ let workerHistorySearchKeyword = "";
 let activeOrderSearchKeyword = "";
 let completedOrderSearchKeyword = "";
 let isCompletedOrdersOpen = false;
+let requisitionFilter = "pending";
 let shippingFilter = "all";
 let isShippingListOpen = false;
 let shippingSearchKeyword = "";
 let lastStateSnapshot = "";
 let syncTimerId = null;
 let currentAdminEmail = "";
+let pendingRequisitionOrderSource = null;
 
 const adminLoginForm = document.getElementById("adminLoginForm");
 const adminPageLoginForm = document.getElementById("adminPageLoginForm");
@@ -132,6 +134,12 @@ const adminSessionPanel = document.getElementById("adminSessionPanel");
 const adminSessionUser = document.getElementById("adminSessionUser");
 const adminLogoutBtn = document.getElementById("adminLogoutBtn");
 const resetOrdersBtn = document.getElementById("resetOrdersBtn");
+const requisitionPendingBadge = document.getElementById("requisitionPendingBadge");
+const requisitionForm = document.getElementById("requisitionForm");
+const requisitionItems = document.getElementById("requisitionItems");
+const addRequisitionItemBtn = document.getElementById("addRequisitionItemBtn");
+const requisitionSummary = document.getElementById("requisitionSummary");
+const requisitionBoard = document.getElementById("requisitionBoard");
 const ordersLockedNotice = document.getElementById("ordersLockedNotice");
 const ordersContent = document.getElementById("ordersContent");
 const orderForm = document.getElementById("orderForm");
@@ -222,9 +230,7 @@ startDueAlarmClock();
 function bindEvents() {
   tabButtons.forEach((button) => {
     button.addEventListener("click", () => {
-      const targetId = button.dataset.viewTarget;
-      tabButtons.forEach((item) => item.classList.toggle("active", item === button));
-      viewPanels.forEach((panel) => panel.classList.toggle("active", panel.id === targetId));
+      switchView(button.dataset.viewTarget || "dashboardView");
     });
   });
 
@@ -336,6 +342,11 @@ function bindEvents() {
       shippingNoteLocked: false
     };
 
+    if (pendingRequisitionOrderSource) {
+      nextOrder.sourceRequisitionId = pendingRequisitionOrderSource.requestId;
+      nextOrder.sourceRequisitionItemId = pendingRequisitionOrderSource.itemId;
+    }
+
     state.orders.unshift(nextOrder);
     state.activities.unshift({
       id: crypto.randomUUID(),
@@ -345,7 +356,9 @@ function bindEvents() {
       timestamp: new Date().toISOString(),
       message: TEXT.registerMessage
     });
+    completeRequisitionSource(nextOrder);
     persist();
+    pendingRequisitionOrderSource = null;
     orderForm.reset();
     render();
   });
@@ -377,6 +390,38 @@ function bindEvents() {
     persist();
     closeOrderEditPanel();
     render();
+  });
+
+  requisitionForm?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    handleRequisitionSubmit();
+  });
+
+  addRequisitionItemBtn?.addEventListener("click", () => {
+    addRequisitionItemRow();
+  });
+
+  requisitionItems?.addEventListener("click", (event) => {
+    const removeButton = event.target.closest(".remove-request-item-btn");
+    if (!removeButton) return;
+    const row = removeButton.closest(".request-item-row");
+    if (row && requisitionItems.querySelectorAll(".request-item-row").length > 1) {
+      row.remove();
+      updateRequisitionItemNumbers();
+    }
+  });
+
+  document.querySelectorAll("[data-requisition-filter]").forEach((button) => {
+    button.addEventListener("click", () => {
+      requisitionFilter = button.dataset.requisitionFilter || "pending";
+      renderRequisitionPage();
+    });
+  });
+
+  requisitionBoard?.addEventListener("click", (event) => {
+    const actionButton = event.target.closest("[data-requisition-action]");
+    if (!actionButton) return;
+    handleRequisitionAction(actionButton);
   });
 
   cancelEditBtn.addEventListener("click", () => {
@@ -457,6 +502,8 @@ function bindEvents() {
     isShippingListOpen = Boolean(shippingSearchKeyword);
     renderShippingPage();
   });
+
+  resetRequisitionForm();
 }
 
 renderDashboardFilteredList = function renderDashboardFilteredListRemoved() {
@@ -809,6 +856,7 @@ function resetPauseInputs() {
 function createEmptyState() {
   return {
     orders: seedOrders.map(normalizeOrderRecord),
+    requisitions: [],
     activities: [
       {
         id: crypto.randomUUID(),
@@ -842,6 +890,7 @@ async function loadRemoteState() {
 function applyIncomingState(nextState) {
   const normalized = normalizeAppState(nextState);
   state.orders = normalized.orders;
+  state.requisitions = normalized.requisitions;
   state.activities = normalized.activities;
   lastStateSnapshot = JSON.stringify(normalized);
 }
@@ -849,6 +898,7 @@ function applyIncomingState(nextState) {
 function normalizeAppState(appState) {
   return {
     orders: (appState.orders || []).map(normalizeOrderRecord),
+    requisitions: (appState.requisitions || appState.purchaseRequests || []).map(normalizeRequisitionRecord),
     activities: appState.activities || []
   };
 }
@@ -1010,6 +1060,371 @@ function normalizeOrderRecord(order) {
     shipments: Array.isArray(order.shipments) ? order.shipments : [],
     elapsedMs: Number(order.elapsedMs || 0)
   };
+}
+
+function normalizeRequisitionRecord(request) {
+  const items = Array.isArray(request.items) ? request.items : [];
+  return {
+    id: request.id || crypto.randomUUID(),
+    requestNo: request.requestNo || generateRequisitionNo(),
+    company: request.company || "",
+    orderDate: request.orderDate || "",
+    dueDate: request.dueDate || "",
+    requesterName: request.requesterName || "",
+    paymentRequested: Boolean(request.paymentRequested),
+    deliveryType: request.deliveryType || "직납",
+    note: request.note || "",
+    status: request.status || "pending",
+    createdAt: request.createdAt || new Date().toISOString(),
+    approvedAt: request.approvedAt || "",
+    rejectedAt: request.rejectedAt || "",
+    convertedAt: request.convertedAt || "",
+    adminMemo: request.adminMemo || "",
+    items: items.map((item) => ({
+      id: item.id || crypto.randomUUID(),
+      name: item.name || "",
+      spec: item.spec || "",
+      quantity: item.quantity || "",
+      unitPrice: item.unitPrice || "",
+      status: item.status || "",
+      orderId: item.orderId || "",
+      convertedAt: item.convertedAt || ""
+    }))
+  };
+}
+
+function switchView(targetId) {
+  tabButtons.forEach((item) => item.classList.toggle("active", item.dataset.viewTarget === targetId));
+  viewPanels.forEach((panel) => panel.classList.toggle("active", panel.id === targetId));
+}
+
+function getTodayKey() {
+  return toDateKey(new Date());
+}
+
+function generateRequisitionNo() {
+  const today = getTodayKey().replaceAll("-", "");
+  const suffix = Math.random().toString(36).slice(2, 6).toUpperCase();
+  return `REQ-${today}-${suffix}`;
+}
+
+function resetRequisitionForm() {
+  if (!requisitionForm || !requisitionItems) return;
+  requisitionForm.reset();
+  requisitionForm.elements.requestOrderDate.value = getTodayKey();
+  requisitionForm.elements.requestDueDate.value = getTodayKey();
+  requisitionItems.innerHTML = "";
+  addRequisitionItemRow();
+}
+
+function addRequisitionItemRow(values = {}) {
+  if (!requisitionItems) return;
+  const row = document.createElement("div");
+  row.className = "request-item-row";
+  row.innerHTML = `
+    <span class="request-item-number"></span>
+    <label>
+      품명
+      <input type="text" name="requestItemName" list="productSuggestions" placeholder="예: RS4 Apron Tape" value="${escapeHtml(values.name || "")}" />
+    </label>
+    <label>
+      규격
+      <input type="text" name="requestItemSpec" placeholder="예: 137 x 137" value="${escapeHtml(values.spec || "")}" />
+    </label>
+    <label>
+      수량
+      <input type="number" name="requestItemQty" min="0" placeholder="예: 1000" value="${escapeHtml(values.quantity || "")}" />
+    </label>
+    <label>
+      단가
+      <input type="number" name="requestItemPrice" min="0" placeholder="선택" value="${escapeHtml(values.unitPrice || "")}" />
+    </label>
+    <button type="button" class="tab-btn remove-request-item-btn">삭제</button>
+  `;
+  requisitionItems.appendChild(row);
+  updateRequisitionItemNumbers();
+}
+
+function updateRequisitionItemNumbers() {
+  if (!requisitionItems) return;
+  const rows = [...requisitionItems.querySelectorAll(".request-item-row")];
+  rows.forEach((row, index) => {
+    const numberNode = row.querySelector(".request-item-number");
+    if (numberNode) numberNode.textContent = `${index + 1}`;
+    const removeButton = row.querySelector(".remove-request-item-btn");
+    if (removeButton) removeButton.disabled = rows.length <= 1;
+  });
+}
+
+function collectRequisitionItems() {
+  if (!requisitionItems) return [];
+  return [...requisitionItems.querySelectorAll(".request-item-row")]
+    .map((row) => {
+      const getValue = (selector) => String(row.querySelector(selector)?.value || "").trim();
+      return {
+        id: crypto.randomUUID(),
+        name: getValue('[name="requestItemName"]'),
+        spec: getValue('[name="requestItemSpec"]'),
+        quantity: getValue('[name="requestItemQty"]'),
+        unitPrice: getValue('[name="requestItemPrice"]'),
+        status: "",
+        orderId: "",
+        convertedAt: ""
+      };
+    })
+    .filter((item) => item.name || item.spec || item.quantity || item.unitPrice);
+}
+
+function handleRequisitionSubmit() {
+  if (!requisitionForm) return;
+  const formData = new FormData(requisitionForm);
+  const items = collectRequisitionItems();
+  if (!items.length) {
+    showAppAlert("품목을 1개 이상 입력해 주세요.");
+    return;
+  }
+  if (items.some((item) => !item.name || !item.quantity)) {
+    showAppAlert("품목명과 수량은 반드시 입력해 주세요.");
+    return;
+  }
+
+  const now = new Date().toISOString();
+  const request = normalizeRequisitionRecord({
+    id: crypto.randomUUID(),
+    requestNo: generateRequisitionNo(),
+    company: String(formData.get("requestCompany") || "").trim(),
+    orderDate: String(formData.get("requestOrderDate") || ""),
+    dueDate: String(formData.get("requestDueDate") || ""),
+    requesterName: String(formData.get("requesterName") || "").trim(),
+    paymentRequested: Boolean(formData.get("requestPaymentRequested")),
+    deliveryType: String(formData.get("requestDeliveryType") || "직납"),
+    note: String(formData.get("requestNote") || "").trim(),
+    status: "pending",
+    createdAt: now,
+    items
+  });
+
+  state.requisitions.unshift(request);
+  state.activities.unshift({
+    id: crypto.randomUUID(),
+    type: "requisition",
+    workerName: request.requesterName || "영업 담당자",
+    orderId: "",
+    timestamp: now,
+    message: `발주의뢰서가 접수되었습니다. / ${request.company} / ${request.requestNo}`
+  });
+  persist();
+  resetRequisitionForm();
+  requisitionFilter = "pending";
+  render();
+  showAppAlert("발주의뢰서가 접수되었습니다.\n관리자 승인 대기 목록에 표시됩니다.");
+}
+
+function getEffectiveRequisitionStatus(request) {
+  if (!request) return "pending";
+  if (request.status === "rejected") return "rejected";
+  const items = Array.isArray(request.items) ? request.items : [];
+  if (items.length && items.every((item) => item.orderId || item.status === "converted")) {
+    return "converted";
+  }
+  if (request.status === "approved" || items.some((item) => item.orderId || item.status === "converted")) {
+    return "approved";
+  }
+  return request.status || "pending";
+}
+
+function getRequisitionCounts() {
+  const requests = state.requisitions || [];
+  return {
+    all: requests.length,
+    pending: requests.filter((request) => getEffectiveRequisitionStatus(request) === "pending").length,
+    approved: requests.filter((request) => getEffectiveRequisitionStatus(request) === "approved").length,
+    converted: requests.filter((request) => getEffectiveRequisitionStatus(request) === "converted").length,
+    rejected: requests.filter((request) => getEffectiveRequisitionStatus(request) === "rejected").length
+  };
+}
+
+function getRequisitionStatusLabel(request) {
+  const status = getEffectiveRequisitionStatus(request);
+  const map = {
+    pending: "승인 대기",
+    approved: "승인/입력중",
+    converted: "발주 등록 완료",
+    rejected: "반려"
+  };
+  return map[status] || "승인 대기";
+}
+
+function getRequisitionStatusClass(request) {
+  const status = getEffectiveRequisitionStatus(request);
+  const map = {
+    pending: "status-warning",
+    approved: "status-break",
+    converted: "status-complete",
+    rejected: "status-ready"
+  };
+  return map[status] || "status-warning";
+}
+
+function getFilteredRequisitions() {
+  const requests = state.requisitions || [];
+  if (requisitionFilter === "all") return requests;
+  return requests.filter((request) => getEffectiveRequisitionStatus(request) === requisitionFilter);
+}
+
+function renderRequisitionPage() {
+  if (!requisitionBoard || !requisitionSummary) return;
+  const counts = getRequisitionCounts();
+  if (requisitionPendingBadge) {
+    requisitionPendingBadge.hidden = counts.pending === 0;
+    requisitionPendingBadge.textContent = String(counts.pending);
+  }
+
+  document.querySelectorAll("[data-requisition-filter]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.requisitionFilter === requisitionFilter);
+  });
+
+  requisitionSummary.innerHTML = [
+    { label: "승인 대기", value: counts.pending, hint: "관리자 확인 필요", tone: "stat-urgent" },
+    { label: "승인/입력중", value: counts.approved, hint: "발주 입력 진행 중", tone: "stat-ready" },
+    { label: "등록 완료", value: counts.converted, hint: "발주로 전환 완료", tone: "stat-complete" },
+    { label: "전체 의뢰", value: counts.all, hint: "누적 발주의뢰", tone: "stat-all" }
+  ].map((card) => `
+    <article class="stat-card ${card.tone}">
+      <span>${card.label}</span>
+      <strong>${card.value}</strong>
+      <p>${card.hint}</p>
+    </article>
+  `).join("");
+
+  const requests = getFilteredRequisitions();
+  if (!requests.length) {
+    requisitionBoard.innerHTML = `<div class="empty-state">표시할 발주의뢰서가 없습니다.</div>`;
+    return;
+  }
+
+  requisitionBoard.innerHTML = requests.map(renderRequisitionCard).join("");
+}
+
+function renderRequisitionCard(request) {
+  const effectiveStatus = getEffectiveRequisitionStatus(request);
+  const itemsHtml = request.items.map((item) => {
+    const productText = [item.name, item.spec].filter(Boolean).join(" / ");
+    const isConverted = Boolean(item.orderId);
+    return `
+      <div class="request-item-card ${isConverted ? "converted" : ""}">
+        <div>
+          <strong>${escapeHtml(productText || "품목 미입력")}</strong>
+          <p>수량 ${escapeHtml(item.quantity || "-")}${item.unitPrice ? ` / 단가 ${Number(item.unitPrice).toLocaleString()}` : ""}</p>
+          ${isConverted ? `<p class="request-item-state">발주 등록 완료</p>` : ""}
+        </div>
+        ${isAdminLoggedIn && effectiveStatus !== "rejected" && !isConverted ? `<button type="button" class="primary-btn request-convert-btn" data-requisition-action="convert" data-request-id="${request.id}" data-item-id="${item.id}">발주 입력</button>` : ""}
+      </div>
+    `;
+  }).join("");
+
+  return `
+    <article class="requisition-card">
+      <div class="requisition-card-head">
+        <div>
+          <p class="panel-kicker">${escapeHtml(request.requestNo)}</p>
+          <h3>${escapeHtml(request.company || "업체 미입력")}</h3>
+        </div>
+        <span class="status-badge ${getRequisitionStatusClass(request)}">${getRequisitionStatusLabel(request)}</span>
+      </div>
+      <div class="request-meta-grid">
+        <span><strong>발주일</strong>${formatDate(request.orderDate)}</span>
+        <span><strong>납품일</strong>${formatDate(request.dueDate)}</span>
+        <span><strong>작성자</strong>${escapeHtml(request.requesterName || "-")}</span>
+        <span><strong>구분</strong>${request.paymentRequested ? "지급요청 / " : ""}${escapeHtml(request.deliveryType || "-")}</span>
+      </div>
+      <div class="request-item-card-list">${itemsHtml}</div>
+      ${request.note ? `<div class="order-note-box request-note"><strong>특이사항</strong><span>${escapeHtml(request.note)}</span></div>` : ""}
+      <div class="request-card-actions">
+        ${!isAdminLoggedIn ? `<span class="progress-meta">관리자 로그인 후 발주 입력/반려 처리가 가능합니다.</span>` : ""}
+        ${isAdminLoggedIn && effectiveStatus !== "converted" && effectiveStatus !== "rejected" ? `<button type="button" class="tab-btn" data-requisition-action="reject" data-request-id="${request.id}">반려</button>` : ""}
+      </div>
+    </article>
+  `;
+}
+
+async function handleRequisitionAction(button) {
+  const action = button.dataset.requisitionAction || "";
+  const request = (state.requisitions || []).find((item) => item.id === (button.dataset.requestId || ""));
+  if (!request) {
+    showAppAlert("발주의뢰서를 찾을 수 없습니다.");
+    return;
+  }
+  if (!isAdminLoggedIn) {
+    showAppAlert("관리자 로그인 후 처리할 수 있습니다.");
+    return;
+  }
+
+  if (action === "reject") {
+    const confirmed = await showAppConfirm(`${request.company}\n\n이 발주의뢰서를 반려하시겠습니까?`, {
+      title: "발주의뢰 반려",
+      yesText: "반려",
+      noText: "취소"
+    });
+    if (!confirmed) return;
+    request.status = "rejected";
+    request.rejectedAt = new Date().toISOString();
+    persist();
+    render();
+    showAppAlert("발주의뢰서가 반려되었습니다.");
+    return;
+  }
+
+  if (action === "convert") {
+    const item = request.items.find((entry) => entry.id === (button.dataset.itemId || ""));
+    if (!item) {
+      showAppAlert("발주 입력할 품목을 찾을 수 없습니다.");
+      return;
+    }
+    request.status = "approved";
+    request.approvedAt = request.approvedAt || new Date().toISOString();
+    pendingRequisitionOrderSource = { requestId: request.id, itemId: item.id };
+    fillOrderFormFromRequisitionItem(request, item);
+    persist();
+    renderRequisitionPage();
+    switchView("ordersView");
+    orderForm.scrollIntoView({ behavior: "smooth", block: "start" });
+    showAppAlert("발주 입력창에 자동 입력했습니다.\n내용을 확인한 뒤 발주 등록을 눌러 주세요.");
+  }
+}
+
+function fillOrderFormFromRequisitionItem(request, item) {
+  const productText = [item.name, item.spec].filter(Boolean).join(" / ");
+  const noteParts = [
+    `발주의뢰 ${request.requestNo}`,
+    request.requesterName ? `작성자 ${request.requesterName}` : "",
+    item.spec ? `규격 ${item.spec}` : "",
+    item.unitPrice ? `단가 ${Number(item.unitPrice).toLocaleString()}` : "",
+    request.note ? `특이사항 ${request.note}` : ""
+  ].filter(Boolean);
+
+  orderForm.elements.orderDate.value = request.orderDate || getTodayKey();
+  orderForm.elements.company.value = request.company || "";
+  orderForm.elements.product.value = productText || item.name || "";
+  orderForm.elements.quantity.value = item.quantity || "";
+  orderForm.elements.paymentRequested.checked = Boolean(request.paymentRequested);
+  orderForm.elements.deliveryType.value = request.deliveryType || "직납";
+  orderForm.elements.dueDate.value = request.dueDate || "";
+  orderForm.elements.orderNote.value = noteParts.join("\n");
+}
+
+function completeRequisitionSource(order) {
+  if (!pendingRequisitionOrderSource) return;
+  const request = (state.requisitions || []).find((item) => item.id === pendingRequisitionOrderSource.requestId);
+  if (!request) return;
+  const requestItem = request.items.find((item) => item.id === pendingRequisitionOrderSource.itemId);
+  if (!requestItem) return;
+
+  requestItem.status = "converted";
+  requestItem.orderId = order.id;
+  requestItem.convertedAt = new Date().toISOString();
+  request.convertedAt = requestItem.convertedAt;
+  request.status = request.items.every((item) => item.orderId) ? "converted" : "approved";
 }
 
 function toNumber(value) {
@@ -1651,6 +2066,7 @@ function render() {
   renderCalendar();
   renderOrdersTable();
   renderOrderSuggestions();
+  renderRequisitionPage();
   renderOrderOptions();
   renderWorkerSnapshotBoard();
   renderActivities();
@@ -7410,8 +7826,22 @@ function renderDatalistOptions(datalistId, values) {
 }
 
 function renderOrderSuggestions() {
-  renderDatalistOptions("companySuggestions", getUniqueOrderValues("company"));
-  renderDatalistOptions("productSuggestions", getUniqueOrderValues("product"));
+  const requestCompanies = (state.requisitions || [])
+    .map((request) => String(request.company || "").trim())
+    .filter(Boolean);
+  const requestProducts = (state.requisitions || [])
+    .flatMap((request) => (request.items || []).map((item) => [item.name, item.spec].filter(Boolean).join(" / ")))
+    .map((value) => String(value || "").trim())
+    .filter(Boolean);
+
+  renderDatalistOptions(
+    "companySuggestions",
+    [...new Set([...getUniqueOrderValues("company"), ...requestCompanies])].sort((a, b) => a.localeCompare(b, "ko"))
+  );
+  renderDatalistOptions(
+    "productSuggestions",
+    [...new Set([...getUniqueOrderValues("product"), ...requestProducts])].sort((a, b) => a.localeCompare(b, "ko"))
+  );
 }
 
 function hasBrokenKoreanText(value) {
