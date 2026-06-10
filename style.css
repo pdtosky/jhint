@@ -4459,12 +4459,12 @@ html {
 .request-flow {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
+  gap: 8px;
   align-items: center;
-  margin: 16px 0 20px;
-  padding: 12px;
+  margin: 12px 0 14px;
+  padding: 9px;
   border: 1px solid rgba(18, 93, 133, 0.14);
-  border-radius: 22px;
+  border-radius: 18px;
   background: linear-gradient(135deg, rgba(229, 240, 255, 0.86), rgba(245, 252, 249, 0.9));
 }
 
@@ -4476,41 +4476,119 @@ html {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 44px;
-  padding: 8px 10px;
-  border-radius: 16px;
+  min-height: 34px;
+  padding: 6px 8px;
+  border-radius: 13px;
   background: rgba(255, 255, 255, 0.78);
   color: var(--ink);
+  font-size: 0.86rem;
   font-weight: 900;
   text-align: center;
   box-shadow: inset 0 0 0 1px rgba(17, 49, 82, 0.06);
 }
 
 .requisition-form {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 8px;
+  align-items: end;
   margin-top: 0;
 }
 
+.requisition-form > label {
+  min-width: 0;
+  gap: 5px;
+  font-size: 0.82rem;
+  font-weight: 850;
+}
+
+.requisition-form > label:nth-of-type(1) {
+  grid-column: span 3;
+}
+
+.requisition-form > label:nth-of-type(2),
+.requisition-form > label:nth-of-type(3),
+.requisition-form > label:nth-of-type(4),
+.requisition-form > label:nth-of-type(6) {
+  grid-column: span 2;
+}
+
+.requisition-form > .check-row {
+  grid-column: span 1;
+  min-height: 42px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: #fffdfa;
+  white-space: nowrap;
+}
+
+.requisition-form > .check-row input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+}
+
+.requisition-form input,
+.requisition-form select,
+.requisition-form textarea {
+  min-height: 42px;
+  padding: 9px 11px;
+  border-radius: 13px;
+  font-size: 0.9rem;
+}
+
+.requisition-form textarea {
+  min-height: 56px;
+}
+
+.requisition-form > .wide-field {
+  grid-column: 1 / -1;
+}
+
+.requisition-form > label.wide-field {
+  grid-column: span 9;
+}
+
+.requisition-form > .primary-btn {
+  grid-column: span 3;
+  min-height: 56px;
+  padding: 10px 14px;
+  border-radius: 14px;
+}
+
 .request-items {
-  padding: 14px;
+  padding: 10px;
   border: 1px solid rgba(18, 93, 133, 0.14);
-  border-radius: 22px;
+  border-radius: 18px;
   background: rgba(255, 255, 255, 0.62);
+}
+
+.request-items .section-head.compact {
+  margin-bottom: 4px;
+}
+
+.request-items .section-head.compact h3 {
+  font-size: 1rem;
+}
+
+.request-items .section-head.compact p {
+  font-size: 0.82rem;
 }
 
 .request-item-list {
   display: grid;
-  gap: 10px;
-  margin-top: 10px;
+  gap: 7px;
+  margin-top: 6px;
 }
 
 .request-item-row {
   display: grid;
-  grid-template-columns: 34px minmax(180px, 1.5fr) minmax(150px, 1.1fr) minmax(110px, 0.7fr) auto;
-  gap: 8px;
+  grid-template-columns: 28px minmax(200px, 1.55fr) minmax(160px, 1.1fr) minmax(100px, 0.55fr) auto;
+  gap: 7px;
   align-items: end;
-  padding: 12px;
+  padding: 9px;
   border: 1px solid rgba(139, 163, 190, 0.28);
-  border-radius: 18px;
+  border-radius: 15px;
   background: rgba(255, 255, 255, 0.9);
 }
 
@@ -4522,12 +4600,13 @@ html {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
-  margin-bottom: 12px;
+  width: 24px;
+  height: 24px;
+  margin-bottom: 9px;
   border-radius: 999px;
   background: rgba(13, 125, 109, 0.12);
   color: var(--brand);
+  font-size: 0.82rem;
   font-weight: 950;
 }
 
@@ -4537,7 +4616,9 @@ html {
 }
 
 .add-request-item-btn {
-  margin-top: 10px;
+  margin-top: 8px;
+  padding: 10px 14px;
+  border-radius: 13px;
 }
 
 .requisition-summary {
@@ -4672,6 +4753,28 @@ html {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .requisition-form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .requisition-form > label,
+  .requisition-form > label:nth-of-type(1),
+  .requisition-form > label:nth-of-type(2),
+  .requisition-form > label:nth-of-type(3),
+  .requisition-form > label:nth-of-type(4),
+  .requisition-form > label:nth-of-type(6),
+  .requisition-form > .check-row,
+  .requisition-form > label.wide-field,
+  .requisition-form > .primary-btn {
+    grid-column: span 1;
+  }
+
+  .requisition-form > .wide-field,
+  .requisition-form > label.wide-field,
+  .requisition-form > .primary-btn {
+    grid-column: 1 / -1;
+  }
+
   .request-item-row {
     grid-template-columns: 32px minmax(0, 1fr);
   }
@@ -4696,6 +4799,10 @@ html {
 
 @media (max-width: 520px) {
   .request-flow {
+    grid-template-columns: 1fr;
+  }
+
+  .requisition-form {
     grid-template-columns: 1fr;
   }
 
