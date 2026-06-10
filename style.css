@@ -4505,7 +4505,7 @@ html {
 
 .request-item-row {
   display: grid;
-  grid-template-columns: 34px minmax(160px, 1.35fr) minmax(130px, 1fr) minmax(92px, 0.62fr) minmax(92px, 0.62fr) auto;
+  grid-template-columns: 34px minmax(180px, 1.5fr) minmax(150px, 1.1fr) minmax(110px, 0.7fr) auto;
   gap: 8px;
   align-items: end;
   padding: 12px;
