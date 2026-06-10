@@ -9,13 +9,13 @@
   <meta name="apple-mobile-web-app-title" content="생산일정 관리" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <title>&#49373;&#49328;&#51068;&#51221; &#44288;&#47532; &#45824;&#49884;&#48372;&#46300;</title>
-  <link rel="manifest" href="manifest.webmanifest?v=20260610-04" />
-  <link rel="icon" href="app-icon.png?v=20260610-04" type="image/png" />
-  <link rel="apple-touch-icon" href="app-icon.png?v=20260610-04" />
+  <link rel="manifest" href="manifest.webmanifest?v=20260610-05" />
+  <link rel="icon" href="app-icon.png?v=20260610-05" type="image/png" />
+  <link rel="apple-touch-icon" href="app-icon.png?v=20260610-05" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="style.css?v=20260610-04" />
+    <link rel="stylesheet" href="style.css?v=20260610-05" />
 </head>
 <body>
   <div class="page-shell">
@@ -100,73 +100,105 @@
             <p>영업 담당자가 작성하면 관리자가 확인 후 발주 입력으로 전환합니다.</p>
           </div>
 
-          <div class="request-flow">
-            <span>영업 작성</span>
-            <strong>→</strong>
-            <span>관리자 확인</span>
-            <strong>→</strong>
-            <span>발주 입력 자동 채움</span>
-            <strong>→</strong>
-            <span>생산일정 반영</span>
+          <div id="requisitionLoginPanel" class="admin-login-panel requisition-login-panel">
+            <div class="section-head compact">
+              <h3>발주의뢰 로그인</h3>
+              <p>발주의뢰 작성 전용</p>
+            </div>
+            <form id="requisitionLoginForm" class="order-form compact-form requisition-login-form">
+              <label>
+                아이디(Email)
+                <input type="email" name="requisitionEmail" autocomplete="username" placeholder="예: sales@jhint.net" />
+              </label>
+              <label>
+                비밀번호
+                <input type="password" name="requisitionPassword" autocomplete="current-password" />
+              </label>
+              <button type="submit" class="primary-btn">로그인</button>
+            </form>
           </div>
 
-          <form id="requisitionForm" class="order-form requisition-form">
-            <label>
-              업체명
-              <input type="text" name="requestCompany" list="companySuggestions" placeholder="예: 스탠다드에너지" required />
-            </label>
-            <label>
-              발주일자
-              <input type="date" name="requestOrderDate" required />
-            </label>
-            <label>
-              납품일자
-              <input type="date" name="requestDueDate" required />
-            </label>
-            <label>
-              작성자
-              <input type="text" name="requesterName" placeholder="예: 김영업" required />
-            </label>
-            <label class="check-row">
-              <input type="checkbox" name="requestPaymentRequested" />
-              <span>지급요청</span>
-            </label>
-            <label>
-              직납/발송
-              <select name="requestDeliveryType" required>
-                <option value="직납">직납</option>
-                <option value="발송">발송</option>
-              </select>
-            </label>
-
-            <div class="request-items wide-field">
-              <div class="section-head compact">
-                <h3>품목 / 규격 / 수량</h3>
-                <p>여러 품목이면 품목을 추가해서 입력</p>
+          <div id="requisitionSessionPanel" class="admin-session-panel requisition-session-panel" hidden>
+            <div class="session-box">
+              <div>
+                <strong id="requisitionSessionUser">request user</strong>
+                <p class="progress-meta">발주의뢰 로그인 상태</p>
               </div>
-              <div id="requisitionItems" class="request-item-list"></div>
-              <button type="button" class="tab-btn add-request-item-btn" id="addRequisitionItemBtn">+ 품목 추가</button>
+              <div class="session-actions">
+                <button type="button" class="end-btn" id="requisitionLogoutBtn">로그아웃</button>
+              </div>
+            </div>
+          </div>
+
+          <div id="requisitionContent" hidden>
+            <div class="request-flow">
+              <span>영업 작성</span>
+              <strong>→</strong>
+              <span>관리자 확인</span>
+              <strong>→</strong>
+              <span>발주 입력 자동 채움</span>
+              <strong>→</strong>
+              <span>생산일정 반영</span>
             </div>
 
-            <label class="wide-field">
-              특이사항
-              <textarea name="requestNote" rows="3" placeholder="가공 주의사항, 출고 요청사항, 참고 내용을 입력"></textarea>
-            </label>
-            <button type="submit" class="primary-btn">관리자에게 제출</button>
-          </form>
+            <form id="requisitionForm" class="order-form requisition-form">
+              <label>
+                업체명
+                <input type="text" name="requestCompany" list="companySuggestions" placeholder="예: 스탠다드에너지" required />
+              </label>
+              <label>
+                발주일자
+                <input type="date" name="requestOrderDate" required />
+              </label>
+              <label>
+                납품일자
+                <input type="date" name="requestDueDate" required />
+              </label>
+              <label>
+                작성자
+                <input type="text" name="requesterName" placeholder="예: 김영업" required />
+              </label>
+              <label class="check-row">
+                <input type="checkbox" name="requestPaymentRequested" />
+                <span>지급요청</span>
+              </label>
+              <label>
+                직납/발송
+                <select name="requestDeliveryType" required>
+                  <option value="직납">직납</option>
+                  <option value="발송">발송</option>
+                </select>
+              </label>
 
-          <div class="section-head compact">
-            <h3>발주의뢰 현황</h3>
-            <p>승인 대기 항목은 관리자에게 알림으로 표시됩니다.</p>
+              <div class="request-items wide-field">
+                <div class="section-head compact">
+                  <h3>품목 / 규격 / 수량</h3>
+                  <p>여러 품목이면 품목을 추가해서 입력</p>
+                </div>
+                <div id="requisitionItems" class="request-item-list"></div>
+                <button type="button" class="tab-btn add-request-item-btn" id="addRequisitionItemBtn">+ 품목 추가</button>
+              </div>
+
+              <label class="wide-field">
+                특이사항
+                <textarea name="requestNote" rows="3" placeholder="가공 주의사항, 출고 요청사항, 참고 내용을 입력"></textarea>
+              </label>
+              <button type="submit" class="primary-btn">관리자에게 제출</button>
+            </form>
+
+            <div class="section-head compact">
+              <h3>발주의뢰 현황</h3>
+              <p>승인 대기 항목은 관리자에게 알림으로 표시됩니다.</p>
+            </div>
+            <div id="requisitionSummary" class="stats-grid requisition-summary"></div>
+            <div class="worker-actions request-filter-bar">
+              <button type="button" class="tab-btn active" data-requisition-filter="pending">승인 대기</button>
+              <button type="button" class="tab-btn" data-requisition-filter="approved">승인/입력중</button>
+              <button type="button" class="tab-btn" data-requisition-filter="converted">발주 등록 완료</button>
+              <button type="button" class="tab-btn" data-requisition-filter="all">전체</button>
+            </div>
+            <div id="requisitionBoard" class="requisition-board"></div>
           </div>
-          <div id="requisitionSummary" class="stats-grid requisition-summary"></div>
-          <div class="worker-actions request-filter-bar">
-            <button type="button" class="tab-btn active" data-requisition-filter="pending">승인 대기</button>
-            <button type="button" class="tab-btn" data-requisition-filter="approved">승인/입력중</button>
-            <button type="button" class="tab-btn" data-requisition-filter="converted">발주 등록 완료</button>
-            <button type="button" class="tab-btn" data-requisition-filter="all">전체</button>
-          </div>
-          <div id="requisitionBoard" class="requisition-board"></div>
         </section>
       </section>
 
@@ -608,8 +640,8 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="config.js?v=20260610-04"></script>
-  <script src="app.js?v=20260610-04"></script>
+  <script src="config.js?v=20260610-05"></script>
+  <script src="app.js?v=20260610-05"></script>
 </body>
 </html>
 

@@ -4495,6 +4495,40 @@ html {
   margin-top: 0;
 }
 
+.requisition-login-panel {
+  margin: 12px 0;
+}
+
+.requisition-login-form {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(180px, 0.8fr) 160px;
+  gap: 8px;
+  align-items: end;
+  margin-top: 10px;
+}
+
+.requisition-login-form label {
+  gap: 5px;
+  font-size: 0.86rem;
+  font-weight: 850;
+}
+
+.requisition-login-form input {
+  min-height: 42px;
+  padding: 9px 11px;
+  border-radius: 13px;
+}
+
+.requisition-login-form .primary-btn {
+  min-height: 42px;
+  padding: 10px 14px;
+  border-radius: 13px;
+}
+
+.requisition-session-panel {
+  margin: 10px 0 12px;
+}
+
 .requisition-form > label {
   min-width: 0;
   gap: 5px;
@@ -4765,6 +4799,10 @@ html {
 
   .requisition-form {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .requisition-login-form {
+    grid-template-columns: 1fr;
   }
 
   .requisition-form > label,

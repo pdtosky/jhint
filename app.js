@@ -107,6 +107,7 @@ const state = createEmptyState();
 let dashboardFilter = "all";
 let dashboardTimerId = null;
 let isAdminLoggedIn = false;
+let isRequisitionLoggedIn = false;
 let isDashboardListOpen = false;
 let isDashboardProgressOpen = false;
 let calendarCursor = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
@@ -125,6 +126,7 @@ let shippingSearchKeyword = "";
 let lastStateSnapshot = "";
 let syncTimerId = null;
 let currentAdminEmail = "";
+let currentRequisitionEmail = "";
 let pendingRequisitionOrderSource = null;
 
 const adminLoginForm = document.getElementById("adminLoginForm");
@@ -134,6 +136,12 @@ const adminSessionPanel = document.getElementById("adminSessionPanel");
 const adminSessionUser = document.getElementById("adminSessionUser");
 const adminLogoutBtn = document.getElementById("adminLogoutBtn");
 const resetOrdersBtn = document.getElementById("resetOrdersBtn");
+const requisitionLoginForm = document.getElementById("requisitionLoginForm");
+const requisitionLoginPanel = document.getElementById("requisitionLoginPanel");
+const requisitionSessionPanel = document.getElementById("requisitionSessionPanel");
+const requisitionSessionUser = document.getElementById("requisitionSessionUser");
+const requisitionLogoutBtn = document.getElementById("requisitionLogoutBtn");
+const requisitionContent = document.getElementById("requisitionContent");
 const requisitionPendingBadge = document.getElementById("requisitionPendingBadge");
 const requisitionForm = document.getElementById("requisitionForm");
 const requisitionItems = document.getElementById("requisitionItems");
@@ -246,6 +254,15 @@ function bindEvents() {
 
   adminLogoutBtn.addEventListener("click", () => {
     handleAdminLogout();
+  });
+
+  requisitionLoginForm?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    handleRequisitionLogin(requisitionLoginForm);
+  });
+
+  requisitionLogoutBtn?.addEventListener("click", () => {
+    handleRequisitionLogout();
   });
 
   resetOrdersBtn.addEventListener("click", () => {
@@ -931,9 +948,27 @@ function isAllowedAdminEmail(email) {
   return allowlist.includes(normalizedEmail);
 }
 
+function getRequisitionEmailAllowlist() {
+  return (APP_CONFIG.requisitionEmails || APP_CONFIG.requestEmails || [])
+    .map((email) => String(email || "").trim().toLowerCase())
+    .filter(Boolean);
+}
+
+function isAllowedRequisitionEmail(email) {
+  const normalizedEmail = String(email || "").trim().toLowerCase();
+  if (!normalizedEmail) return false;
+  if (isAllowedAdminEmail(normalizedEmail)) return true;
+  const allowlist = getRequisitionEmailAllowlist();
+  if (!allowlist.length) return true;
+  return allowlist.includes(normalizedEmail);
+}
+
 function setAdminSession(email) {
-  currentAdminEmail = String(email || "").trim().toLowerCase();
-  isAdminLoggedIn = isAllowedAdminEmail(currentAdminEmail);
+  const normalizedEmail = String(email || "").trim().toLowerCase();
+  isAdminLoggedIn = isAllowedAdminEmail(normalizedEmail);
+  isRequisitionLoggedIn = isAllowedRequisitionEmail(normalizedEmail);
+  currentAdminEmail = isAdminLoggedIn ? normalizedEmail : "";
+  currentRequisitionEmail = isRequisitionLoggedIn ? normalizedEmail : "";
 }
 
 async function restoreAdminSession() {
@@ -1112,8 +1147,16 @@ function resetRequisitionForm() {
   requisitionForm.reset();
   requisitionForm.elements.requestOrderDate.value = getTodayKey();
   requisitionForm.elements.requestDueDate.value = getTodayKey();
+  prefillRequisitionRequester();
   requisitionItems.innerHTML = "";
   addRequisitionItemRow();
+}
+
+function prefillRequisitionRequester() {
+  const requesterInput = requisitionForm?.elements?.requesterName;
+  if (!requesterInput || requesterInput.value) return;
+  const fallbackName = String(currentRequisitionEmail || "").split("@")[0] || "";
+  if (fallbackName) requesterInput.value = fallbackName;
 }
 
 function addRequisitionItemRow(values = {}) {
@@ -1171,6 +1214,10 @@ function collectRequisitionItems() {
 
 function handleRequisitionSubmit() {
   if (!requisitionForm) return;
+  if (!isRequisitionLoggedIn) {
+    showAppAlert("발주의뢰 로그인 후 작성할 수 있습니다.");
+    return;
+  }
   const formData = new FormData(requisitionForm);
   const items = collectRequisitionItems();
   if (!items.length) {
@@ -2050,6 +2097,55 @@ async function handleAdminLogout() {
   renderAdminSession();
 }
 
+async function handleRequisitionLogin(formElement) {
+  const formData = new FormData(formElement);
+  const requisitionEmail = String(formData.get("requisitionEmail") || "").trim().toLowerCase();
+  const requisitionPassword = String(formData.get("requisitionPassword") || "").trim();
+
+  if (!supabaseAuthClient) {
+    showAppAlert("발주의뢰 로그인 설정이 아직 연결되지 않았습니다.");
+    return;
+  }
+
+  if (!requisitionEmail || !requisitionPassword) {
+    showAppAlert("아이디와 비밀번호를 입력해 주세요.");
+    return;
+  }
+
+  const { data, error } = await supabaseAuthClient.auth.signInWithPassword({
+    email: requisitionEmail,
+    password: requisitionPassword
+  });
+
+  if (error) {
+    showAppAlert("로그인에 실패했습니다.\n아이디 또는 비밀번호를 확인해 주세요.");
+    return;
+  }
+
+  const sessionEmail = data?.user?.email || data?.session?.user?.email || requisitionEmail;
+  if (!isAllowedRequisitionEmail(sessionEmail)) {
+    await supabaseAuthClient.auth.signOut({ scope: "local" });
+    setAdminSession("");
+    renderAdminSession();
+    showAppAlert("이 계정은 발주의뢰 권한이 없습니다.");
+    return;
+  }
+
+  setAdminSession(sessionEmail);
+  formElement.reset();
+  prefillRequisitionRequester();
+  renderAdminSession();
+  renderRequisitionPage();
+}
+
+async function handleRequisitionLogout() {
+  if (supabaseAuthClient) {
+    await supabaseAuthClient.auth.signOut({ scope: "local" });
+  }
+  setAdminSession("");
+  renderAdminSession();
+}
+
 function render() {
   renderAdminSession();
   todayChip.textContent = `${formatDate(new Date().toISOString().slice(0, 10))} ${TEXT.baseDate}`;
@@ -2171,6 +2267,16 @@ function renderAdminSession() {
   adminLoginPanel.hidden = isAdminLoggedIn;
   adminSessionPanel.hidden = !isAdminLoggedIn;
   adminSessionUser.textContent = currentAdminEmail || "admin";
+  if (requisitionLoginPanel) requisitionLoginPanel.hidden = isRequisitionLoggedIn;
+  if (requisitionSessionPanel) requisitionSessionPanel.hidden = !isRequisitionLoggedIn;
+  if (requisitionSessionUser) requisitionSessionUser.textContent = currentRequisitionEmail || "request user";
+  if (requisitionContent) requisitionContent.hidden = !isRequisitionLoggedIn;
+  if (requisitionForm) {
+    Array.from(requisitionForm.elements).forEach((element) => {
+      element.disabled = !isRequisitionLoggedIn;
+    });
+  }
+  if (addRequisitionItemBtn) addRequisitionItemBtn.disabled = !isRequisitionLoggedIn;
   ordersLockedNotice.hidden = isAdminLoggedIn;
   ordersContent.hidden = !isAdminLoggedIn;
   Array.from(orderForm.elements).forEach((element) => {
