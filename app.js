@@ -1120,6 +1120,7 @@ function normalizeRequisitionRecord(request) {
       name: item.name || "",
       spec: item.spec || "",
       quantity: item.quantity || "",
+      unitPrice: item.unitPrice || item.price || "",
       status: item.status || "",
       orderId: item.orderId || "",
       convertedAt: item.convertedAt || ""
@@ -1177,6 +1178,10 @@ function addRequisitionItemRow(values = {}) {
       수량
       <input type="number" name="requestItemQty" min="0" placeholder="예: 1000" value="${escapeHtml(values.quantity || "")}" />
     </label>
+    <label>
+      단가
+      <input type="number" name="requestItemUnitPrice" min="0" step="1" placeholder="예: 1200" value="${escapeHtml(values.unitPrice || values.price || "")}" />
+    </label>
     <button type="button" class="tab-btn remove-request-item-btn">삭제</button>
   `;
   requisitionItems.appendChild(row);
@@ -1204,6 +1209,7 @@ function collectRequisitionItems() {
         name: getValue('[name="requestItemName"]'),
         spec: getValue('[name="requestItemSpec"]'),
         quantity: getValue('[name="requestItemQty"]'),
+        unitPrice: getValue('[name="requestItemUnitPrice"]'),
         status: "",
         orderId: "",
         convertedAt: ""
@@ -1347,6 +1353,13 @@ function renderRequisitionPage() {
   requisitionBoard.innerHTML = requests.map(renderRequisitionCard).join("");
 }
 
+function formatUnitPrice(value) {
+  const text = String(value || "").trim();
+  if (!text) return "";
+  const normalizedNumber = Number(text.replace(/,/g, ""));
+  return Number.isFinite(normalizedNumber) ? normalizedNumber.toLocaleString() : text;
+}
+
 function renderRequisitionCard(request) {
   const effectiveStatus = getEffectiveRequisitionStatus(request);
   const itemsHtml = request.items.map((item) => {
@@ -1356,7 +1369,7 @@ function renderRequisitionCard(request) {
       <div class="request-item-card ${isConverted ? "converted" : ""}">
         <div>
           <strong>${escapeHtml(productText || "품목 미입력")}</strong>
-          <p>수량 ${escapeHtml(item.quantity || "-")}</p>
+          <p>수량 ${escapeHtml(item.quantity || "-")}${item.unitPrice ? ` / 단가 ${escapeHtml(formatUnitPrice(item.unitPrice))}` : ""}</p>
           ${isConverted ? `<p class="request-item-state">발주 등록 완료</p>` : ""}
         </div>
         ${isAdminLoggedIn && effectiveStatus !== "rejected" && !isConverted ? `<button type="button" class="primary-btn request-convert-btn" data-requisition-action="convert" data-request-id="${request.id}" data-item-id="${item.id}">발주 입력</button>` : ""}
@@ -1440,6 +1453,7 @@ function fillOrderFormFromRequisitionItem(request, item) {
     `발주의뢰 ${request.requestNo}`,
     request.requesterName ? `작성자 ${request.requesterName}` : "",
     item.spec ? `규격 ${item.spec}` : "",
+    item.unitPrice ? `단가 ${formatUnitPrice(item.unitPrice)}` : "",
     request.note ? `특이사항 ${request.note}` : ""
   ].filter(Boolean);
 
