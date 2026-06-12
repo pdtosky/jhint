@@ -4804,7 +4804,16 @@ html {
   min-width: 76px;
 }
 
+.requisition-print-sheet {
+  display: none;
+}
+
 @media print {
+  @page {
+    size: A4 portrait;
+    margin: 10mm;
+  }
+
   body.print-requisition-mode {
     margin: 0 !important;
     background: #fff !important;
@@ -4814,18 +4823,19 @@ html {
     visibility: hidden !important;
   }
 
-  body.print-requisition-mode .requisition-card.is-printing,
-  body.print-requisition-mode .requisition-card.is-printing * {
+  body.print-requisition-mode .requisition-print-sheet.is-printing,
+  body.print-requisition-mode .requisition-print-sheet.is-printing * {
     visibility: visible !important;
   }
 
-  body.print-requisition-mode .requisition-card.is-printing {
+  body.print-requisition-mode .requisition-print-sheet.is-printing {
+    display: block !important;
     position: absolute !important;
     inset: 0 auto auto 0 !important;
     width: 100% !important;
     max-width: none !important;
-    min-height: auto !important;
-    padding: 12mm !important;
+    min-height: 0 !important;
+    padding: 0 !important;
     border: 0 !important;
     border-radius: 0 !important;
     background: #fff !important;
@@ -4833,28 +4843,187 @@ html {
     color: #111827 !important;
   }
 
-  body.print-requisition-mode .request-card-actions,
-  body.print-requisition-mode .requisition-card-head-actions .request-print-btn,
-  body.print-requisition-mode .request-convert-btn,
-  body.print-requisition-mode .request-print-btn {
-    display: none !important;
+  .print-document {
+    width: 100%;
+    min-height: 277mm;
+    box-sizing: border-box;
+    color: #111827;
+    font-family: "Malgun Gothic", "맑은 고딕", Arial, sans-serif;
+    font-size: 10.5pt;
   }
 
-  body.print-requisition-mode .request-meta-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  .print-doc-header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 58mm;
+    gap: 8mm;
+    align-items: start;
+    padding-bottom: 6mm;
+    border-bottom: 2px solid #111827;
   }
 
-  body.print-requisition-mode .request-item-card-list {
-    grid-template-columns: 1fr !important;
+  .print-doc-kicker {
+    margin: 0 0 2mm;
+    color: #0f766e;
+    font-size: 8pt;
+    font-weight: 800;
+    letter-spacing: 0.16em;
   }
 
-  body.print-requisition-mode .request-item-card,
-  body.print-requisition-mode .request-meta-grid span,
-  body.print-requisition-mode .order-note-box {
+  .print-doc-header h1 {
+    margin: 0;
+    color: #111827;
+    font-size: 28pt;
+    font-weight: 950;
+    letter-spacing: 0.18em;
+  }
+
+  .print-doc-subtitle {
+    margin: 3mm 0 0;
+    color: #475569;
+    font-size: 9.5pt;
+    font-weight: 700;
+  }
+
+  .print-approval-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    border: 1px solid #111827;
+  }
+
+  .print-approval-grid span,
+  .print-approval-grid i {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 10mm;
+    border-right: 1px solid #111827;
+    border-bottom: 1px solid #111827;
+    font-size: 8.5pt;
+    font-style: normal;
+    font-weight: 800;
+  }
+
+  .print-approval-grid span:nth-child(3),
+  .print-approval-grid i:nth-child(6) {
+    border-right: 0;
+  }
+
+  .print-approval-grid i {
+    min-height: 18mm;
+    border-bottom: 0;
+  }
+
+  .print-info-table,
+  .print-item-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+  }
+
+  .print-info-table {
+    margin-top: 6mm;
+  }
+
+  .print-info-table th,
+  .print-info-table td,
+  .print-item-table th,
+  .print-item-table td {
+    border: 1px solid #111827;
+    padding: 3mm 2.5mm;
+    vertical-align: middle;
+    line-height: 1.35;
+    word-break: keep-all;
+    overflow-wrap: anywhere;
+  }
+
+  .print-info-table th,
+  .print-item-table th,
+  .print-item-table tfoot th {
+    background: #eaf3ff !important;
+    color: #111827;
+    font-weight: 900;
+    text-align: center;
+  }
+
+  .print-info-table th {
+    width: 22mm;
+  }
+
+  .print-info-table td {
+    font-weight: 700;
+  }
+
+  .print-item-table {
+    margin-top: 7mm;
+  }
+
+  .print-item-table th:nth-child(1) {
+    width: 12mm;
+  }
+
+  .print-item-table th:nth-child(4),
+  .print-item-table th:nth-child(5),
+  .print-item-table th:nth-child(6) {
+    width: 23mm;
+  }
+
+  .print-item-table th:nth-child(7) {
+    width: 26mm;
+  }
+
+  .print-center {
+    text-align: center;
+  }
+
+  .print-right {
+    text-align: right;
+  }
+
+  .print-note-area {
+    min-height: 32mm;
+    margin-top: 7mm;
+    border: 1px solid #111827;
+  }
+
+  .print-note-area strong {
+    display: block;
+    padding: 3mm 4mm;
+    border-bottom: 1px solid #111827;
+    background: #fff7ed !important;
+    color: #92400e;
+    font-weight: 950;
+  }
+
+  .print-note-area p {
+    margin: 0;
+    padding: 4mm;
+    line-height: 1.55;
+    white-space: pre-wrap;
+  }
+
+  .print-doc-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 7mm;
+    padding-top: 4mm;
+    border-top: 1px solid #94a3b8;
+    color: #475569;
+    font-size: 9pt;
+  }
+
+  .print-doc-footer strong {
+    color: #111827;
+    font-size: 11pt;
+  }
+
+  .print-document,
+  .print-doc-header,
+  .print-info-table,
+  .print-item-table,
+  .print-note-area {
     break-inside: avoid;
     page-break-inside: avoid;
-    background: #fff !important;
-    border-color: #cbd5e1 !important;
   }
 }
 

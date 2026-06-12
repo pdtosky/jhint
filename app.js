@@ -1360,6 +1360,11 @@ function formatUnitPrice(value) {
   return Number.isFinite(normalizedNumber) ? normalizedNumber.toLocaleString() : text;
 }
 
+function parseMoneyValue(value) {
+  const number = Number(String(value || "").replace(/,/g, ""));
+  return Number.isFinite(number) ? number : 0;
+}
+
 function renderRequisitionCard(request) {
   const effectiveStatus = getEffectiveRequisitionStatus(request);
   const itemsHtml = request.items.map((item) => {
@@ -1405,23 +1410,135 @@ function renderRequisitionCard(request) {
   `;
 }
 
+function renderRequisitionPrintSheet(request) {
+  const items = Array.isArray(request.items) ? request.items : [];
+  const totalQty = items.reduce((sum, item) => sum + parseMoneyValue(item.quantity), 0);
+  const totalAmount = items.reduce((sum, item) => {
+    const quantity = parseMoneyValue(item.quantity);
+    const unitPrice = parseMoneyValue(item.unitPrice);
+    return sum + (quantity && unitPrice ? quantity * unitPrice : 0);
+  }, 0);
+  const itemRows = items.length
+    ? items.map((item, index) => {
+      const quantity = parseMoneyValue(item.quantity);
+      const unitPrice = parseMoneyValue(item.unitPrice);
+      const amount = quantity && unitPrice ? quantity * unitPrice : 0;
+      return `
+        <tr>
+          <td class="print-center">${index + 1}</td>
+          <td>${escapeHtml(item.name || "-")}</td>
+          <td>${escapeHtml(item.spec || "-")}</td>
+          <td class="print-right">${escapeHtml(item.quantity || "-")}</td>
+          <td class="print-right">${item.unitPrice ? escapeHtml(formatUnitPrice(item.unitPrice)) : "-"}</td>
+          <td class="print-right">${amount ? amount.toLocaleString() : "-"}</td>
+          <td class="print-center">${item.orderId ? "발주 등록 완료" : "대기"}</td>
+        </tr>
+      `;
+    }).join("")
+    : `<tr><td colspan="7" class="print-center">등록된 품목이 없습니다.</td></tr>`;
+
+  return `
+    <section class="print-document">
+      <header class="print-doc-header">
+        <div>
+          <p class="print-doc-kicker">JIN HEUNG INTERNATIONAL CO., LTD.</p>
+          <h1>발주의뢰서</h1>
+          <p class="print-doc-subtitle">영업 작성 → 관리자 확인 → 발주 입력 → 생산일정 반영</p>
+        </div>
+        <div class="print-approval-grid">
+          <span>작성</span>
+          <span>관리 확인</span>
+          <span>발주 입력</span>
+          <i></i>
+          <i></i>
+          <i></i>
+        </div>
+      </header>
+
+      <table class="print-info-table">
+        <tbody>
+          <tr>
+            <th>접수번호</th>
+            <td>${escapeHtml(request.requestNo || "-")}</td>
+            <th>업체명</th>
+            <td>${escapeHtml(request.company || "-")}</td>
+          </tr>
+          <tr>
+            <th>발주일자</th>
+            <td>${formatDate(request.orderDate)}</td>
+            <th>납품일자</th>
+            <td>${formatDate(request.dueDate)}</td>
+          </tr>
+          <tr>
+            <th>작성자</th>
+            <td>${escapeHtml(request.requesterName || "-")}</td>
+            <th>구분</th>
+            <td>${request.paymentRequested ? "지급요청 / " : ""}${escapeHtml(request.deliveryType || "-")}</td>
+          </tr>
+          <tr>
+            <th>진행상태</th>
+            <td>${getRequisitionStatusLabel(request)}</td>
+            <th>출력일시</th>
+            <td>${formatDateTime(new Date().toISOString())}</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <table class="print-item-table">
+        <thead>
+          <tr>
+            <th>No</th>
+            <th>품명</th>
+            <th>규격</th>
+            <th>수량</th>
+            <th>단가</th>
+            <th>금액</th>
+            <th>상태</th>
+          </tr>
+        </thead>
+        <tbody>${itemRows}</tbody>
+        <tfoot>
+          <tr>
+            <th colspan="3">합계</th>
+            <td class="print-right">${totalQty ? totalQty.toLocaleString() : "-"}</td>
+            <td></td>
+            <td class="print-right">${totalAmount ? totalAmount.toLocaleString() : "-"}</td>
+            <td></td>
+          </tr>
+        </tfoot>
+      </table>
+
+      <section class="print-note-area">
+        <strong>특이사항</strong>
+        <p>${escapeHtml(request.note || "-")}</p>
+      </section>
+
+      <footer class="print-doc-footer">
+        <span>본 문서는 생산일정 관리 시스템에서 출력되었습니다.</span>
+        <strong>진흥무역(주)</strong>
+      </footer>
+    </section>
+  `;
+}
+
 function printRequisitionCard(requestId) {
-  const card = [...document.querySelectorAll(".requisition-card")]
-    .find((item) => item.dataset.requisitionCardId === requestId);
-  if (!card) {
+  const request = (state.requisitions || []).find((item) => item.id === requestId);
+  if (!request) {
     showAppAlert("출력할 발주의뢰서를 찾을 수 없습니다.");
     return;
   }
 
-  document.querySelectorAll(".requisition-card.is-printing").forEach((item) => {
-    item.classList.remove("is-printing");
-  });
+  document.querySelector("#requisitionPrintSheet")?.remove();
 
-  card.classList.add("is-printing");
+  const printSheet = document.createElement("div");
+  printSheet.id = "requisitionPrintSheet";
+  printSheet.className = "requisition-print-sheet is-printing";
+  printSheet.innerHTML = renderRequisitionPrintSheet(request);
+  document.body.appendChild(printSheet);
   document.body.classList.add("print-requisition-mode");
 
   const cleanup = () => {
-    card.classList.remove("is-printing");
+    printSheet.remove();
     document.body.classList.remove("print-requisition-mode");
     window.removeEventListener("afterprint", cleanup);
   };
