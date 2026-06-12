@@ -1521,6 +1521,203 @@ function renderRequisitionPrintSheet(request) {
   `;
 }
 
+function getRequisitionPrintStyles() {
+  return `
+    @page {
+      size: A4 portrait;
+      margin: 10mm;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: #ffffff;
+      color: #111827;
+      font-family: "Malgun Gothic", "맑은 고딕", Arial, sans-serif;
+      font-size: 10.5pt;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .print-document {
+      width: 100%;
+      min-height: 277mm;
+      color: #111827;
+    }
+
+    .print-doc-header {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 58mm;
+      gap: 8mm;
+      align-items: start;
+      padding-bottom: 6mm;
+      border-bottom: 2px solid #111827;
+    }
+
+    .print-doc-kicker {
+      margin: 0 0 2mm;
+      color: #0f766e;
+      font-size: 8pt;
+      font-weight: 800;
+      letter-spacing: 0.16em;
+    }
+
+    .print-doc-header h1 {
+      margin: 0;
+      color: #111827;
+      font-size: 28pt;
+      font-weight: 950;
+      letter-spacing: 0.18em;
+    }
+
+    .print-doc-subtitle {
+      margin: 3mm 0 0;
+      color: #475569;
+      font-size: 9.5pt;
+      font-weight: 700;
+    }
+
+    .print-approval-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      border: 1.5px solid #111827;
+    }
+
+    .print-approval-grid span,
+    .print-approval-grid i {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 10mm;
+      border-right: 1px solid #111827;
+      border-bottom: 1px solid #111827;
+      font-size: 8.5pt;
+      font-style: normal;
+      font-weight: 800;
+    }
+
+    .print-approval-grid span:nth-child(3),
+    .print-approval-grid i:nth-child(6) {
+      border-right: 0;
+    }
+
+    .print-approval-grid i {
+      min-height: 18mm;
+      border-bottom: 0;
+    }
+
+    .print-info-table,
+    .print-item-table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+    }
+
+    .print-info-table {
+      margin-top: 6mm;
+    }
+
+    .print-info-table th,
+    .print-info-table td,
+    .print-item-table th,
+    .print-item-table td {
+      border: 1.25px solid #111827;
+      padding: 3mm 2.5mm;
+      vertical-align: middle;
+      line-height: 1.35;
+      word-break: keep-all;
+      overflow-wrap: anywhere;
+      white-space: normal;
+    }
+
+    .print-info-table th,
+    .print-item-table th,
+    .print-item-table tfoot th {
+      background: #eaf3ff;
+      color: #111827;
+      font-weight: 900;
+      text-align: center;
+    }
+
+    .print-info-table th {
+      width: 22mm;
+    }
+
+    .print-info-table td {
+      font-weight: 700;
+    }
+
+    .print-item-table {
+      margin-top: 7mm;
+    }
+
+    .print-item-table th:nth-child(1) {
+      width: 12mm;
+    }
+
+    .print-item-table th:nth-child(4),
+    .print-item-table th:nth-child(5),
+    .print-item-table th:nth-child(6) {
+      width: 23mm;
+    }
+
+    .print-item-table th:nth-child(7) {
+      width: 26mm;
+    }
+
+    .print-center {
+      text-align: center;
+    }
+
+    .print-right {
+      text-align: right;
+    }
+
+    .print-note-area {
+      min-height: 32mm;
+      margin-top: 7mm;
+      border: 1.25px solid #111827;
+    }
+
+    .print-note-area strong {
+      display: block;
+      padding: 3mm 4mm;
+      border-bottom: 1px solid #111827;
+      background: #fff7ed;
+      color: #92400e;
+      font-weight: 950;
+    }
+
+    .print-note-area p {
+      margin: 0;
+      padding: 4mm;
+      line-height: 1.55;
+      white-space: pre-wrap;
+      word-break: keep-all;
+      overflow-wrap: anywhere;
+    }
+
+    .print-doc-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 7mm;
+      padding-top: 4mm;
+      border-top: 1px solid #94a3b8;
+      color: #475569;
+      font-size: 9pt;
+    }
+
+    .print-doc-footer strong {
+      color: #111827;
+      font-size: 11pt;
+    }
+  `;
+}
+
 function printRequisitionCard(requestId) {
   const request = (state.requisitions || []).find((item) => item.id === requestId);
   if (!request) {
@@ -1528,25 +1725,34 @@ function printRequisitionCard(requestId) {
     return;
   }
 
-  document.querySelector("#requisitionPrintSheet")?.remove();
+  const printWindow = window.open("", "_blank", "width=960,height=1100");
+  if (!printWindow) {
+    showAppAlert("인쇄창을 열 수 없습니다. 팝업 차단을 해제한 뒤 다시 출력해 주세요.");
+    return;
+  }
 
-  const printSheet = document.createElement("div");
-  printSheet.id = "requisitionPrintSheet";
-  printSheet.className = "requisition-print-sheet is-printing";
-  printSheet.innerHTML = renderRequisitionPrintSheet(request);
-  document.body.appendChild(printSheet);
-  document.body.classList.add("print-requisition-mode");
-
-  const cleanup = () => {
-    printSheet.remove();
-    document.body.classList.remove("print-requisition-mode");
-    window.removeEventListener("afterprint", cleanup);
-  };
-
-  window.addEventListener("afterprint", cleanup);
-  requestAnimationFrame(() => {
-    window.print();
-  });
+  printWindow.document.open();
+  printWindow.document.write(`<!doctype html>
+    <html lang="ko">
+      <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>발주의뢰서 ${escapeHtml(request.requestNo || "")}</title>
+        <style>${getRequisitionPrintStyles()}</style>
+      </head>
+      <body>
+        ${renderRequisitionPrintSheet(request)}
+        <script>
+          window.addEventListener("load", function () {
+            setTimeout(function () {
+              window.focus();
+              window.print();
+            }, 250);
+          });
+        </script>
+      </body>
+    </html>`);
+  printWindow.document.close();
 }
 
 async function handleRequisitionAction(button) {
