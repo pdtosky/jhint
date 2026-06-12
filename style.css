@@ -4811,7 +4811,7 @@ html {
 @media print {
   @page {
     size: A4 portrait;
-    margin: 10mm;
+    margin: 8mm;
   }
 
   body.print-requisition-mode {
@@ -4845,19 +4845,20 @@ html {
 
   .print-document {
     width: 100%;
-    min-height: 277mm;
+    min-height: 0;
     box-sizing: border-box;
     color: #111827;
     font-family: "Malgun Gothic", "맑은 고딕", Arial, sans-serif;
-    font-size: 10.5pt;
+    font-size: 9.4pt;
+    line-height: 1.35;
   }
 
   .print-doc-header {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 58mm;
-    gap: 8mm;
+    grid-template-columns: minmax(0, 1fr) 52mm;
+    gap: 6mm;
     align-items: start;
-    padding-bottom: 6mm;
+    padding-bottom: 5mm;
     border-bottom: 2px solid #111827;
   }
 
@@ -4872,7 +4873,7 @@ html {
   .print-doc-header h1 {
     margin: 0;
     color: #111827;
-    font-size: 28pt;
+    font-size: 23pt;
     font-weight: 950;
     letter-spacing: 0.18em;
   }
@@ -4895,7 +4896,7 @@ html {
     display: flex;
     align-items: center;
     justify-content: center;
-    min-height: 10mm;
+    min-height: 8mm;
     border-right: 1px solid #111827;
     border-bottom: 1px solid #111827;
     font-size: 8.5pt;
@@ -4909,26 +4910,31 @@ html {
   }
 
   .print-approval-grid i {
-    min-height: 18mm;
+    min-height: 14mm;
     border-bottom: 0;
   }
 
   .print-info-table,
   .print-item-table {
     width: 100%;
-    border-collapse: collapse;
+    border-collapse: separate;
+    border-spacing: 0;
     table-layout: fixed;
+    border-top: 1.25px solid #111827;
+    border-left: 1.25px solid #111827;
   }
 
   .print-info-table {
-    margin-top: 6mm;
+    margin-top: 5mm;
   }
 
   .print-info-table th,
   .print-info-table td,
   .print-item-table th,
   .print-item-table td {
-    border: 1px solid #111827;
+    border: 1.25px solid #111827;
+    border-top: 0;
+    border-left: 0;
     padding: 3mm 2.5mm;
     vertical-align: middle;
     line-height: 1.35;
@@ -4954,7 +4960,7 @@ html {
   }
 
   .print-item-table {
-    margin-top: 7mm;
+    margin-top: 5mm;
   }
 
   .print-item-table th:nth-child(1) {
@@ -4980,9 +4986,9 @@ html {
   }
 
   .print-note-area {
-    min-height: 32mm;
-    margin-top: 7mm;
-    border: 1px solid #111827;
+    min-height: 22mm;
+    margin-top: 5mm;
+    border: 1.25px solid #111827;
   }
 
   .print-note-area strong {
@@ -5005,8 +5011,8 @@ html {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-top: 7mm;
-    padding-top: 4mm;
+    margin-top: 5mm;
+    padding-top: 3mm;
     border-top: 1px solid #94a3b8;
     color: #475569;
     font-size: 9pt;

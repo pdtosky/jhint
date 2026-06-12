@@ -1525,35 +1525,39 @@ function getRequisitionPrintStyles() {
   return `
     @page {
       size: A4 portrait;
-      margin: 10mm;
+      margin: 8mm;
     }
 
     * {
       box-sizing: border-box;
     }
 
+    html,
     body {
       margin: 0;
       background: #ffffff;
       color: #111827;
       font-family: "Malgun Gothic", "맑은 고딕", Arial, sans-serif;
-      font-size: 10.5pt;
+      font-size: 9.4pt;
+      line-height: 1.35;
+      height: auto;
+      overflow: visible;
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
     }
 
     .print-document {
       width: 100%;
-      min-height: 277mm;
+      min-height: 0;
       color: #111827;
     }
 
     .print-doc-header {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) 58mm;
-      gap: 8mm;
+      grid-template-columns: minmax(0, 1fr) 52mm;
+      gap: 6mm;
       align-items: start;
-      padding-bottom: 6mm;
+      padding-bottom: 5mm;
       border-bottom: 2px solid #111827;
     }
 
@@ -1568,7 +1572,7 @@ function getRequisitionPrintStyles() {
     .print-doc-header h1 {
       margin: 0;
       color: #111827;
-      font-size: 28pt;
+      font-size: 23pt;
       font-weight: 950;
       letter-spacing: 0.18em;
     }
@@ -1591,7 +1595,7 @@ function getRequisitionPrintStyles() {
       display: flex;
       align-items: center;
       justify-content: center;
-      min-height: 10mm;
+      min-height: 8mm;
       border-right: 1px solid #111827;
       border-bottom: 1px solid #111827;
       font-size: 8.5pt;
@@ -1605,19 +1609,22 @@ function getRequisitionPrintStyles() {
     }
 
     .print-approval-grid i {
-      min-height: 18mm;
+      min-height: 14mm;
       border-bottom: 0;
     }
 
     .print-info-table,
     .print-item-table {
       width: 100%;
-      border-collapse: collapse;
+      border-collapse: separate;
+      border-spacing: 0;
       table-layout: fixed;
+      border-top: 1.25px solid #111827;
+      border-left: 1.25px solid #111827;
     }
 
     .print-info-table {
-      margin-top: 6mm;
+      margin-top: 5mm;
     }
 
     .print-info-table th,
@@ -1625,6 +1632,8 @@ function getRequisitionPrintStyles() {
     .print-item-table th,
     .print-item-table td {
       border: 1.25px solid #111827;
+      border-top: 0;
+      border-left: 0;
       padding: 3mm 2.5mm;
       vertical-align: middle;
       line-height: 1.35;
@@ -1651,7 +1660,7 @@ function getRequisitionPrintStyles() {
     }
 
     .print-item-table {
-      margin-top: 7mm;
+      margin-top: 5mm;
     }
 
     .print-item-table th:nth-child(1) {
@@ -1677,8 +1686,8 @@ function getRequisitionPrintStyles() {
     }
 
     .print-note-area {
-      min-height: 32mm;
-      margin-top: 7mm;
+      min-height: 22mm;
+      margin-top: 5mm;
       border: 1.25px solid #111827;
     }
 
@@ -1704,8 +1713,8 @@ function getRequisitionPrintStyles() {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      margin-top: 7mm;
-      padding-top: 4mm;
+      margin-top: 5mm;
+      padding-top: 3mm;
       border-top: 1px solid #94a3b8;
       color: #475569;
       font-size: 9pt;
