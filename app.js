@@ -1378,13 +1378,16 @@ function renderRequisitionCard(request) {
   }).join("");
 
   return `
-    <article class="requisition-card">
+    <article class="requisition-card" data-requisition-card-id="${escapeHtml(request.id)}">
       <div class="requisition-card-head">
         <div>
           <p class="panel-kicker">${escapeHtml(request.requestNo)}</p>
           <h3>${escapeHtml(request.company || "업체 미입력")}</h3>
         </div>
-        <span class="status-badge ${getRequisitionStatusClass(request)}">${getRequisitionStatusLabel(request)}</span>
+        <div class="requisition-card-head-actions">
+          <span class="status-badge ${getRequisitionStatusClass(request)}">${getRequisitionStatusLabel(request)}</span>
+          <button type="button" class="tab-btn request-print-btn" data-requisition-action="print" data-request-id="${request.id}">출력</button>
+        </div>
       </div>
       <div class="request-meta-grid">
         <span><strong>발주일</strong>${formatDate(request.orderDate)}</span>
@@ -1402,11 +1405,42 @@ function renderRequisitionCard(request) {
   `;
 }
 
+function printRequisitionCard(requestId) {
+  const card = [...document.querySelectorAll(".requisition-card")]
+    .find((item) => item.dataset.requisitionCardId === requestId);
+  if (!card) {
+    showAppAlert("출력할 발주의뢰서를 찾을 수 없습니다.");
+    return;
+  }
+
+  document.querySelectorAll(".requisition-card.is-printing").forEach((item) => {
+    item.classList.remove("is-printing");
+  });
+
+  card.classList.add("is-printing");
+  document.body.classList.add("print-requisition-mode");
+
+  const cleanup = () => {
+    card.classList.remove("is-printing");
+    document.body.classList.remove("print-requisition-mode");
+    window.removeEventListener("afterprint", cleanup);
+  };
+
+  window.addEventListener("afterprint", cleanup);
+  requestAnimationFrame(() => {
+    window.print();
+  });
+}
+
 async function handleRequisitionAction(button) {
   const action = button.dataset.requisitionAction || "";
   const request = (state.requisitions || []).find((item) => item.id === (button.dataset.requestId || ""));
   if (!request) {
     showAppAlert("발주의뢰서를 찾을 수 없습니다.");
+    return;
+  }
+  if (action === "print") {
+    printRequisitionCard(request.id);
     return;
   }
   if (!isAdminLoggedIn) {

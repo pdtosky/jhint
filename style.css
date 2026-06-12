@@ -4694,6 +4694,14 @@ html {
   gap: 12px;
 }
 
+.requisition-card-head-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .requisition-card-head h3 {
   margin: 4px 0 0;
   color: var(--ink);
@@ -4790,6 +4798,64 @@ html {
   justify-content: flex-end;
   gap: 8px;
   margin-top: 12px;
+}
+
+.request-print-btn {
+  min-width: 76px;
+}
+
+@media print {
+  body.print-requisition-mode {
+    margin: 0 !important;
+    background: #fff !important;
+  }
+
+  body.print-requisition-mode * {
+    visibility: hidden !important;
+  }
+
+  body.print-requisition-mode .requisition-card.is-printing,
+  body.print-requisition-mode .requisition-card.is-printing * {
+    visibility: visible !important;
+  }
+
+  body.print-requisition-mode .requisition-card.is-printing {
+    position: absolute !important;
+    inset: 0 auto auto 0 !important;
+    width: 100% !important;
+    max-width: none !important;
+    min-height: auto !important;
+    padding: 12mm !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: #fff !important;
+    box-shadow: none !important;
+    color: #111827 !important;
+  }
+
+  body.print-requisition-mode .request-card-actions,
+  body.print-requisition-mode .requisition-card-head-actions .request-print-btn,
+  body.print-requisition-mode .request-convert-btn,
+  body.print-requisition-mode .request-print-btn {
+    display: none !important;
+  }
+
+  body.print-requisition-mode .request-meta-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  }
+
+  body.print-requisition-mode .request-item-card-list {
+    grid-template-columns: 1fr !important;
+  }
+
+  body.print-requisition-mode .request-item-card,
+  body.print-requisition-mode .request-meta-grid span,
+  body.print-requisition-mode .order-note-box {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    background: #fff !important;
+    border-color: #cbd5e1 !important;
+  }
 }
 
 @media (max-width: 820px) {
