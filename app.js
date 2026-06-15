@@ -1525,7 +1525,7 @@ function getRequisitionPrintStyles() {
   return `
     @page {
       size: A4 portrait;
-      margin: 8mm;
+      margin: 5mm;
     }
 
     * {
@@ -1538,8 +1538,8 @@ function getRequisitionPrintStyles() {
       background: #ffffff;
       color: #111827;
       font-family: "Malgun Gothic", "맑은 고딕", Arial, sans-serif;
-      font-size: 9.4pt;
-      line-height: 1.35;
+      font-size: 8.1pt;
+      line-height: 1.3;
       height: auto;
       overflow: visible;
       -webkit-print-color-adjust: exact;
@@ -1548,23 +1548,25 @@ function getRequisitionPrintStyles() {
 
     .print-document {
       width: 100%;
+      height: 138mm;
       min-height: 0;
+      overflow: hidden;
       color: #111827;
     }
 
     .print-doc-header {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) 52mm;
-      gap: 6mm;
+      grid-template-columns: minmax(0, 1fr) 44mm;
+      gap: 5mm;
       align-items: start;
-      padding-bottom: 5mm;
-      border-bottom: 2px solid #111827;
+      padding-bottom: 3mm;
+      border-bottom: 1.5px solid #111827;
     }
 
     .print-doc-kicker {
-      margin: 0 0 2mm;
+      margin: 0 0 1mm;
       color: #0f766e;
-      font-size: 8pt;
+      font-size: 6.8pt;
       font-weight: 800;
       letter-spacing: 0.16em;
     }
@@ -1572,22 +1574,22 @@ function getRequisitionPrintStyles() {
     .print-doc-header h1 {
       margin: 0;
       color: #111827;
-      font-size: 23pt;
+      font-size: 18pt;
       font-weight: 950;
       letter-spacing: 0.18em;
     }
 
     .print-doc-subtitle {
-      margin: 3mm 0 0;
+      margin: 1.5mm 0 0;
       color: #475569;
-      font-size: 9.5pt;
+      font-size: 7.4pt;
       font-weight: 700;
     }
 
     .print-approval-grid {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
-      border: 1.5px solid #111827;
+      border: 1px solid #111827;
     }
 
     .print-approval-grid span,
@@ -1595,10 +1597,10 @@ function getRequisitionPrintStyles() {
       display: flex;
       align-items: center;
       justify-content: center;
-      min-height: 8mm;
+      min-height: 6mm;
       border-right: 1px solid #111827;
       border-bottom: 1px solid #111827;
-      font-size: 8.5pt;
+      font-size: 7pt;
       font-style: normal;
       font-weight: 800;
     }
@@ -1609,7 +1611,7 @@ function getRequisitionPrintStyles() {
     }
 
     .print-approval-grid i {
-      min-height: 14mm;
+      min-height: 9mm;
       border-bottom: 0;
     }
 
@@ -1619,22 +1621,22 @@ function getRequisitionPrintStyles() {
       border-collapse: separate;
       border-spacing: 0;
       table-layout: fixed;
-      border-top: 1.25px solid #111827;
-      border-left: 1.25px solid #111827;
+      border-top: 1px solid #111827;
+      border-left: 1px solid #111827;
     }
 
     .print-info-table {
-      margin-top: 5mm;
+      margin-top: 3mm;
     }
 
     .print-info-table th,
     .print-info-table td,
     .print-item-table th,
     .print-item-table td {
-      border: 1.25px solid #111827;
+      border: 1px solid #111827;
       border-top: 0;
       border-left: 0;
-      padding: 3mm 2.5mm;
+      padding: 1.8mm 1.6mm;
       vertical-align: middle;
       line-height: 1.35;
       word-break: keep-all;
@@ -1652,7 +1654,7 @@ function getRequisitionPrintStyles() {
     }
 
     .print-info-table th {
-      width: 22mm;
+      width: 18mm;
     }
 
     .print-info-table td {
@@ -1660,21 +1662,21 @@ function getRequisitionPrintStyles() {
     }
 
     .print-item-table {
-      margin-top: 5mm;
+      margin-top: 3mm;
     }
 
     .print-item-table th:nth-child(1) {
-      width: 12mm;
+      width: 9mm;
     }
 
     .print-item-table th:nth-child(4),
     .print-item-table th:nth-child(5),
     .print-item-table th:nth-child(6) {
-      width: 23mm;
+      width: 19mm;
     }
 
     .print-item-table th:nth-child(7) {
-      width: 26mm;
+      width: 21mm;
     }
 
     .print-center {
@@ -1686,14 +1688,14 @@ function getRequisitionPrintStyles() {
     }
 
     .print-note-area {
-      min-height: 22mm;
-      margin-top: 5mm;
-      border: 1.25px solid #111827;
+      min-height: 13mm;
+      margin-top: 3mm;
+      border: 1px solid #111827;
     }
 
     .print-note-area strong {
       display: block;
-      padding: 3mm 4mm;
+      padding: 1.8mm 2mm;
       border-bottom: 1px solid #111827;
       background: #fff7ed;
       color: #92400e;
@@ -1702,8 +1704,8 @@ function getRequisitionPrintStyles() {
 
     .print-note-area p {
       margin: 0;
-      padding: 4mm;
-      line-height: 1.55;
+      padding: 2mm;
+      line-height: 1.4;
       white-space: pre-wrap;
       word-break: keep-all;
       overflow-wrap: anywhere;
@@ -1713,16 +1715,16 @@ function getRequisitionPrintStyles() {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      margin-top: 5mm;
-      padding-top: 3mm;
+      margin-top: 3mm;
+      padding-top: 2mm;
       border-top: 1px solid #94a3b8;
       color: #475569;
-      font-size: 9pt;
+      font-size: 7pt;
     }
 
     .print-doc-footer strong {
       color: #111827;
-      font-size: 11pt;
+      font-size: 8.6pt;
     }
   `;
 }
