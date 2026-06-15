@@ -1392,12 +1392,18 @@ function renderRequisitionCard(request) {
   const itemsHtml = request.items.map((item) => {
     const productText = getRequisitionProductText(item);
     const isConverted = Boolean(item.orderId);
+    const linkedOrder = isConverted ? state.orders.find((order) => order.id === item.orderId) : null;
+    const linkedOrderStatusText = linkedOrder
+      ? `${getOrderStatusTextClean(linkedOrder)}${linkedOrder.status === "complete" ? " · 발주내역으로 이동" : " · 등록된 발주서"}`
+      : isConverted
+        ? "발주서 연결 확인 필요"
+        : "";
     return `
       <div class="request-item-card ${isConverted ? "converted" : ""}">
         <div>
           <strong>${escapeHtml(productText || "품목 미입력")}</strong>
           <p>수량 ${escapeHtml(item.quantity || "-")}${item.unitPrice ? ` / 단가 ${escapeHtml(formatUnitPrice(item.unitPrice))}` : ""}</p>
-          ${isConverted ? `<p class="request-item-state">발주 등록 완료</p>` : ""}
+          ${isConverted ? `<p class="request-item-state">발주 등록 완료${linkedOrderStatusText ? ` / ${escapeHtml(linkedOrderStatusText)}` : ""}</p>` : ""}
         </div>
         ${isAdminLoggedIn && effectiveStatus !== "rejected" && !isConverted ? `<button type="button" class="primary-btn request-convert-btn" data-requisition-action="convert" data-request-id="${request.id}" data-item-id="${item.id}">발주 등록</button>` : ""}
       </div>
