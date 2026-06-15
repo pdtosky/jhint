@@ -918,11 +918,16 @@ async function loadRemoteState() {
 }
 
 function applyIncomingState(nextState) {
-  const normalized = normalizeAppState(nextState);
+  const repairResult = repairConvertedRequisitionOrders(normalizeAppState(nextState));
+  const normalized = repairResult.state;
   state.orders = normalized.orders;
   state.requisitions = normalized.requisitions;
   state.activities = normalized.activities;
   lastStateSnapshot = JSON.stringify(normalized);
+
+  if (repairResult.changed) {
+    persist().catch(handlePersistError);
+  }
 }
 
 function normalizeAppState(appState) {
@@ -1884,12 +1889,13 @@ function getRequisitionOrderNote(request, item) {
   ].filter(Boolean).join("\n");
 }
 
-function createOrderFromRequisitionItem(request, item) {
-  request.status = "approved";
-  request.approvedAt = request.approvedAt || new Date().toISOString();
+function getRequisitionRepairOrderId(request, item) {
+  return `REQ-ORDER-${request.id}-${item.id}`;
+}
 
-  const nextOrder = normalizeOrderRecord({
-    id: crypto.randomUUID(),
+function buildOrderFromRequisitionItem(request, item, orderId = crypto.randomUUID()) {
+  return normalizeOrderRecord({
+    id: orderId,
     orderDate: request.orderDate || getTodayKey(),
     company: request.company || "",
     product: getRequisitionProductText(item) || item.name || "",
@@ -1905,6 +1911,99 @@ function createOrderFromRequisitionItem(request, item) {
     sourceRequisitionId: request.id,
     sourceRequisitionItemId: item.id
   });
+}
+
+function isOrderLinkedToRequisitionItem(order, request, item) {
+  if (!order) return false;
+  if (order.sourceRequisitionId === request.id && order.sourceRequisitionItemId === item.id) return true;
+
+  const expectedProduct = getRequisitionProductText(item) || item.name || "";
+  const sameRequestNote = String(order.orderNote || "").includes(request.requestNo || "");
+  const sameCompany = String(order.company || "") === String(request.company || "");
+  const sameProduct = String(order.product || "") === String(expectedProduct || "");
+  const sameQuantity = String(order.quantity || "") === String(item.quantity || "");
+  return sameRequestNote && sameCompany && sameProduct && sameQuantity;
+}
+
+function repairConvertedRequisitionOrders(appState) {
+  const repairedState = {
+    orders: [...(appState.orders || [])],
+    requisitions: (appState.requisitions || []).map((request) => ({
+      ...request,
+      items: (request.items || []).map((item) => ({ ...item }))
+    })),
+    activities: [...(appState.activities || [])]
+  };
+  const ordersById = new Map(repairedState.orders.map((order) => [order.id, order]));
+  let changed = false;
+
+  repairedState.requisitions.forEach((request) => {
+    (request.items || []).forEach((item) => {
+      const shouldHaveOrder = Boolean(item.orderId || item.status === "converted");
+      if (!shouldHaveOrder) return;
+
+      const linkedOrder = item.orderId ? ordersById.get(item.orderId) : null;
+      if (isOrderLinkedToRequisitionItem(linkedOrder, request, item)) {
+        if (!linkedOrder.sourceRequisitionId || !linkedOrder.sourceRequisitionItemId) {
+          linkedOrder.sourceRequisitionId = request.id;
+          linkedOrder.sourceRequisitionItemId = item.id;
+          changed = true;
+        }
+        item.status = "converted";
+        return;
+      }
+
+      const matchingOrder = repairedState.orders.find((order) => isOrderLinkedToRequisitionItem(order, request, item));
+      if (matchingOrder) {
+        item.orderId = matchingOrder.id;
+        item.status = "converted";
+        matchingOrder.sourceRequisitionId = request.id;
+        matchingOrder.sourceRequisitionItemId = item.id;
+        changed = true;
+        return;
+      }
+
+      const repairOrderId = getRequisitionRepairOrderId(request, item);
+      const existingRepairOrder = ordersById.get(repairOrderId);
+      if (existingRepairOrder) {
+        item.orderId = existingRepairOrder.id;
+        item.status = "converted";
+        changed = true;
+        return;
+      }
+
+      const repairedOrder = buildOrderFromRequisitionItem(request, item, repairOrderId);
+      const convertedAt = item.convertedAt || request.convertedAt || new Date().toISOString();
+      repairedState.orders.unshift(repairedOrder);
+      ordersById.set(repairedOrder.id, repairedOrder);
+      item.orderId = repairedOrder.id;
+      item.status = "converted";
+      item.convertedAt = convertedAt;
+      request.convertedAt = convertedAt;
+      repairedState.activities.unshift({
+        id: `repair-${repairOrderId}`,
+        type: "register",
+        workerName: TEXT.admin,
+        orderId: repairedOrder.id,
+        timestamp: convertedAt,
+        message: "기존 발주의뢰 품목 발주서가 복구되었습니다."
+      });
+      changed = true;
+    });
+
+    if ((request.items || []).length && request.items.every((item) => item.orderId)) {
+      request.status = "converted";
+    }
+  });
+
+  return { state: repairedState, changed };
+}
+
+function createOrderFromRequisitionItem(request, item) {
+  request.status = "approved";
+  request.approvedAt = request.approvedAt || new Date().toISOString();
+
+  const nextOrder = buildOrderFromRequisitionItem(request, item);
 
   state.orders.unshift(nextOrder);
   state.activities.unshift({
