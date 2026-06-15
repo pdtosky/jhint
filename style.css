@@ -392,6 +392,11 @@ button {
   background: linear-gradient(135deg, #fff8f7, #fde3e0);
 }
 
+.stat-card.stat-hold {
+  border-color: rgba(118, 129, 145, 0.32);
+  background: linear-gradient(135deg, #ffffff, #eef2f6);
+}
+
 .stat-card.stat-ready strong {
   color: #a86300;
 }
@@ -408,10 +413,15 @@ button {
   color: var(--danger);
 }
 
+.stat-card.stat-hold strong {
+  color: #5d6878;
+}
+
 .stat-card.stat-all.active,
 .stat-card.stat-ready.active,
 .stat-card.stat-working.active,
 .stat-card.stat-complete.active,
+.stat-card.stat-hold.active,
 .stat-card.stat-urgent.active {
   box-shadow:
     inset 0 0 0 2px rgba(31, 46, 69, 0.08),
@@ -585,6 +595,11 @@ button {
   color: #2e5da7;
 }
 
+.calendar-pill.calendar-hold {
+  background: #eef2f6;
+  color: #5d6878;
+}
+
 .calendar-pill.calendar-urgent,
 .calendar-pill.calendar-paused {
   background: var(--danger-soft);
@@ -614,6 +629,11 @@ button {
 .calendar-detail-card.calendar-complete {
   border-color: rgba(46, 93, 167, 0.28);
   background: linear-gradient(180deg, rgba(229, 238, 251, 0.9), rgba(255, 255, 255, 0.9));
+}
+
+.calendar-detail-card.calendar-hold {
+  border-color: rgba(118, 129, 145, 0.28);
+  background: linear-gradient(180deg, rgba(238, 242, 246, 0.9), rgba(255, 255, 255, 0.9));
 }
 
 .calendar-detail-card.calendar-urgent,
@@ -662,6 +682,13 @@ button {
   border-color: rgba(183, 121, 31, 0.42);
   background: linear-gradient(180deg, rgba(255, 243, 214, 0.95), rgba(255, 251, 241, 0.95));
   box-shadow: inset 0 0 0 1px rgba(183, 121, 31, 0.14);
+}
+
+.progress-card.hold-card,
+.feed-item.hold-card {
+  border-color: rgba(118, 129, 145, 0.34);
+  background: linear-gradient(180deg, rgba(238, 242, 246, 0.95), rgba(255, 255, 255, 0.95));
+  box-shadow: inset 0 0 0 1px rgba(118, 129, 145, 0.12);
 }
 
 .paused-flag {
@@ -1070,6 +1097,11 @@ tbody tr:last-child td {
 .status-break {
   background: #fff3d6;
   color: #9a5a00;
+}
+
+.status-hold {
+  background: #eef2f6;
+  color: #5d6878;
 }
 
 .activity-feed {
@@ -3601,6 +3633,23 @@ html {
 .delete-order-btn:hover {
   border-color: rgba(216, 58, 52, 0.45);
   background: rgba(253, 227, 224, 0.95);
+}
+
+.hold-order-btn {
+  border-color: rgba(118, 129, 145, 0.3);
+  background: #eef2f6;
+  color: #4d5968;
+}
+
+.resume-order-btn {
+  border-color: rgba(13, 107, 95, 0.24);
+  background: var(--brand-soft);
+  color: var(--brand);
+}
+
+.hold-row td {
+  color: #5d6878;
+  background: rgba(238, 242, 246, 0.42);
 }
 
 @media (max-width: 760px) {

@@ -543,6 +543,19 @@ function isActiveWorkStatus(orderOrStatus) {
   return status === "working" || status === "break";
 }
 
+function isOrderOnHold(orderOrStatus) {
+  const status = typeof orderOrStatus === "string" ? orderOrStatus : orderOrStatus?.status;
+  return status === "hold";
+}
+
+function isDueAlertOrder(order) {
+  return Boolean(order) && !isOrderOnHold(order) && order.status !== "complete" && daysUntil(order.dueDate) <= 3;
+}
+
+function canHoldOrder(order) {
+  return Boolean(order) && order.status !== "complete" && !isOrderOnHold(order) && !isActiveWorkStatus(order);
+}
+
 async function updateWorkState(nextStatus, lockedInput = {}) {
   const formData = new FormData(workerForm);
   const workerName = String(lockedInput.workerName ?? formData.get("workerName") ?? "").trim();
@@ -1080,6 +1093,9 @@ async function saveSupabaseState(nextState) {
 function normalizeOrderRecord(order) {
   return {
     ...order,
+    status: order.status || "ready",
+    holdPreviousStatus: order.holdPreviousStatus || "",
+    holdAt: order.holdAt || "",
     pauseReason: order.pauseReason || "",
     workQty: order.workQty || "",
     workHitQty: order.workHitQty || "",
@@ -3042,6 +3058,7 @@ function getOrderStatusTextClean(order) {
   if (order.status === "working") return "작업 중";
   if (order.status === "break") return "일시정지";
   if (order.status === "paused") return "작업 중지";
+  if (order.status === "hold") return "보류";
   return "작업 대기";
 }
 
@@ -3812,7 +3829,8 @@ function renderStats() {
     { key: "ready", label: "작업 대기", value: state.orders.filter((item) => item.status === "ready").length, hint: "작업 시작 전 발주", tone: "stat-ready" },
     { key: "working", label: "작업 중", value: state.orders.filter((item) => isActiveWorkStatus(item)).length, hint: "현재 생산 진행 건", tone: "stat-working" },
     { key: "complete", label: "작업 완료", value: state.orders.filter((item) => item.status === "complete").length, hint: "생산 완료 발주", tone: "stat-complete" },
-    { key: "urgent", label: "납기 임박", value: state.orders.filter((item) => item.status !== "complete" && daysUntil(item.dueDate) <= 3).length, hint: "3일 이내 납기 건", tone: "stat-urgent" }
+    { key: "hold", label: "보류", value: state.orders.filter((item) => isOrderOnHold(item)).length, hint: "납기 알림 제외", tone: "stat-hold" },
+    { key: "urgent", label: "납기 임박", value: state.orders.filter((item) => isDueAlertOrder(item)).length, hint: "3일 이내 납기 건", tone: "stat-urgent" }
   ];
 
   statsGrid.innerHTML = cards
@@ -4177,7 +4195,7 @@ function renderShippingPage() {
             <strong>${totalQty.toLocaleString()}개</strong>
             <div class="shipping-progress-text">출하 ${shippedQty.toLocaleString()} / 잔량 ${remainingQty.toLocaleString()}</div>
           </td>
-          <td data-label="작업 상태">${statusBadgeClean(order, order.status !== "complete" && daysUntil(order.dueDate) <= 3)}</td>
+          <td data-label="작업 상태">${statusBadgeClean(order, isDueAlertOrder(order))}</td>
           <td data-label="출하 상태"><span class="status-badge ${shippingState.badgeClass}">${shippingState.label}</span></td>
           <td data-label="출하일">${latestShippedDate ? formatDate(latestShippedDate) : "-"}</td>
           <td data-label="출하 메모">
@@ -4371,7 +4389,7 @@ function renderShippingPage() {
             <strong>${totalQty.toLocaleString()}개</strong>
             <div class="shipping-progress-text">출하 ${shippedQty.toLocaleString()} / 잔량 ${remainingQty.toLocaleString()}</div>
           </td>
-          <td data-label="작업 상태">${statusBadgeClean(order, order.status !== "complete" && daysUntil(order.dueDate) <= 3)}</td>
+          <td data-label="작업 상태">${statusBadgeClean(order, isDueAlertOrder(order))}</td>
           <td data-label="출하 상태"><span class="status-badge ${shippingState.badgeClass}">${shippingState.label}</span></td>
           <td data-label="출하일">${latestShippedDate ? formatDate(latestShippedDate) : "-"}</td>
           <td data-label="출하 메모">
@@ -4521,7 +4539,7 @@ function renderShippingPage() {
             <strong>${totalQty.toLocaleString()}개</strong>
             <div class="shipping-progress-text">출하 ${shippedQty.toLocaleString()} / 잔량 ${remainingQty.toLocaleString()}</div>
           </td>
-          <td data-label="작업 상태">${statusBadgeClean(order, order.status !== "complete" && daysUntil(order.dueDate) <= 3)}</td>
+          <td data-label="작업 상태">${statusBadgeClean(order, isDueAlertOrder(order))}</td>
           <td data-label="출하 상태"><span class="status-badge ${shippingState.badgeClass}">${shippingState.label}</span></td>
           <td data-label="출하일">${latestShippedDate ? formatDate(latestShippedDate) : "-"}</td>
           <td data-label="출하 메모">
@@ -7294,7 +7312,8 @@ function renderStats() {
     { key: "ready", label: "작업 대기", value: state.orders.filter((item) => item.status === "ready").length, hint: "작업 시작 전 발주", tone: "stat-ready" },
     { key: "working", label: "작업 중", value: state.orders.filter((item) => isActiveWorkStatus(item)).length, hint: "현재 생산 진행 건", tone: "stat-working" },
     { key: "complete", label: "작업 완료", value: state.orders.filter((item) => item.status === "complete").length, hint: "생산 완료 발주", tone: "stat-complete" },
-    { key: "urgent", label: "납기 임박", value: state.orders.filter((item) => item.status !== "complete" && daysUntil(item.dueDate) <= 3).length, hint: "3일 이내 납기 건", tone: "stat-urgent" }
+    { key: "hold", label: "보류", value: state.orders.filter((item) => isOrderOnHold(item)).length, hint: "납기 알림 제외", tone: "stat-hold" },
+    { key: "urgent", label: "납기 임박", value: state.orders.filter((item) => isDueAlertOrder(item)).length, hint: "3일 이내 납기 건", tone: "stat-urgent" }
   ];
 
   statsGrid.innerHTML = cards
@@ -7340,8 +7359,11 @@ function getDashboardFilteredOrders() {
   if (dashboardFilter === "complete") {
     return state.orders.filter((order) => order.status === "complete");
   }
+  if (dashboardFilter === "hold") {
+    return state.orders.filter((order) => isOrderOnHold(order));
+  }
   if (dashboardFilter === "urgent") {
-    return state.orders.filter((order) => order.status !== "complete" && daysUntil(order.dueDate) <= 3);
+    return state.orders.filter((order) => isDueAlertOrder(order));
   }
   return state.orders;
 }
@@ -7353,6 +7375,7 @@ function renderProgress() {
     ready: "작업 대기 진행률",
     working: "작업 중 진행률",
     complete: "작업 완료 진행률",
+    hold: "보류 발주 진행률",
     urgent: "납기 임박 진행률"
   };
   progressTitle.textContent = titleMap[dashboardFilter] || "전체 발주 진행률";
@@ -7365,9 +7388,9 @@ function renderProgress() {
   progressBoard.innerHTML = filteredOrders
     .map((order) => {
       const percent = getProgressPercent(order);
-      const urgent = order.status !== "complete" && daysUntil(order.dueDate) <= 3;
+      const urgent = isDueAlertOrder(order);
       return `
-        <article class="progress-card ${order.status === "paused" ? "paused-card" : ""} ${order.status === "break" ? "break-card" : ""}">
+        <article class="progress-card ${order.status === "paused" ? "paused-card" : ""} ${order.status === "break" ? "break-card" : ""} ${isOrderOnHold(order) ? "hold-card" : ""}">
           ${renderDashboardCardTop(order, urgent)}
           <div class="bar-track">
             <div class="bar-fill" style="width: ${percent}%"></div>
@@ -7388,6 +7411,7 @@ function renderDashboardFilteredList() {
     ready: "작업 대기 리스트",
     working: "작업 중 리스트",
     complete: "작업 완료 리스트",
+    hold: "보류 발주 리스트",
     urgent: "납기 임박 리스트"
   };
   dashboardListTitle.textContent = titleMap[dashboardFilter] || "전체 발주 리스트";
@@ -7405,9 +7429,9 @@ function renderDashboardFilteredList() {
   dashboardFilteredList.innerHTML = filteredOrders
     .map((order) => {
       const percent = getProgressPercent(order);
-      const urgent = order.status !== "complete" && daysUntil(order.dueDate) <= 3;
+      const urgent = isDueAlertOrder(order);
       return `
-        <article class="progress-card ${order.status === "paused" ? "paused-card" : ""} ${order.status === "break" ? "break-card" : ""}">
+        <article class="progress-card ${order.status === "paused" ? "paused-card" : ""} ${order.status === "break" ? "break-card" : ""} ${isOrderOnHold(order) ? "hold-card" : ""}">
           ${renderDashboardCardTop(order, urgent)}
           <div class="bar-track">
             <div class="bar-fill" style="width: ${percent}%"></div>
@@ -7511,7 +7535,8 @@ function getCalendarStatusClass(order) {
   if (order.status === "working") return "calendar-working";
   if (order.status === "break") return "calendar-break";
   if (order.status === "paused") return "calendar-paused";
-  if (order.status !== "complete" && daysUntil(order.dueDate) <= 3) return "calendar-urgent";
+  if (isOrderOnHold(order)) return "calendar-hold";
+  if (isDueAlertOrder(order)) return "calendar-urgent";
   return "calendar-ready";
 }
 
@@ -7534,7 +7559,7 @@ function renderCalendar() {
     const orders = getSortedOrders(state.orders.filter((order) => order.dueDate === dateKey));
     const isCurrentMonth = cellDate.getMonth() === calendarCursor.getMonth();
     const isToday = dateKey === todayKey;
-    const urgent = orders.some((order) => order.status !== "complete" && daysUntil(order.dueDate) <= 3);
+    const urgent = orders.some((order) => isDueAlertOrder(order));
     const hasWorking = orders.some((order) => isActiveWorkStatus(order));
     const hasComplete = orders.length > 0 && orders.every((order) => order.status === "complete");
     const hasReady = orders.some((order) => order.status === "ready");
@@ -7576,7 +7601,7 @@ function renderCalendarDetail() {
 
   calendarDetailBody.innerHTML = orders
     .map((order) => {
-      const urgent = order.status !== "complete" && daysUntil(order.dueDate) <= 3;
+      const urgent = isDueAlertOrder(order);
       return `
         <article class="feed-item calendar-detail-card ${getCalendarStatusClass(order)}">
           <div class="feed-item-top">
@@ -7602,7 +7627,8 @@ function renderCalendarDetail() {
 
 function getCalendarStatusClass(order) {
   if (order.status === "complete") return "calendar-complete";
-  if (order.status !== "complete" && daysUntil(order.dueDate) <= 3) return "calendar-urgent";
+  if (isOrderOnHold(order)) return "calendar-hold";
+  if (isDueAlertOrder(order)) return "calendar-urgent";
   if (order.status === "working") return "calendar-working";
   if (order.status === "break") return "calendar-break";
   if (order.status === "paused") return "calendar-paused";
@@ -7610,6 +7636,10 @@ function getCalendarStatusClass(order) {
 }
 
 function statusBadgeClean(order, urgent = false) {
+  if (isOrderOnHold(order)) {
+    return `<span class="status-badge status-hold">보류</span>`;
+  }
+
   if (order.status !== "complete" && urgent) {
     const label = daysUntil(order.dueDate) < 0 ? "납기 경과" : "납기 임박";
     return `<span class="status-badge status-warning">${label}</span>`;
@@ -7620,6 +7650,7 @@ function statusBadgeClean(order, urgent = false) {
     working: { label: "작업 중", className: "status-working" },
     break: { label: "일시정지", className: "status-break" },
     paused: { label: "작업 중지", className: "status-warning" },
+    hold: { label: "보류", className: "status-hold" },
     ready: { label: "작업 대기", className: "status-ready" }
   };
   const item = map[order.status] || map.ready;
@@ -7979,7 +8010,7 @@ function renderProgressMetaGrid(order, includeOrderDate = false) {
 
 function getDueAlarmOrders() {
   return getSortedOrders(
-    state.orders.filter((order) => order.status !== "complete" && daysUntil(order.dueDate) <= 3)
+    state.orders.filter((order) => isDueAlertOrder(order))
   );
 }
 
@@ -8145,6 +8176,61 @@ async function deleteOrder(orderId) {
   showAppAlert("발주가 삭제되었습니다.");
 }
 
+async function toggleOrderHold(orderId, shouldHold) {
+  if (!isAdminLoggedIn) {
+    showAppAlert("관리자 로그인 후 발주 보류 상태를 변경할 수 있습니다.");
+    return;
+  }
+
+  const order = state.orders.find((item) => item.id === orderId);
+  if (!order) {
+    showAppAlert("보류 상태를 변경할 발주를 찾을 수 없습니다.");
+    return;
+  }
+
+  if (shouldHold && !canHoldOrder(order)) {
+    showAppAlert("작업 중이거나 완료된 발주는 보류로 변경할 수 없습니다.");
+    return;
+  }
+
+  const confirmed = await showAppConfirm(
+    shouldHold
+      ? `${order.company} / ${order.product}\n\n이 발주를 보류 처리하시겠습니까?\n보류 중에는 납기 경고와 알람에서 제외됩니다.`
+      : `${order.company} / ${order.product}\n\n이 발주를 다시 진행 상태로 전환하시겠습니까?`,
+    {
+      title: shouldHold ? "발주 보류" : "보류 해제",
+      yesText: shouldHold ? "보류" : "재개",
+      noText: "취소"
+    }
+  );
+
+  if (!confirmed) return;
+
+  if (shouldHold) {
+    order.holdPreviousStatus = order.status || "ready";
+    order.status = "hold";
+    order.holdAt = new Date().toISOString();
+  } else {
+    const previousStatus = ["ready", "paused"].includes(order.holdPreviousStatus) ? order.holdPreviousStatus : "ready";
+    order.status = previousStatus;
+    order.holdPreviousStatus = "";
+    order.holdAt = "";
+  }
+
+  state.activities.unshift({
+    id: crypto.randomUUID(),
+    type: shouldHold ? "hold" : "resumeHold",
+    workerName: TEXT.admin,
+    orderId: order.id,
+    timestamp: new Date().toISOString(),
+    message: shouldHold ? "발주가 보류 처리되었습니다." : "보류가 해제되었습니다."
+  });
+
+  persist();
+  render();
+  showAppAlert(shouldHold ? "발주가 보류 처리되었습니다." : "발주 보류가 해제되었습니다.");
+}
+
 function getOrderSearchText(order) {
   return normalizeHistorySearchText([
     order.company,
@@ -8172,10 +8258,15 @@ function renderOrderTableRows(orders, emptyMessage) {
 
   return getSortedOrders(orders)
     .map((order) => {
-      const urgent = order.status !== "complete" && daysUntil(order.dueDate) <= 3;
+      const urgent = isDueAlertOrder(order);
       const note = getOrderNoteText(order);
+      const holdAction = isOrderOnHold(order)
+        ? `<button type="button" class="tab-btn resume-order-btn" data-order-id="${order.id}">재개</button>`
+        : canHoldOrder(order)
+          ? `<button type="button" class="tab-btn hold-order-btn" data-order-id="${order.id}">보류</button>`
+          : "";
       return `
-        <tr class="${urgent ? "danger-row" : ""}">
+        <tr class="${urgent ? "danger-row" : ""} ${isOrderOnHold(order) ? "hold-row" : ""}">
           <td data-label="발주일">${formatDate(order.orderDate)}</td>
           <td data-label="업체명">${escapeHtml(getCleanDisplayText(order.company))}</td>
           <td data-label="제품명">${escapeHtml(getCleanDisplayText(order.product))}</td>
@@ -8188,6 +8279,7 @@ function renderOrderTableRows(orders, emptyMessage) {
           <td data-label="관리">
             <div class="order-action-buttons">
               <button type="button" class="tab-btn edit-order-btn" data-order-id="${order.id}">수정</button>
+              ${holdAction}
               <button type="button" class="tab-btn delete-order-btn" data-order-id="${order.id}">삭제</button>
             </div>
           </td>
@@ -8213,6 +8305,18 @@ function bindOrderTableActions(container) {
   container.querySelectorAll(".delete-order-btn").forEach((button) => {
     button.addEventListener("click", () => {
       deleteOrder(button.dataset.orderId || "");
+    });
+  });
+
+  container.querySelectorAll(".hold-order-btn").forEach((button) => {
+    button.addEventListener("click", () => {
+      toggleOrderHold(button.dataset.orderId || "", true);
+    });
+  });
+
+  container.querySelectorAll(".resume-order-btn").forEach((button) => {
+    button.addEventListener("click", () => {
+      toggleOrderHold(button.dataset.orderId || "", false);
     });
   });
 }
@@ -8265,7 +8369,7 @@ function renderCalendarDetail() {
 
   calendarDetailBody.innerHTML = orders
     .map((order) => {
-      const urgent = order.status !== "complete" && daysUntil(order.dueDate) <= 3;
+      const urgent = isDueAlertOrder(order);
       const note = getOrderNoteText(order);
       return `
         <article class="feed-item calendar-detail-card ${getCalendarStatusClass(order)}">
