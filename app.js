@@ -1383,8 +1383,9 @@ function parseMoneyValue(value) {
 
 function renderRequisitionCard(request) {
   const effectiveStatus = getEffectiveRequisitionStatus(request);
+  const unconvertedItems = request.items.filter((item) => !item.orderId);
   const itemsHtml = request.items.map((item) => {
-    const productText = [item.name, item.spec].filter(Boolean).join(" / ");
+    const productText = getRequisitionProductText(item);
     const isConverted = Boolean(item.orderId);
     return `
       <div class="request-item-card ${isConverted ? "converted" : ""}">
@@ -1393,7 +1394,7 @@ function renderRequisitionCard(request) {
           <p>수량 ${escapeHtml(item.quantity || "-")}${item.unitPrice ? ` / 단가 ${escapeHtml(formatUnitPrice(item.unitPrice))}` : ""}</p>
           ${isConverted ? `<p class="request-item-state">발주 등록 완료</p>` : ""}
         </div>
-        ${isAdminLoggedIn && effectiveStatus !== "rejected" && !isConverted ? `<button type="button" class="primary-btn request-convert-btn" data-requisition-action="convert" data-request-id="${request.id}" data-item-id="${item.id}">발주 입력</button>` : ""}
+        ${isAdminLoggedIn && effectiveStatus !== "rejected" && !isConverted ? `<button type="button" class="primary-btn request-convert-btn" data-requisition-action="convert" data-request-id="${request.id}" data-item-id="${item.id}">발주 등록</button>` : ""}
       </div>
     `;
   }).join("");
@@ -1420,6 +1421,7 @@ function renderRequisitionCard(request) {
       ${request.note ? `<div class="order-note-box request-note"><strong>특이사항</strong><span>${escapeHtml(request.note)}</span></div>` : ""}
       <div class="request-card-actions">
         ${!isAdminLoggedIn ? `<span class="progress-meta">관리자 로그인 후 발주 입력/반려 처리가 가능합니다.</span>` : ""}
+        ${isAdminLoggedIn && effectiveStatus !== "converted" && effectiveStatus !== "rejected" && unconvertedItems.length > 1 ? `<button type="button" class="primary-btn" data-requisition-action="convertAll" data-request-id="${request.id}">전체 품목 발주 등록</button>` : ""}
         ${isAdminLoggedIn && effectiveStatus !== "converted" && effectiveStatus !== "rejected" ? `<button type="button" class="tab-btn" data-requisition-action="reject" data-request-id="${request.id}">반려</button>` : ""}
       </div>
     </article>
@@ -1819,27 +1821,106 @@ async function handleRequisitionAction(button) {
       showAppAlert("발주 입력할 품목을 찾을 수 없습니다.");
       return;
     }
-    request.status = "approved";
-    request.approvedAt = request.approvedAt || new Date().toISOString();
-    pendingRequisitionOrderSource = { requestId: request.id, itemId: item.id };
-    fillOrderFormFromRequisitionItem(request, item);
+    if (item.orderId) {
+      showAppAlert("이미 발주 등록된 품목입니다.");
+      return;
+    }
+    const confirmed = await showAppConfirm(
+      `${request.company} / ${getRequisitionProductText(item)}\n\n이 품목을 발주서로 등록하시겠습니까?`,
+      {
+        title: "품목 발주 등록",
+        yesText: "등록",
+        noText: "취소"
+      }
+    );
+    if (!confirmed) return;
+
+    createOrderFromRequisitionItem(request, item);
     persist();
-    renderRequisitionPage();
+    render();
     switchView("ordersView");
-    orderForm.scrollIntoView({ behavior: "smooth", block: "start" });
-    showAppAlert("발주 입력창에 자동 입력했습니다.\n내용을 확인한 뒤 발주 등록을 눌러 주세요.");
+    ordersTableBody?.scrollIntoView({ behavior: "smooth", block: "start" });
+    showAppAlert("선택한 품목을 별도 발주서로 등록했습니다.");
+    return;
+  }
+
+  if (action === "convertAll") {
+    const items = request.items.filter((item) => !item.orderId);
+    if (!items.length) {
+      showAppAlert("등록할 품목이 없습니다.");
+      return;
+    }
+
+    const confirmed = await showAppConfirm(
+      `${request.company}\n\n미등록 품목 ${items.length}개를 각각 별도 발주서로 등록하시겠습니까?`,
+      {
+        title: "전체 품목 발주 등록",
+        yesText: "전체 등록",
+        noText: "취소"
+      }
+    );
+    if (!confirmed) return;
+
+    items.forEach((item) => createOrderFromRequisitionItem(request, item));
+    persist();
+    render();
+    switchView("ordersView");
+    ordersTableBody?.scrollIntoView({ behavior: "smooth", block: "start" });
+    showAppAlert(`품목 ${items.length}개를 각각 별도 발주서로 등록했습니다.`);
   }
 }
 
-function fillOrderFormFromRequisitionItem(request, item) {
-  const productText = [item.name, item.spec].filter(Boolean).join(" / ");
-  const noteParts = [
+function getRequisitionProductText(item) {
+  return [item.name, item.spec].filter(Boolean).join(" / ");
+}
+
+function getRequisitionOrderNote(request, item) {
+  return [
     `발주의뢰 ${request.requestNo}`,
     request.requesterName ? `작성자 ${request.requesterName}` : "",
     item.spec ? `규격 ${item.spec}` : "",
     item.unitPrice ? `단가 ${formatUnitPrice(item.unitPrice)}` : "",
     request.note ? `특이사항 ${request.note}` : ""
-  ].filter(Boolean);
+  ].filter(Boolean).join("\n");
+}
+
+function createOrderFromRequisitionItem(request, item) {
+  request.status = "approved";
+  request.approvedAt = request.approvedAt || new Date().toISOString();
+
+  const nextOrder = normalizeOrderRecord({
+    id: crypto.randomUUID(),
+    orderDate: request.orderDate || getTodayKey(),
+    company: request.company || "",
+    product: getRequisitionProductText(item) || item.name || "",
+    quantity: item.quantity || "",
+    paymentRequested: Boolean(request.paymentRequested),
+    deliveryType: request.deliveryType || "직납",
+    dueDate: request.dueDate || "",
+    orderNote: getRequisitionOrderNote(request, item),
+    status: "ready",
+    startTime: "",
+    endTime: "",
+    elapsedMs: 0,
+    sourceRequisitionId: request.id,
+    sourceRequisitionItemId: item.id
+  });
+
+  state.orders.unshift(nextOrder);
+  state.activities.unshift({
+    id: crypto.randomUUID(),
+    type: "register",
+    workerName: TEXT.admin,
+    orderId: nextOrder.id,
+    timestamp: new Date().toISOString(),
+    message: TEXT.registerMessage
+  });
+  markRequisitionItemConverted(request, item, nextOrder.id);
+  return nextOrder;
+}
+
+function fillOrderFormFromRequisitionItem(request, item) {
+  const productText = getRequisitionProductText(item);
 
   orderForm.elements.orderDate.value = request.orderDate || getTodayKey();
   orderForm.elements.company.value = request.company || "";
@@ -1848,7 +1929,7 @@ function fillOrderFormFromRequisitionItem(request, item) {
   orderForm.elements.paymentRequested.checked = Boolean(request.paymentRequested);
   orderForm.elements.deliveryType.value = request.deliveryType || "직납";
   orderForm.elements.dueDate.value = request.dueDate || "";
-  orderForm.elements.orderNote.value = noteParts.join("\n");
+  orderForm.elements.orderNote.value = getRequisitionOrderNote(request, item);
 }
 
 function completeRequisitionSource(order) {
@@ -1858,8 +1939,12 @@ function completeRequisitionSource(order) {
   const requestItem = request.items.find((item) => item.id === pendingRequisitionOrderSource.itemId);
   if (!requestItem) return;
 
+  markRequisitionItemConverted(request, requestItem, order.id);
+}
+
+function markRequisitionItemConverted(request, requestItem, orderId) {
   requestItem.status = "converted";
-  requestItem.orderId = order.id;
+  requestItem.orderId = orderId;
   requestItem.convertedAt = new Date().toISOString();
   request.convertedAt = requestItem.convertedAt;
   request.status = request.items.every((item) => item.orderId) ? "converted" : "approved";
