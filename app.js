@@ -1201,7 +1201,7 @@ function addRequisitionItemRow(values = {}) {
     </label>
     <label>
       단가
-      <input type="number" name="requestItemUnitPrice" min="0" step="1" placeholder="예: 1200" value="${escapeHtml(values.unitPrice || values.price || "")}" />
+      <input type="number" name="requestItemUnitPrice" min="0" step="0.1" inputmode="decimal" placeholder="예: 1200.5" value="${escapeHtml(values.unitPrice || values.price || "")}" />
     </label>
     <button type="button" class="tab-btn remove-request-item-btn">삭제</button>
   `;
