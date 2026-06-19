@@ -414,6 +414,15 @@ function bindEvents() {
     handleRequisitionSubmit();
   });
 
+  requisitionForm?.elements?.requestCompany?.addEventListener("input", () => {
+    renderRequisitionProductSuggestions();
+  });
+
+  requisitionForm?.elements?.requestCompany?.addEventListener("change", () => {
+    renderRequisitionProductSuggestions();
+    requisitionItems?.querySelectorAll(".request-item-row").forEach(applyRequisitionProductSuggestion);
+  });
+
   addRequisitionItemBtn?.addEventListener("click", () => {
     addRequisitionItemRow();
   });
@@ -425,6 +434,28 @@ function bindEvents() {
     if (row && requisitionItems.querySelectorAll(".request-item-row").length > 1) {
       row.remove();
       updateRequisitionItemNumbers();
+    }
+  });
+
+  requisitionItems?.addEventListener("input", (event) => {
+    const row = event.target.closest(".request-item-row");
+    if (!row) return;
+    if (event.target.matches('[name="requestItemName"]')) {
+      applyRequisitionProductSuggestion(row);
+    }
+    if (event.target.matches('[name="requestItemSpec"]') && event.target.value !== row.dataset.autoSpec) {
+      delete row.dataset.autoSpec;
+    }
+    if (event.target.matches('[name="requestItemUnitPrice"]') && event.target.value !== row.dataset.autoUnitPrice) {
+      delete row.dataset.autoUnitPrice;
+    }
+  });
+
+  requisitionItems?.addEventListener("change", (event) => {
+    const row = event.target.closest(".request-item-row");
+    if (!row) return;
+    if (event.target.matches('[name="requestItemName"]')) {
+      applyRequisitionProductSuggestion(row);
     }
   });
 
@@ -1181,6 +1212,112 @@ function prefillRequisitionRequester() {
   if (fallbackName) requesterInput.value = fallbackName;
 }
 
+function getRequisitionCompanyValue() {
+  return String(requisitionForm?.elements?.requestCompany?.value || "").trim();
+}
+
+function normalizeSuggestionKey(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function isSuggestionCompanyMatch(recordCompany, inputCompany) {
+  const recordKey = normalizeSuggestionKey(recordCompany);
+  const inputKey = normalizeSuggestionKey(inputCompany);
+  if (!inputKey) return true;
+  return recordKey === inputKey || recordKey.includes(inputKey) || inputKey.includes(recordKey);
+}
+
+function getRequisitionProductCatalog(companyValue = getRequisitionCompanyValue()) {
+  const records = [];
+
+  (state.requisitions || []).forEach((request) => {
+    const company = String(request.company || "").trim();
+    if (!company || !isSuggestionCompanyMatch(company, companyValue)) return;
+
+    (request.items || []).forEach((item) => {
+      const name = String(item.name || "").trim();
+      if (!name) return;
+      records.push({
+        company,
+        name,
+        spec: String(item.spec || "").trim(),
+        unitPrice: String(item.unitPrice || item.price || "").trim(),
+        updatedAt: item.convertedAt || request.updatedAt || request.createdAt || request.orderDate || ""
+      });
+    });
+  });
+
+  (state.orders || []).forEach((order) => {
+    const company = String(order.company || "").trim();
+    const name = String(order.product || "").trim();
+    if (!company || !name || !isSuggestionCompanyMatch(company, companyValue)) return;
+    records.push({
+      company,
+      name,
+      spec: "",
+      unitPrice: "",
+      updatedAt: order.updatedAt || order.createdAt || order.orderDate || ""
+    });
+  });
+
+  const unique = new Map();
+  records.forEach((record) => {
+    const key = [record.company, record.name, record.spec, record.unitPrice].map(normalizeSuggestionKey).join("|");
+    const existing = unique.get(key);
+    if (!existing || String(record.updatedAt || "") > String(existing.updatedAt || "")) {
+      unique.set(key, record);
+    }
+  });
+
+  return [...unique.values()].sort((a, b) => {
+    const dateCompare = String(b.updatedAt || "").localeCompare(String(a.updatedAt || ""));
+    if (dateCompare) return dateCompare;
+    return `${a.name} ${a.spec}`.localeCompare(`${b.name} ${b.spec}`, "ko");
+  });
+}
+
+function getRequisitionSuggestionLabel(record) {
+  return [
+    record.spec ? `규격 ${record.spec}` : "",
+    record.unitPrice ? `단가 ${formatUnitPrice(record.unitPrice)}` : ""
+  ].filter(Boolean).join(" / ");
+}
+
+function renderRequisitionProductSuggestions() {
+  const datalist = document.getElementById("requisitionProductSuggestions");
+  if (!datalist) return;
+  const records = getRequisitionProductCatalog();
+  datalist.innerHTML = records.map((record) => {
+    const label = getRequisitionSuggestionLabel(record);
+    return `<option value="${escapeHtml(record.name)}"${label ? ` label="${escapeHtml(label)}"` : ""} data-spec="${escapeHtml(record.spec || "")}" data-unit-price="${escapeHtml(record.unitPrice || "")}"></option>`;
+  }).join("");
+}
+
+function findRequisitionProductSuggestion(productName) {
+  const nameKey = normalizeSuggestionKey(productName);
+  if (!nameKey) return null;
+  return getRequisitionProductCatalog().find((record) => normalizeSuggestionKey(record.name) === nameKey) || null;
+}
+
+function applyRequisitionProductSuggestion(row) {
+  if (!row) return;
+  const productInput = row.querySelector('[name="requestItemName"]');
+  const specInput = row.querySelector('[name="requestItemSpec"]');
+  const unitPriceInput = row.querySelector('[name="requestItemUnitPrice"]');
+  const record = findRequisitionProductSuggestion(productInput?.value);
+  if (!record) return;
+
+  if (specInput && record.spec && (!specInput.value || specInput.value === row.dataset.autoSpec)) {
+    specInput.value = record.spec;
+    row.dataset.autoSpec = record.spec;
+  }
+
+  if (unitPriceInput && record.unitPrice && (!unitPriceInput.value || unitPriceInput.value === row.dataset.autoUnitPrice)) {
+    unitPriceInput.value = record.unitPrice;
+    row.dataset.autoUnitPrice = record.unitPrice;
+  }
+}
+
 function addRequisitionItemRow(values = {}) {
   if (!requisitionItems) return;
   const row = document.createElement("div");
@@ -1189,7 +1326,7 @@ function addRequisitionItemRow(values = {}) {
     <span class="request-item-number"></span>
     <label>
       품명
-      <input type="text" name="requestItemName" list="productSuggestions" placeholder="예: RS4 Apron Tape" value="${escapeHtml(values.name || "")}" />
+      <input type="text" name="requestItemName" list="requisitionProductSuggestions" placeholder="업체 선택 후 품명 선택" value="${escapeHtml(values.name || "")}" />
     </label>
     <label>
       규격
@@ -1206,6 +1343,7 @@ function addRequisitionItemRow(values = {}) {
     <button type="button" class="tab-btn remove-request-item-btn">삭제</button>
   `;
   requisitionItems.appendChild(row);
+  renderRequisitionProductSuggestions();
   updateRequisitionItemNumbers();
 }
 
@@ -8617,6 +8755,7 @@ function renderOrderSuggestions() {
     "productSuggestions",
     [...new Set([...getUniqueOrderValues("product"), ...requestProducts])].sort((a, b) => a.localeCompare(b, "ko"))
   );
+  renderRequisitionProductSuggestions();
 }
 
 function hasBrokenKoreanText(value) {
