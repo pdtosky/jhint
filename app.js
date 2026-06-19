@@ -8504,6 +8504,48 @@ function showAppConfirm(message, options = {}) {
   });
 }
 
+function clearRequisitionLinkForDeletedOrder(appState, order) {
+  if (!appState || !order) return false;
+  const requisitions = Array.isArray(appState.requisitions) ? appState.requisitions : [];
+  let changed = false;
+
+  requisitions.forEach((request) => {
+    const items = Array.isArray(request.items) ? request.items : [];
+    let requestChanged = false;
+
+    items.forEach((item) => {
+      const matchesSource =
+        order.sourceRequisitionId &&
+        order.sourceRequisitionItemId &&
+        request.id === order.sourceRequisitionId &&
+        item.id === order.sourceRequisitionItemId;
+      const matchesOrderId = item.orderId && item.orderId === order.id;
+
+      if (!matchesSource && !matchesOrderId) return;
+
+      item.orderId = "";
+      item.status = "";
+      item.convertedAt = "";
+      changed = true;
+      requestChanged = true;
+    });
+
+    if (!requestChanged) return;
+
+    const convertedCount = items.filter((item) => item.orderId || item.status === "converted").length;
+    if (items.length && convertedCount === items.length) {
+      request.status = "converted";
+    } else {
+      request.status = "approved";
+    }
+    if (convertedCount === 0) {
+      request.convertedAt = "";
+    }
+  });
+
+  return changed;
+}
+
 async function deleteOrder(orderId) {
   if (!isAdminLoggedIn) {
     showAppAlert("관리자 로그인 후 발주를 삭제할 수 있습니다.");
@@ -8527,6 +8569,7 @@ async function deleteOrder(orderId) {
 
   if (!confirmed) return;
 
+  const unlinkedFromRequisition = clearRequisitionLinkForDeletedOrder(state, order);
   state.orders = state.orders.filter((item) => item.id !== orderId);
   state.activities = state.activities.filter((activity) => activity.orderId !== orderId);
   if (selectedCalendarDateKey === order.dueDate) {
@@ -8534,9 +8577,14 @@ async function deleteOrder(orderId) {
     calendarDetailModal.hidden = true;
   }
   closeOrderEditPanel();
-  persist();
+  try {
+    await persist();
+  } catch (error) {
+    handlePersistError(error);
+    return;
+  }
   render();
-  showAppAlert("발주가 삭제되었습니다.");
+  showAppAlert(unlinkedFromRequisition ? "발주가 삭제되었습니다. 발주의뢰 품목은 다시 등록 가능한 상태로 변경되었습니다." : "발주가 삭제되었습니다.");
 }
 
 async function toggleOrderHold(orderId, shouldHold) {
