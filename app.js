@@ -449,6 +449,9 @@ function bindEvents() {
     if (event.target.matches('[name="requestItemUnitPrice"]') && event.target.value !== row.dataset.autoUnitPrice) {
       delete row.dataset.autoUnitPrice;
     }
+    if (event.target.matches('[name="requestItemSampleFee"]') && event.target.value !== row.dataset.autoSampleFee) {
+      delete row.dataset.autoSampleFee;
+    }
   });
 
   requisitionItems?.addEventListener("change", (event) => {
@@ -1173,6 +1176,7 @@ function normalizeRequisitionRecord(request) {
       spec: item.spec || "",
       quantity: item.quantity || "",
       unitPrice: item.unitPrice || item.price || "",
+      sampleFee: item.sampleFee || "",
       status: item.status || "",
       orderId: item.orderId || "",
       convertedAt: item.convertedAt || ""
@@ -1242,6 +1246,7 @@ function getRequisitionProductCatalog(companyValue = getRequisitionCompanyValue(
         name,
         spec: String(item.spec || "").trim(),
         unitPrice: String(item.unitPrice || item.price || "").trim(),
+        sampleFee: String(item.sampleFee || "").trim(),
         updatedAt: item.convertedAt || request.updatedAt || request.createdAt || request.orderDate || ""
       });
     });
@@ -1256,13 +1261,14 @@ function getRequisitionProductCatalog(companyValue = getRequisitionCompanyValue(
       name,
       spec: "",
       unitPrice: "",
+      sampleFee: "",
       updatedAt: order.updatedAt || order.createdAt || order.orderDate || ""
     });
   });
 
   const unique = new Map();
   records.forEach((record) => {
-    const key = [record.company, record.name, record.spec, record.unitPrice].map(normalizeSuggestionKey).join("|");
+    const key = [record.company, record.name, record.spec, record.unitPrice, record.sampleFee].map(normalizeSuggestionKey).join("|");
     const existing = unique.get(key);
     if (!existing || String(record.updatedAt || "") > String(existing.updatedAt || "")) {
       unique.set(key, record);
@@ -1279,7 +1285,8 @@ function getRequisitionProductCatalog(companyValue = getRequisitionCompanyValue(
 function getRequisitionSuggestionLabel(record) {
   return [
     record.spec ? `규격 ${record.spec}` : "",
-    record.unitPrice ? `단가 ${formatUnitPrice(record.unitPrice)}` : ""
+    record.unitPrice ? `단가 ${formatUnitPrice(record.unitPrice)}` : "",
+    record.sampleFee ? `샘플비 ${formatUnitPrice(record.sampleFee)}` : ""
   ].filter(Boolean).join(" / ");
 }
 
@@ -1289,7 +1296,7 @@ function renderRequisitionProductSuggestions() {
   const records = getRequisitionProductCatalog();
   datalist.innerHTML = records.map((record) => {
     const label = getRequisitionSuggestionLabel(record);
-    return `<option value="${escapeHtml(record.name)}"${label ? ` label="${escapeHtml(label)}"` : ""} data-spec="${escapeHtml(record.spec || "")}" data-unit-price="${escapeHtml(record.unitPrice || "")}"></option>`;
+    return `<option value="${escapeHtml(record.name)}"${label ? ` label="${escapeHtml(label)}"` : ""} data-spec="${escapeHtml(record.spec || "")}" data-unit-price="${escapeHtml(record.unitPrice || "")}" data-sample-fee="${escapeHtml(record.sampleFee || "")}"></option>`;
   }).join("");
 }
 
@@ -1304,6 +1311,7 @@ function applyRequisitionProductSuggestion(row) {
   const productInput = row.querySelector('[name="requestItemName"]');
   const specInput = row.querySelector('[name="requestItemSpec"]');
   const unitPriceInput = row.querySelector('[name="requestItemUnitPrice"]');
+  const sampleFeeInput = row.querySelector('[name="requestItemSampleFee"]');
   const record = findRequisitionProductSuggestion(productInput?.value);
   if (!record) return;
 
@@ -1315,6 +1323,11 @@ function applyRequisitionProductSuggestion(row) {
   if (unitPriceInput && record.unitPrice && (!unitPriceInput.value || unitPriceInput.value === row.dataset.autoUnitPrice)) {
     unitPriceInput.value = record.unitPrice;
     row.dataset.autoUnitPrice = record.unitPrice;
+  }
+
+  if (sampleFeeInput && record.sampleFee && (!sampleFeeInput.value || sampleFeeInput.value === row.dataset.autoSampleFee)) {
+    sampleFeeInput.value = record.sampleFee;
+    row.dataset.autoSampleFee = record.sampleFee;
   }
 }
 
@@ -1339,6 +1352,10 @@ function addRequisitionItemRow(values = {}) {
     <label>
       단가
       <input type="number" name="requestItemUnitPrice" min="0" step="0.1" inputmode="decimal" placeholder="예: 1200.5" value="${escapeHtml(values.unitPrice || values.price || "")}" />
+    </label>
+    <label>
+      샘플비
+      <input type="number" name="requestItemSampleFee" min="0" step="0.1" inputmode="decimal" placeholder="예: 100000" value="${escapeHtml(values.sampleFee || "")}" />
     </label>
     <button type="button" class="tab-btn remove-request-item-btn">삭제</button>
   `;
@@ -1369,6 +1386,7 @@ function collectRequisitionItems() {
         spec: getValue('[name="requestItemSpec"]'),
         quantity: getValue('[name="requestItemQty"]'),
         unitPrice: getValue('[name="requestItemUnitPrice"]'),
+        sampleFee: getValue('[name="requestItemSampleFee"]'),
         status: "",
         orderId: "",
         convertedAt: ""
@@ -1524,6 +1542,21 @@ function parseMoneyValue(value) {
   return Number.isFinite(number) ? number : 0;
 }
 
+function getRequisitionItemAmount(item) {
+  const quantity = parseMoneyValue(item.quantity);
+  const unitPrice = parseMoneyValue(item.unitPrice);
+  const sampleFee = parseMoneyValue(item.sampleFee);
+  return (quantity && unitPrice ? quantity * unitPrice : 0) + sampleFee;
+}
+
+function getRequisitionItemPriceSummary(item) {
+  return [
+    `수량 ${item.quantity || "-"}`,
+    item.unitPrice ? `단가 ${formatUnitPrice(item.unitPrice)}` : "",
+    item.sampleFee ? `샘플비 ${formatUnitPrice(item.sampleFee)}` : ""
+  ].filter(Boolean).join(" / ");
+}
+
 function renderRequisitionCard(request) {
   const effectiveStatus = getEffectiveRequisitionStatus(request);
   const unconvertedItems = request.items.filter((item) => !item.orderId);
@@ -1540,7 +1573,7 @@ function renderRequisitionCard(request) {
       <div class="request-item-card ${isConverted ? "converted" : ""}">
         <div>
           <strong>${escapeHtml(productText || "품목 미입력")}</strong>
-          <p>수량 ${escapeHtml(item.quantity || "-")}${item.unitPrice ? ` / 단가 ${escapeHtml(formatUnitPrice(item.unitPrice))}` : ""}</p>
+          <p>${escapeHtml(getRequisitionItemPriceSummary(item))}</p>
           ${isConverted ? `<p class="request-item-state">발주 등록 완료${linkedOrderStatusText ? ` / ${escapeHtml(linkedOrderStatusText)}` : ""}</p>` : ""}
         </div>
         ${isAdminLoggedIn && effectiveStatus !== "rejected" && !isConverted ? `<button type="button" class="primary-btn request-convert-btn" data-requisition-action="convert" data-request-id="${request.id}" data-item-id="${item.id}">발주 등록</button>` : ""}
@@ -1580,16 +1613,12 @@ function renderRequisitionCard(request) {
 function renderRequisitionPrintSheet(request) {
   const items = Array.isArray(request.items) ? request.items : [];
   const totalQty = items.reduce((sum, item) => sum + parseMoneyValue(item.quantity), 0);
-  const totalAmount = items.reduce((sum, item) => {
-    const quantity = parseMoneyValue(item.quantity);
-    const unitPrice = parseMoneyValue(item.unitPrice);
-    return sum + (quantity && unitPrice ? quantity * unitPrice : 0);
-  }, 0);
+  const totalSampleFee = items.reduce((sum, item) => sum + parseMoneyValue(item.sampleFee), 0);
+  const totalAmount = items.reduce((sum, item) => sum + getRequisitionItemAmount(item), 0);
   const itemRows = items.length
     ? items.map((item, index) => {
-      const quantity = parseMoneyValue(item.quantity);
-      const unitPrice = parseMoneyValue(item.unitPrice);
-      const amount = quantity && unitPrice ? quantity * unitPrice : 0;
+      const sampleFee = parseMoneyValue(item.sampleFee);
+      const amount = getRequisitionItemAmount(item);
       return `
         <tr>
           <td class="print-center">${index + 1}</td>
@@ -1597,12 +1626,13 @@ function renderRequisitionPrintSheet(request) {
           <td>${escapeHtml(item.spec || "-")}</td>
           <td class="print-right">${escapeHtml(item.quantity || "-")}</td>
           <td class="print-right">${item.unitPrice ? escapeHtml(formatUnitPrice(item.unitPrice)) : "-"}</td>
+          <td class="print-right">${sampleFee ? sampleFee.toLocaleString() : "-"}</td>
           <td class="print-right">${amount ? amount.toLocaleString() : "-"}</td>
           <td class="print-center">${item.orderId ? "발주 등록 완료" : "대기"}</td>
         </tr>
       `;
     }).join("")
-    : `<tr><td colspan="7" class="print-center">등록된 품목이 없습니다.</td></tr>`;
+    : `<tr><td colspan="8" class="print-center">등록된 품목이 없습니다.</td></tr>`;
 
   return `
     <section class="print-document">
@@ -1659,6 +1689,7 @@ function renderRequisitionPrintSheet(request) {
             <th>규격</th>
             <th>수량</th>
             <th>단가</th>
+            <th>샘플비</th>
             <th>금액</th>
             <th>상태</th>
           </tr>
@@ -1669,6 +1700,7 @@ function renderRequisitionPrintSheet(request) {
             <th colspan="3">합계</th>
             <td class="print-right">${totalQty ? totalQty.toLocaleString() : "-"}</td>
             <td></td>
+            <td class="print-right">${totalSampleFee ? totalSampleFee.toLocaleString() : "-"}</td>
             <td class="print-right">${totalAmount ? totalAmount.toLocaleString() : "-"}</td>
             <td></td>
           </tr>
@@ -2029,6 +2061,7 @@ function getRequisitionOrderNote(request, item) {
     request.requesterName ? `작성자 ${request.requesterName}` : "",
     item.spec ? `규격 ${item.spec}` : "",
     item.unitPrice ? `단가 ${formatUnitPrice(item.unitPrice)}` : "",
+    item.sampleFee ? `샘플비 ${formatUnitPrice(item.sampleFee)}` : "",
     request.note ? `특이사항 ${request.note}` : ""
   ].filter(Boolean).join("\n");
 }
@@ -2053,7 +2086,9 @@ function buildOrderFromRequisitionItem(request, item, orderId = crypto.randomUUI
     endTime: "",
     elapsedMs: 0,
     sourceRequisitionId: request.id,
-    sourceRequisitionItemId: item.id
+    sourceRequisitionItemId: item.id,
+    sourceUnitPrice: item.unitPrice || "",
+    sourceSampleFee: item.sampleFee || ""
   });
 }
 
