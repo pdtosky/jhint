@@ -1641,12 +1641,13 @@ tbody tr:last-child td {
   #calendarDetailModal .calendar-mobile-product {
     margin: 0;
     color: #203651;
-    font-size: 0.74rem;
+    font-size: 0.72rem;
     font-weight: 800;
-    line-height: 1.12;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    line-height: 1.18;
+    white-space: normal;
+    overflow: visible;
+    overflow-wrap: anywhere;
+    word-break: keep-all;
   }
 
   #calendarDetailModal .calendar-mobile-meta {
@@ -1664,10 +1665,10 @@ tbody tr:last-child td {
     color: #223654;
     font-size: 0.68rem;
     font-weight: 700;
-    line-height: 1.05;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    line-height: 1.1;
+    white-space: normal;
+    overflow: visible;
+    word-break: keep-all;
   }
 
   #calendarDetailModal .calendar-mobile-meta strong {

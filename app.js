@@ -5689,6 +5689,17 @@ function formatDate(dateString) {
   }).format(new Date(dateString));
 }
 
+function formatCompactDate(dateString) {
+  if (!dateString) return "-";
+  const dateText = String(dateString);
+  const match = dateText.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (match) return `${match[2]}.${match[3]}`;
+
+  const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) return "-";
+  return `${String(date.getMonth() + 1).padStart(2, "0")}.${String(date.getDate()).padStart(2, "0")}`;
+}
+
 function formatDateTime(dateString) {
   return new Intl.DateTimeFormat("ko-KR", {
     month: "2-digit",
@@ -8792,7 +8803,7 @@ function renderCalendarDetail() {
             <p class="calendar-mobile-product">${escapeHtml(order.product)}</p>
             <div class="calendar-mobile-meta">
               <span><strong>상태</strong>${getOrderStatusTextClean(order)}</span>
-              <span><strong>납기</strong>${formatDate(order.dueDate)}</span>
+              <span><strong>납기</strong>${formatCompactDate(order.dueDate)}</span>
               <span><strong>수량</strong>${escapeHtml(getCleanDisplayText(order.quantity, "-"))}</span>
             </div>
           </div>
