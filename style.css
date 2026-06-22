@@ -1543,6 +1543,10 @@ tbody tr:last-child td {
   line-height: 1;
 }
 
+#calendarDetailModal .calendar-mobile-summary {
+  display: none;
+}
+
 #calendarDetailModal .detail-lines {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 4px 8px;
@@ -1624,60 +1628,52 @@ tbody tr:last-child td {
   }
 
   #calendarDetailModal .detail-lines {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 3px 8px;
-    margin-top: 4px;
+    display: none !important;
   }
 
-  #calendarDetailModal .detail-line {
+  #calendarDetailModal .calendar-mobile-summary {
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
-    gap: 4px;
-    font-size: 0.7rem;
+    gap: 5px;
+    margin-top: 5px;
+    min-width: 0;
+  }
+
+  #calendarDetailModal .calendar-mobile-product {
+    margin: 0;
+    color: #203651;
+    font-size: 0.74rem;
+    font-weight: 800;
     line-height: 1.12;
     white-space: nowrap;
     overflow: hidden;
-    text-overflow: clip;
-  }
-
-  #calendarDetailModal .detail-line strong {
-    font-size: 0.67rem;
-  }
-
-  #calendarDetailModal .detail-line span {
-    min-width: 0;
-    overflow: hidden;
     text-overflow: ellipsis;
   }
 
-  #calendarDetailModal .detail-product {
-    grid-column: 1 / -1;
-    grid-template-columns: auto minmax(0, 1fr);
+  #calendarDetailModal .calendar-mobile-meta {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 4px;
+    min-width: 0;
   }
 
-  #calendarDetailModal .detail-product span {
-    display: block;
+  #calendarDetailModal .calendar-mobile-meta span {
+    min-width: 0;
+    padding: 4px 6px;
+    border-radius: 9px;
+    background: rgba(255, 255, 255, 0.72);
+    color: #223654;
+    font-size: 0.68rem;
+    font-weight: 700;
+    line-height: 1.05;
     white-space: nowrap;
-    text-overflow: ellipsis;
     overflow: hidden;
+    text-overflow: ellipsis;
   }
 
-  #calendarDetailModal .detail-status,
-  #calendarDetailModal .detail-due,
-  #calendarDetailModal .detail-quantity {
-    display: inline-flex;
-    align-items: center;
-    min-width: 0;
-  }
-
-  #calendarDetailModal .detail-worker,
-  #calendarDetailModal .detail-machine,
-  #calendarDetailModal .detail-type,
-  #calendarDetailModal .detail-note,
-  #calendarDetailModal .detail-time,
-  #calendarDetailModal .detail-production,
-  #calendarDetailModal .detail-hit {
-    display: none;
+  #calendarDetailModal .calendar-mobile-meta strong {
+    margin-right: 3px;
+    color: #0f2747;
+    font-weight: 900;
   }
 
   #calendarDetailModal .feed-item-top {

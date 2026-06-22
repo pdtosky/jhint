@@ -8788,6 +8788,14 @@ function renderCalendarDetail() {
             <strong>${escapeHtml(order.company)}</strong>
             ${statusBadgeClean(order, urgent)}
           </div>
+          <div class="calendar-mobile-summary">
+            <p class="calendar-mobile-product">${escapeHtml(order.product)}</p>
+            <div class="calendar-mobile-meta">
+              <span><strong>상태</strong>${getOrderStatusTextClean(order)}</span>
+              <span><strong>납기</strong>${formatDate(order.dueDate)}</span>
+              <span><strong>수량</strong>${escapeHtml(getCleanDisplayText(order.quantity, "-"))}</span>
+            </div>
+          </div>
           <div class="detail-lines">
             <p class="detail-line detail-product"><strong>제품명</strong><span>${escapeHtml(order.product)}</span></p>
             <p class="detail-line detail-status"><strong>상태</strong><span>${getOrderStatusTextClean(order)}</span></p>
