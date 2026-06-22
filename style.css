@@ -1548,22 +1548,22 @@ tbody tr:last-child td {
 }
 
 #calendarDetailModal .detail-lines {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 2px 8px;
-  margin-top: 5px;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 1px 6px;
+  margin-top: 4px;
 }
 
 #calendarDetailModal .detail-line {
   display: flex;
   align-items: baseline;
-  gap: 4px;
+  gap: 3px;
   min-width: 0;
   color: #30435e;
   padding: 0;
   border-radius: 0;
   background: transparent;
-  font-size: 0.66rem;
-  line-height: 1.08;
+  font-size: 0.63rem;
+  line-height: 1.02;
   letter-spacing: -0.01em;
   white-space: nowrap;
   overflow: hidden;
@@ -1575,7 +1575,7 @@ tbody tr:last-child td {
   min-width: 0;
   margin: 0;
   color: #0f2747;
-  font-size: 0.63rem;
+  font-size: 0.6rem;
   font-weight: 900;
 }
 
@@ -1590,6 +1590,30 @@ tbody tr:last-child td {
   grid-column: 1 / -1;
 }
 
+#calendarDetailModal .detail-status,
+#calendarDetailModal .detail-worker,
+#calendarDetailModal .detail-quantity {
+  grid-column: 1 / 4;
+}
+
+#calendarDetailModal .detail-due,
+#calendarDetailModal .detail-machine,
+#calendarDetailModal .detail-type {
+  grid-column: 4 / 7;
+}
+
+#calendarDetailModal .detail-time {
+  grid-column: 1 / 3;
+}
+
+#calendarDetailModal .detail-production {
+  grid-column: 3 / 5;
+}
+
+#calendarDetailModal .detail-hit {
+  grid-column: 5 / 7;
+}
+
 #calendarDetailModal .detail-note {
   align-items: flex-start;
   white-space: normal;
@@ -1599,7 +1623,7 @@ tbody tr:last-child td {
 
 #calendarDetailModal .detail-note span {
   display: block;
-  max-height: 2.2em;
+  max-height: 2.05em;
   white-space: normal;
   overflow-x: hidden;
   overflow-y: auto;
