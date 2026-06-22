@@ -8789,17 +8789,17 @@ function renderCalendarDetail() {
             ${statusBadgeClean(order, urgent)}
           </div>
           <div class="detail-lines">
-            <p class="detail-line"><strong>제품명</strong> ${escapeHtml(order.product)}</p>
-            <p class="detail-line"><strong>상태</strong> ${getOrderStatusTextClean(order)}</p>
-            <p class="detail-line"><strong>납기일</strong> ${formatDate(order.dueDate)}</p>
-            <p class="detail-line"><strong>작업자</strong> ${escapeHtml(getCleanDisplayText(order.workerName, "미지정"))}</p>
-            <p class="detail-line"><strong>장비명</strong> ${escapeHtml(getCleanDisplayText(order.machineName, "미지정"))}</p>
-            <p class="detail-line"><strong>수량</strong> ${escapeHtml(getCleanDisplayText(order.quantity))}</p>
-            <p class="detail-line"><strong>구분</strong> ${getPaymentLabel(order)} / ${getDeliveryLabel(order)}</p>
-            <p class="detail-line"><strong>비고</strong> ${note ? escapeHtml(note) : "-"}</p>
-            <p class="detail-line"><strong>작업시간</strong> ${getCleanWorkTimeValue(order) || "-"}</p>
-            <p class="detail-line"><strong>총생산수</strong> ${String(order.productionQty || "-")}</p>
-            <p class="detail-line"><strong>총타발수</strong> ${String(order.totalHitQty || "-")}</p>
+            <p class="detail-line detail-product"><strong>제품명</strong><span>${escapeHtml(order.product)}</span></p>
+            <p class="detail-line detail-status"><strong>상태</strong><span>${getOrderStatusTextClean(order)}</span></p>
+            <p class="detail-line detail-due"><strong>납기일</strong><span>${formatDate(order.dueDate)}</span></p>
+            <p class="detail-line detail-worker"><strong>작업자</strong><span>${escapeHtml(getCleanDisplayText(order.workerName, "미지정"))}</span></p>
+            <p class="detail-line detail-machine"><strong>장비명</strong><span>${escapeHtml(getCleanDisplayText(order.machineName, "미지정"))}</span></p>
+            <p class="detail-line detail-quantity"><strong>수량</strong><span>${escapeHtml(getCleanDisplayText(order.quantity))}</span></p>
+            <p class="detail-line detail-type"><strong>구분</strong><span>${getPaymentLabel(order)} / ${getDeliveryLabel(order)}</span></p>
+            <p class="detail-line detail-note"><strong>비고</strong><span>${note ? escapeHtml(note) : "-"}</span></p>
+            <p class="detail-line detail-time"><strong>작업시간</strong><span>${getCleanWorkTimeValue(order) || "-"}</span></p>
+            <p class="detail-line detail-production"><strong>총생산수</strong><span>${String(order.productionQty || "-")}</span></p>
+            <p class="detail-line detail-hit"><strong>총타발수</strong><span>${String(order.totalHitQty || "-")}</span></p>
           </div>
         </article>
       `;
