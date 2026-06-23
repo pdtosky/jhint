@@ -1,7 +1,7 @@
 ﻿const ADMIN_SESSION_KEY = "production-admin-session-v1";
 const DUE_ALARM_KEY = "production-due-alarm-date-v1";
 const API_STATE_URL = "/api/state";
-const POLL_INTERVAL_MS = 30000;
+const POLL_INTERVAL_MS = 60000;
 const APP_CONFIG = window.APP_CONFIG || {};
 const BACKEND_MODE = APP_CONFIG.backend || "api";
 
