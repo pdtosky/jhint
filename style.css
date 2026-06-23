@@ -1666,14 +1666,62 @@ tbody tr:last-child td {
   #calendarDetailModal .calendar-detail-card {
     height: auto;
     min-height: 0;
-    overflow: hidden;
+    overflow: visible;
     padding: 7px 9px;
     border-radius: 12px;
     background-color: rgba(255, 255, 255, 0.98);
   }
 
   #calendarDetailModal .detail-lines {
+    display: grid !important;
+    grid-template-columns: 1fr;
+    gap: 4px;
+    margin-top: 7px;
+  }
+
+  #calendarDetailModal .calendar-mobile-summary {
     display: none !important;
+  }
+
+  #calendarDetailModal .detail-line,
+  #calendarDetailModal .detail-status,
+  #calendarDetailModal .detail-worker,
+  #calendarDetailModal .detail-quantity,
+  #calendarDetailModal .detail-due,
+  #calendarDetailModal .detail-machine,
+  #calendarDetailModal .detail-type,
+  #calendarDetailModal .detail-time,
+  #calendarDetailModal .detail-production,
+  #calendarDetailModal .detail-hit {
+    display: grid;
+    grid-template-columns: 58px minmax(0, 1fr);
+    grid-column: 1 / -1;
+    gap: 6px;
+    align-items: start;
+    font-size: 0.72rem;
+    line-height: 1.2;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+  }
+
+  #calendarDetailModal .detail-line strong {
+    font-size: 0.7rem;
+  }
+
+  #calendarDetailModal .detail-line span {
+    min-width: 0;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    overflow-wrap: anywhere;
+    word-break: keep-all;
+  }
+
+  #calendarDetailModal .detail-note span {
+    max-height: none;
+    overflow: visible;
+    padding-right: 0;
   }
 
   #calendarDetailModal .calendar-mobile-summary {

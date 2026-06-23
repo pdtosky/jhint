@@ -1,7 +1,7 @@
 ﻿const ADMIN_SESSION_KEY = "production-admin-session-v1";
 const DUE_ALARM_KEY = "production-due-alarm-date-v1";
 const API_STATE_URL = "/api/state";
-const POLL_INTERVAL_MS = 5000;
+const POLL_INTERVAL_MS = 30000;
 const APP_CONFIG = window.APP_CONFIG || {};
 const BACKEND_MODE = APP_CONFIG.backend || "api";
 
@@ -125,6 +125,8 @@ let isShippingListOpen = false;
 let shippingSearchKeyword = "";
 let lastStateSnapshot = "";
 let syncTimerId = null;
+let isStateSyncing = false;
+let isVisibilitySyncBound = false;
 let currentAdminEmail = "";
 let currentRequisitionEmail = "";
 let pendingRequisitionOrderSource = null;
@@ -2273,22 +2275,41 @@ function persist(options = {}) {
     });
 }
 
+async function syncStateFromRemote(options = {}) {
+  if (isStateSyncing) return;
+  if (!options.force && document.visibilityState === "hidden") return;
+
+  isStateSyncing = true;
+  try {
+    const remoteState = normalizeAppState(isSupabaseBackend() ? await fetchSupabaseState() : await fetchApiState());
+    const snapshot = JSON.stringify(remoteState);
+    if (snapshot === lastStateSnapshot) return;
+    applyIncomingState(remoteState);
+    render();
+  } catch {
+    // Keep current UI state if the network is temporarily unavailable.
+  } finally {
+    isStateSyncing = false;
+  }
+}
+
 function startStatePolling() {
   if (syncTimerId) {
     clearInterval(syncTimerId);
   }
 
-  syncTimerId = setInterval(async () => {
-    try {
-      const remoteState = normalizeAppState(isSupabaseBackend() ? await fetchSupabaseState() : await fetchApiState());
-      const snapshot = JSON.stringify(remoteState);
-      if (snapshot === lastStateSnapshot) return;
-      applyIncomingState(remoteState);
-      render();
-    } catch {
-      // Keep current UI state if the network is temporarily unavailable.
-    }
+  syncTimerId = setInterval(() => {
+    syncStateFromRemote();
   }, POLL_INTERVAL_MS);
+
+  if (!isVisibilitySyncBound) {
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") {
+        syncStateFromRemote({ force: true });
+      }
+    });
+    isVisibilitySyncBound = true;
+  }
 }
 
 async function handleAdminLogin(formElement) {
