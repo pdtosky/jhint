@@ -1666,16 +1666,17 @@ tbody tr:last-child td {
   }
 
   #calendarDetailModal .calendar-detail-card {
-    height: clamp(222px, 28vh, 246px);
-    min-height: clamp(222px, 28vh, 246px);
-    overflow-y: auto;
-    overflow-x: hidden;
-    overscroll-behavior: contain;
+    width: 100%;
+    max-width: 100%;
+    height: auto;
+    min-height: 0;
+    box-sizing: border-box;
+    align-self: stretch;
+    overflow: hidden;
     flex: 0 0 auto;
     padding: 7px 8px;
     border-radius: 12px;
     background-color: rgba(255, 255, 255, 0.98);
-    scrollbar-width: thin;
   }
 
   #calendarDetailModal .detail-lines {
