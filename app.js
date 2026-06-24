@@ -808,7 +808,7 @@ async function pauseTemporarily() {
   render();
 }
 
-function finalizePause() {
+async function finalizePause() {
   const workQty = String(workQtyInput.value || "").trim();
   const workHitQty = String(workHitQtyInput.value || "").trim();
   const pauseReason = String(pauseReasonInput.value || "").trim();
@@ -820,6 +820,7 @@ function finalizePause() {
     return;
   }
 
+  const rollbackState = normalizeAppState(state);
   const now = new Date();
   order.elapsedMs = getAccumulatedElapsedMs(order, now.toISOString());
   order.status = "paused";
@@ -840,8 +841,16 @@ function finalizePause() {
     message: `작업을 중지했습니다. / 사유 ${pauseReason}${workQty ? ` / 작업수량 ${workQty}` : ""}${workHitQty ? ` / 작업타수 ${workHitQty}` : ""}`
   });
 
-  persist();
-  resetPauseInputs();
+  try {
+    savePauseBtn.disabled = true;
+    await persist({ throwOnError: true });
+    resetPauseInputs();
+  } catch (error) {
+    state.orders = rollbackState.orders;
+    state.activities = rollbackState.activities;
+    lastStateSnapshot = JSON.stringify(rollbackState);
+    showWorkerAlert("서버 저장에 실패해서 작업중지를 취소했습니다.");
+  }
   render();
 }
 
@@ -860,7 +869,7 @@ function prepareCompletion() {
   productionQtyInput.focus();
 }
 
-function finalizeCompletion() {
+async function finalizeCompletion() {
   const productionQty = String(productionQtyInput.value || "").trim();
   const totalHitQty = String(totalHitQtyInput.value || "").trim();
   if (!pendingCompletionOrderId || !pendingCompletionWorkerName || productionQty === "") return;
@@ -871,6 +880,7 @@ function finalizeCompletion() {
     return;
   }
 
+  const rollbackState = normalizeAppState(state);
   order.status = "complete";
   order.workerName = pendingCompletionWorkerName;
   const finishedAt = new Date().toISOString();
@@ -892,8 +902,16 @@ function finalizeCompletion() {
     message: `${TEXT.endMessage} / 오늘 작업수량 ${productionQty}${totalHitQty ? ` / 오늘 작업타수 ${totalHitQty}` : ""} / ${TEXT.productionQty} ${order.productionQty}${order.totalHitQty ? ` / ${TEXT.totalHitQty} ${order.totalHitQty}` : ""}`
   });
 
-  persist();
-  resetCompletionInputs();
+  try {
+    saveProductionBtn.disabled = true;
+    await persist({ throwOnError: true });
+    resetCompletionInputs();
+  } catch (error) {
+    state.orders = rollbackState.orders;
+    state.activities = rollbackState.activities;
+    lastStateSnapshot = JSON.stringify(rollbackState);
+    showWorkerAlert("서버 저장에 실패해서 작업종료를 취소했습니다.");
+  }
   render();
 }
 
