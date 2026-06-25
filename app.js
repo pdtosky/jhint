@@ -120,6 +120,7 @@ let activeOrderSearchKeyword = "";
 let completedOrderSearchKeyword = "";
 let isCompletedOrdersOpen = false;
 let requisitionFilter = "pending";
+let editingRequisitionId = "";
 let shippingFilter = "all";
 let isShippingListOpen = false;
 let shippingSearchKeyword = "";
@@ -1189,6 +1190,7 @@ function normalizeRequisitionRecord(request) {
     approvedAt: request.approvedAt || "",
     rejectedAt: request.rejectedAt || "",
     convertedAt: request.convertedAt || "",
+    updatedAt: request.updatedAt || "",
     adminMemo: request.adminMemo || "",
     items: items.map((item) => ({
       id: item.id || crypto.randomUUID(),
@@ -1221,12 +1223,20 @@ function generateRequisitionNo() {
 
 function resetRequisitionForm() {
   if (!requisitionForm || !requisitionItems) return;
+  editingRequisitionId = "";
   requisitionForm.reset();
   requisitionForm.elements.requestOrderDate.value = getTodayKey();
   requisitionForm.elements.requestDueDate.value = getTodayKey();
   prefillRequisitionRequester();
   requisitionItems.innerHTML = "";
   addRequisitionItemRow();
+  updateRequisitionSubmitButton();
+}
+
+function updateRequisitionSubmitButton() {
+  const submitButton = requisitionForm?.querySelector('button[type="submit"]');
+  if (!submitButton) return;
+  submitButton.textContent = editingRequisitionId ? "수정 저장" : "관리자에게 제출";
 }
 
 function prefillRequisitionRequester() {
@@ -1355,6 +1365,7 @@ function addRequisitionItemRow(values = {}) {
   if (!requisitionItems) return;
   const row = document.createElement("div");
   row.className = "request-item-row";
+  row.dataset.itemId = values.id || "";
   row.innerHTML = `
     <span class="request-item-number"></span>
     <label>
@@ -1401,7 +1412,7 @@ function collectRequisitionItems() {
     .map((row) => {
       const getValue = (selector) => String(row.querySelector(selector)?.value || "").trim();
       return {
-        id: crypto.randomUUID(),
+        id: row.dataset.itemId || crypto.randomUUID(),
         name: getValue('[name="requestItemName"]'),
         spec: getValue('[name="requestItemSpec"]'),
         quantity: getValue('[name="requestItemQty"]'),
@@ -1413,6 +1424,29 @@ function collectRequisitionItems() {
       };
     })
     .filter((item) => item.name || item.spec || item.quantity);
+}
+
+function loadRequisitionForEdit(request) {
+  if (!requisitionForm || !requisitionItems || !request) return;
+  if (getEffectiveRequisitionStatus(request) !== "pending" || request.items.some((item) => item.orderId)) {
+    showAppAlert("승인대기 상태의 미등록 발주의뢰서만 수정할 수 있습니다.");
+    return;
+  }
+
+  editingRequisitionId = request.id;
+  requisitionForm.elements.requestCompany.value = request.company || "";
+  requisitionForm.elements.requestOrderDate.value = request.orderDate || getTodayKey();
+  requisitionForm.elements.requestDueDate.value = request.dueDate || getTodayKey();
+  requisitionForm.elements.requesterName.value = request.requesterName || "";
+  requisitionForm.elements.requestPaymentRequested.checked = Boolean(request.paymentRequested);
+  requisitionForm.elements.requestDeliveryType.value = request.deliveryType || "직납";
+  requisitionForm.elements.requestNote.value = request.note || "";
+  requisitionItems.innerHTML = "";
+  (request.items || []).forEach((item) => addRequisitionItemRow(item));
+  if (!requisitionItems.children.length) addRequisitionItemRow();
+  updateRequisitionSubmitButton();
+  renderRequisitionProductSuggestions();
+  requisitionForm.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 function handleRequisitionSubmit() {
@@ -1433,6 +1467,49 @@ function handleRequisitionSubmit() {
   }
 
   const now = new Date().toISOString();
+  if (editingRequisitionId) {
+    const existingRequest = (state.requisitions || []).find((item) => item.id === editingRequisitionId);
+    if (!existingRequest) {
+      showAppAlert("수정할 발주의뢰서를 찾을 수 없습니다.");
+      resetRequisitionForm();
+      return;
+    }
+    if (getEffectiveRequisitionStatus(existingRequest) !== "pending" || existingRequest.items.some((item) => item.orderId)) {
+      showAppAlert("이미 처리된 발주의뢰서는 수정할 수 없습니다.");
+      resetRequisitionForm();
+      render();
+      return;
+    }
+
+    Object.assign(existingRequest, normalizeRequisitionRecord({
+      ...existingRequest,
+      company: String(formData.get("requestCompany") || "").trim(),
+      orderDate: String(formData.get("requestOrderDate") || ""),
+      dueDate: String(formData.get("requestDueDate") || ""),
+      requesterName: String(formData.get("requesterName") || "").trim(),
+      paymentRequested: Boolean(formData.get("requestPaymentRequested")),
+      deliveryType: String(formData.get("requestDeliveryType") || "직납"),
+      note: String(formData.get("requestNote") || "").trim(),
+      status: "pending",
+      updatedAt: now,
+      items
+    }));
+    state.activities.unshift({
+      id: crypto.randomUUID(),
+      type: "requisitionEdit",
+      workerName: existingRequest.requesterName || "영업 담당자",
+      orderId: "",
+      timestamp: now,
+      message: `발주의뢰서가 수정되었습니다. / ${existingRequest.company} / ${existingRequest.requestNo}`
+    });
+    persist();
+    resetRequisitionForm();
+    requisitionFilter = "pending";
+    render();
+    showAppAlert("발주의뢰서 수정 내용이 저장되었습니다.");
+    return;
+  }
+
   const request = normalizeRequisitionRecord({
     id: crypto.randomUUID(),
     requestNo: generateRequisitionNo(),
@@ -1623,6 +1700,7 @@ function renderRequisitionCard(request) {
       ${request.note ? `<div class="order-note-box request-note"><strong>특이사항</strong><span>${escapeHtml(request.note)}</span></div>` : ""}
       <div class="request-card-actions">
         ${!isAdminLoggedIn ? `<span class="progress-meta">관리자 로그인 후 발주 입력/반려 처리가 가능합니다.</span>` : ""}
+        ${isRequisitionLoggedIn && effectiveStatus === "pending" ? `<button type="button" class="tab-btn" data-requisition-action="edit" data-request-id="${request.id}">수정</button>` : ""}
         ${isAdminLoggedIn && effectiveStatus !== "converted" && effectiveStatus !== "rejected" && unconvertedItems.length > 1 ? `<button type="button" class="primary-btn" data-requisition-action="convertAll" data-request-id="${request.id}">전체 품목 발주 등록</button>` : ""}
         ${isAdminLoggedIn && effectiveStatus !== "converted" && effectiveStatus !== "rejected" ? `<button type="button" class="tab-btn" data-requisition-action="reject" data-request-id="${request.id}">반려</button>` : ""}
       </div>
@@ -1994,6 +2072,14 @@ async function handleRequisitionAction(button) {
   }
   if (action === "print") {
     printRequisitionCard(request.id);
+    return;
+  }
+  if (action === "edit") {
+    if (!isRequisitionLoggedIn) {
+      showAppAlert("발주의뢰 로그인 후 수정할 수 있습니다.");
+      return;
+    }
+    loadRequisitionForEdit(request);
     return;
   }
   if (!isAdminLoggedIn) {
