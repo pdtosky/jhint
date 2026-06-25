@@ -8898,6 +8898,8 @@ function renderCalendarDetail() {
               <span><strong>상태</strong>${getOrderStatusTextClean(order)}</span>
               <span><strong>납기</strong>${formatCompactDate(order.dueDate)}</span>
               <span><strong>수량</strong>${escapeHtml(getCleanDisplayText(order.quantity, "-"))}</span>
+              <span class="calendar-mobile-work-start"><strong>시작</strong>${formatDetailDateTime(workStartedAt)}</span>
+              <span class="calendar-mobile-work-end"><strong>완료</strong>${formatDetailDateTime(workEndedAt)}</span>
             </div>
           </div>
           <div class="detail-lines">

@@ -1707,8 +1707,15 @@ tbody tr:last-child td {
 
   #calendarDetailModal .detail-product,
   #calendarDetailModal .detail-note,
-  #calendarDetailModal .detail-type {
+  #calendarDetailModal .detail-type,
+  #calendarDetailModal .detail-started,
+  #calendarDetailModal .detail-ended {
     grid-column: 1 / -1;
+  }
+
+  #calendarDetailModal .detail-started,
+  #calendarDetailModal .detail-ended {
+    grid-template-columns: 58px minmax(0, 1fr);
   }
 
   #calendarDetailModal .detail-line strong {
