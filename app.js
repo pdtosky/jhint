@@ -5748,6 +5748,58 @@ function formatDateTime(dateString) {
   }).format(new Date(dateString));
 }
 
+function getValidTimestamp(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "" : date.toISOString();
+}
+
+function getOrderActivityTimestamps(order, activityTypes) {
+  const orderId = String(order?.id || "");
+  if (!orderId || !Array.isArray(state.activities)) return [];
+  const allowedTypes = new Set(activityTypes);
+
+  return state.activities
+    .filter((activity) => activity?.orderId === orderId && allowedTypes.has(activity.type))
+    .map((activity) => getValidTimestamp(activity.timestamp))
+    .filter(Boolean);
+}
+
+function getOrderFirstWorkStartAt(order) {
+  const candidates = [
+    ...getOrderActivityTimestamps(order, ["start"]),
+    getValidTimestamp(order?.startTime)
+  ].filter(Boolean);
+
+  if (!candidates.length) return "";
+  const firstTime = Math.min(...candidates.map((timestamp) => new Date(timestamp).getTime()));
+  return new Date(firstTime).toISOString();
+}
+
+function getOrderLastWorkEndAt(order) {
+  const candidates = [
+    ...getOrderActivityTimestamps(order, ["end"]),
+    getValidTimestamp(order?.endTime)
+  ].filter(Boolean);
+
+  if (!candidates.length) return "";
+  const lastTime = Math.max(...candidates.map((timestamp) => new Date(timestamp).getTime()));
+  return new Date(lastTime).toISOString();
+}
+
+function formatDetailDateTime(dateString) {
+  const timestamp = getValidTimestamp(dateString);
+  if (!timestamp) return "-";
+
+  const date = new Date(timestamp);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hour = String(date.getHours()).padStart(2, "0");
+  const minute = String(date.getMinutes()).padStart(2, "0");
+  return `${year}. ${month}. ${day}. ${hour}:${minute}`;
+}
+
 function escapeHtml(value) {
   return String(value)
     .replaceAll("&", "&amp;")
@@ -8832,6 +8884,8 @@ function renderCalendarDetail() {
     .map((order) => {
       const urgent = isDueAlertOrder(order);
       const note = getOrderNoteText(order);
+      const workStartedAt = getOrderFirstWorkStartAt(order);
+      const workEndedAt = getOrderLastWorkEndAt(order);
       return `
         <article class="feed-item calendar-detail-card ${getCalendarStatusClass(order)}">
           <div class="feed-item-top">
@@ -8850,6 +8904,8 @@ function renderCalendarDetail() {
             <p class="detail-line detail-product"><strong>제품명</strong><span>${escapeHtml(order.product)}</span></p>
             <p class="detail-line detail-status"><strong>상태</strong><span>${getOrderStatusTextClean(order)}</span></p>
             <p class="detail-line detail-due"><strong>납기일</strong><span>${formatDate(order.dueDate)}</span></p>
+            <p class="detail-line detail-started"><strong>작업시작</strong><span>${formatDetailDateTime(workStartedAt)}</span></p>
+            <p class="detail-line detail-ended"><strong>작업완료</strong><span>${formatDetailDateTime(workEndedAt)}</span></p>
             <p class="detail-line detail-worker"><strong>작업자</strong><span>${escapeHtml(getCleanDisplayText(order.workerName, "미지정"))}</span></p>
             <p class="detail-line detail-machine"><strong>장비명</strong><span>${escapeHtml(getCleanDisplayText(order.machineName, "미지정"))}</span></p>
             <p class="detail-line detail-quantity"><strong>수량</strong><span>${escapeHtml(getCleanDisplayText(order.quantity))}</span></p>

@@ -1585,20 +1585,22 @@ tbody tr:last-child td {
   text-overflow: ellipsis;
 }
 
-#calendarDetailModal .detail-line:nth-child(1),
-#calendarDetailModal .detail-line:nth-child(8) {
+#calendarDetailModal .detail-product,
+#calendarDetailModal .detail-note {
   grid-column: 1 / -1;
 }
 
 #calendarDetailModal .detail-status,
 #calendarDetailModal .detail-worker,
-#calendarDetailModal .detail-quantity {
+#calendarDetailModal .detail-quantity,
+#calendarDetailModal .detail-started {
   grid-column: 1 / 4;
 }
 
 #calendarDetailModal .detail-due,
 #calendarDetailModal .detail-machine,
-#calendarDetailModal .detail-type {
+#calendarDetailModal .detail-type,
+#calendarDetailModal .detail-ended {
   grid-column: 4 / 7;
 }
 
