@@ -122,6 +122,8 @@ let workerHistorySearchKeyword = "";
 let activeOrderSearchKeyword = "";
 let completedOrderSearchKeyword = "";
 let isCompletedOrdersOpen = false;
+let sopSearchKeyword = "";
+let editingSopId = "";
 let requisitionFilter = "pending";
 let editingRequisitionId = "";
 let shippingFilter = "all";
@@ -219,6 +221,13 @@ const shippingFilterAllBtn = document.getElementById("shippingFilterAllBtn");
 const shippingFilterPendingBtn = document.getElementById("shippingFilterPendingBtn");
 const shippingFilterDoneBtn = document.getElementById("shippingFilterDoneBtn");
 const shippingSearchInput = document.getElementById("shippingSearchInput");
+const sopLockedNotice = document.getElementById("sopLockedNotice");
+const sopAdminContent = document.getElementById("sopAdminContent");
+const sopForm = document.getElementById("sopForm");
+const sopNewBtn = document.getElementById("sopNewBtn");
+const sopSearchInput = document.getElementById("sopSearchInput");
+const sopAdminList = document.getElementById("sopAdminList");
+const sopWorkerList = document.getElementById("sopWorkerList");
 const confirmModal = document.getElementById("confirmModal");
 const confirmYesBtn = document.getElementById("confirmYesBtn");
 const confirmNoBtn = document.getElementById("confirmNoBtn");
@@ -558,6 +567,32 @@ function bindEvents() {
     shippingSearchKeyword = String(shippingSearchInput.value || "").trim().toLowerCase();
     isShippingListOpen = Boolean(shippingSearchKeyword);
     renderShippingPage();
+  });
+
+  sopForm?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    handleSopSubmit();
+  });
+
+  sopNewBtn?.addEventListener("click", () => {
+    resetSopForm();
+  });
+
+  sopSearchInput?.addEventListener("input", () => {
+    sopSearchKeyword = String(sopSearchInput.value || "").trim().toLowerCase();
+    renderSopPage();
+  });
+
+  sopAdminList?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-sop-action]");
+    if (!button) return;
+    handleSopAction(button);
+  });
+
+  sopWorkerList?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-sop-action]");
+    if (!button) return;
+    handleSopAction(button);
   });
 
   resetRequisitionForm();
@@ -945,6 +980,7 @@ function createEmptyState() {
   return {
     orders: seedOrders.map(normalizeOrderRecord),
     requisitions: [],
+    sops: [],
     activities: [
       {
         id: crypto.randomUUID(),
@@ -980,6 +1016,7 @@ function applyIncomingState(nextState) {
   const normalized = repairResult.state;
   state.orders = normalized.orders;
   state.requisitions = normalized.requisitions;
+  state.sops = normalized.sops;
   state.activities = normalized.activities;
   lastStateSnapshot = JSON.stringify(normalized);
 
@@ -992,6 +1029,7 @@ function normalizeAppState(appState) {
   return {
     orders: (appState.orders || []).map(normalizeOrderRecord),
     requisitions: (appState.requisitions || appState.purchaseRequests || []).map(normalizeRequisitionRecord),
+    sops: (appState.sops || appState.workStandards || []).map(normalizeSopRecord),
     activities: appState.activities || []
   };
 }
@@ -1207,6 +1245,38 @@ function normalizeRequisitionRecord(request) {
       convertedAt: item.convertedAt || ""
     }))
   };
+}
+
+function normalizeSopRecord(sop) {
+  return {
+    id: sop.id || crypto.randomUUID(),
+    managementNo: sop.managementNo || sop.document?.managementNo || "",
+    vendor: sop.vendor || sop.basic?.vendor || "",
+    product: sop.product || sop.basic?.product || "",
+    process: sop.process || sop.basic?.process || "",
+    equipment: sop.equipment || sop.basic?.equipment || "",
+    status: ["임시저장", "수정중", "배포완료"].includes(sop.status || sop.document?.status)
+      ? (sop.status || sop.document?.status)
+      : "임시저장",
+    note: sop.note || sop.basic?.note || "",
+    createdAt: sop.createdAt || new Date().toISOString(),
+    updatedAt: sop.updatedAt || sop.document?.updatedAt || ""
+  };
+}
+
+function getFilteredSops({ publishedOnly = false } = {}) {
+  const keyword = sopSearchKeyword;
+  return (state.sops || [])
+    .map(normalizeSopRecord)
+    .filter((sop) => {
+      if (publishedOnly && sop.status !== "배포완료") return false;
+      if (!keyword) return true;
+      return [sop.managementNo, sop.vendor, sop.product, sop.process, sop.equipment, sop.status, sop.note]
+        .join(" ")
+        .toLowerCase()
+        .includes(keyword);
+    })
+    .sort((left, right) => String(right.updatedAt || right.createdAt).localeCompare(String(left.updatedAt || left.createdAt)));
 }
 
 function switchView(targetId) {
@@ -2220,6 +2290,7 @@ function repairConvertedRequisitionOrders(appState) {
       ...request,
       items: (request.items || []).map((item) => ({ ...item }))
     })),
+    sops: [...(appState.sops || [])],
     activities: [...(appState.activities || [])]
   };
   const ordersById = new Map(repairedState.orders.map((order) => [order.id, order]));
@@ -3070,6 +3141,7 @@ function render() {
   renderWorkerLiveStatus();
   renderShippingPage();
   renderAdminPage();
+  renderSopPage();
 }
 
 function renderCalendar() {
@@ -3199,6 +3271,13 @@ function renderAdminSession() {
   }
   adminPageLocked.hidden = isAdminLoggedIn;
   adminPageContent.hidden = !isAdminLoggedIn;
+  if (sopLockedNotice) sopLockedNotice.hidden = isAdminLoggedIn;
+  if (sopAdminContent) sopAdminContent.hidden = !isAdminLoggedIn;
+  if (sopForm) {
+    Array.from(sopForm.elements).forEach((element) => {
+      element.disabled = !isAdminLoggedIn;
+    });
+  }
 }
 
 function renderAdminPage() {
@@ -3211,6 +3290,153 @@ function renderAdminPage() {
   renderMoldList();
   renderJournalList();
   renderWorkerEfficiency();
+}
+
+function renderSopPage() {
+  if (sopSearchInput && sopSearchInput.value !== sopSearchKeyword) {
+    sopSearchInput.value = sopSearchKeyword;
+  }
+  if (!sopAdminList || !sopWorkerList) return;
+
+  const allSops = getFilteredSops();
+  const publishedSops = getFilteredSops({ publishedOnly: true });
+  sopAdminList.innerHTML = allSops.length
+    ? allSops.map((sop) => renderSopCard(sop, { adminMode: true })).join("")
+    : `<div class="empty-state">등록된 작업표준서가 없습니다.</div>`;
+  sopWorkerList.innerHTML = publishedSops.length
+    ? publishedSops.map((sop) => renderSopCard(sop, { adminMode: false })).join("")
+    : `<div class="empty-state">배포완료된 작업표준서가 없습니다.</div>`;
+}
+
+function renderSopCard(sop, { adminMode = false } = {}) {
+  const statusClass = sop.status === "배포완료" ? "done" : sop.status === "수정중" ? "working" : "waiting";
+  return `
+    <article class="sop-card">
+      <div class="sop-card-head">
+        <div>
+          <span class="sop-management-no">${escapeHtml(sop.managementNo || "관리번호 없음")}</span>
+          <h3>${escapeHtml(sop.product || "제품명 미입력")}</h3>
+          <p>${escapeHtml(sop.vendor || "업체명 미입력")}</p>
+        </div>
+        <span class="status-badge ${statusClass}">${escapeHtml(sop.status)}</span>
+      </div>
+      <div class="sop-card-meta">
+        <span><strong>공정</strong> ${escapeHtml(sop.process || "-")}</span>
+        <span><strong>장비</strong> ${escapeHtml(sop.equipment || "-")}</span>
+        <span><strong>수정</strong> ${escapeHtml(formatDateTime(sop.updatedAt || sop.createdAt) || "-")}</span>
+      </div>
+      <p class="sop-note">${escapeHtml(sop.note || "작업 기준/주의사항 없음")}</p>
+      ${adminMode && isAdminLoggedIn ? `
+        <div class="sop-card-actions">
+          <button type="button" class="tab-btn" data-sop-action="edit" data-sop-id="${escapeHtml(sop.id)}">수정</button>
+          <button type="button" class="danger-action-btn" data-sop-action="delete" data-sop-id="${escapeHtml(sop.id)}">삭제</button>
+        </div>
+      ` : ""}
+    </article>
+  `;
+}
+
+async function handleSopSubmit() {
+  if (!isAdminLoggedIn) {
+    showAppAlert("관리자 로그인 후 작업표준서를 저장할 수 있습니다.");
+    return;
+  }
+
+  const formData = new FormData(sopForm);
+  const existing = getExistingSop(formData.get("sopId") || editingSopId);
+  const sop = normalizeSopRecord({
+    id: String(formData.get("sopId") || "").trim() || editingSopId || crypto.randomUUID(),
+    managementNo: String(formData.get("managementNo") || "").trim(),
+    vendor: String(formData.get("vendor") || "").trim(),
+    product: String(formData.get("product") || "").trim(),
+    process: String(formData.get("process") || "").trim(),
+    equipment: String(formData.get("equipment") || "").trim(),
+    status: String(formData.get("status") || "임시저장").trim(),
+    note: String(formData.get("note") || "").trim(),
+    createdAt: existing?.createdAt || new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  });
+
+  if (!sop.vendor || !sop.product || !sop.process) {
+    showAppAlert("업체명, 제품명, 공정명은 반드시 입력해 주세요.");
+    return;
+  }
+
+  const rollback = [...(state.sops || [])];
+  const index = rollback.findIndex((item) => item.id === sop.id);
+  state.sops = [...rollback];
+  if (index >= 0) state.sops[index] = sop;
+  else state.sops.unshift(sop);
+
+  try {
+    await persist({ throwOnError: true });
+    resetSopForm();
+    renderSopPage();
+    showAppAlert("작업표준서를 저장했습니다.");
+  } catch (error) {
+    state.sops = rollback;
+    showAppAlert(getPersistErrorMessage(error));
+    renderSopPage();
+  }
+}
+
+function getExistingSop(id) {
+  return (state.sops || []).find((item) => item.id === String(id || ""));
+}
+
+function resetSopForm() {
+  editingSopId = "";
+  sopForm?.reset();
+  if (sopForm?.elements?.sopId) sopForm.elements.sopId.value = "";
+}
+
+async function handleSopAction(button) {
+  const sopId = button.dataset.sopId || "";
+  const action = button.dataset.sopAction || "";
+  const sop = getExistingSop(sopId);
+  if (!sop) return;
+
+  if (action === "edit") {
+    if (!isAdminLoggedIn) {
+      showAppAlert("관리자 로그인 후 수정할 수 있습니다.");
+      return;
+    }
+    editingSopId = sop.id;
+    sopForm.elements.sopId.value = sop.id;
+    sopForm.elements.managementNo.value = sop.managementNo || "";
+    sopForm.elements.vendor.value = sop.vendor || "";
+    sopForm.elements.product.value = sop.product || "";
+    sopForm.elements.process.value = sop.process || "";
+    sopForm.elements.equipment.value = sop.equipment || "";
+    sopForm.elements.status.value = sop.status || "임시저장";
+    sopForm.elements.note.value = sop.note || "";
+    sopForm.scrollIntoView({ behavior: "smooth", block: "start" });
+    return;
+  }
+
+  if (action === "delete") {
+    if (!isAdminLoggedIn) {
+      showAppAlert("관리자 로그인 후 삭제할 수 있습니다.");
+      return;
+    }
+    const ok = await showAppConfirm(`${sop.product || "선택한 작업표준서"}를 삭제할까요?`, {
+      title: "작업표준서 삭제",
+      yesText: "삭제",
+      noText: "취소"
+    });
+    if (!ok) return;
+    const rollback = [...(state.sops || [])];
+    state.sops = rollback.filter((item) => item.id !== sop.id);
+    try {
+      await persist({ throwOnError: true });
+      if (editingSopId === sop.id) resetSopForm();
+      renderSopPage();
+    } catch (error) {
+      state.sops = rollback;
+      showAppAlert(getPersistErrorMessage(error));
+      renderSopPage();
+    }
+  }
 }
 
 function renderAdminSections() {

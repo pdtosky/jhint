@@ -4680,6 +4680,149 @@ html {
   display: none;
 }
 
+.panel-sop {
+  display: grid;
+  gap: 18px;
+}
+
+.sop-form {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.sop-form label,
+.sop-search-bar label {
+  display: grid;
+  gap: 8px;
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.sop-form input,
+.sop-form select,
+.sop-form textarea,
+.sop-search-bar input {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 13px 14px;
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--ink);
+  font: inherit;
+}
+
+.sop-form textarea {
+  resize: vertical;
+  min-height: 100px;
+}
+
+.sop-form .wide-field {
+  grid-column: 1 / -1;
+}
+
+.sop-form-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.sop-search-bar {
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.62);
+}
+
+.sop-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.sop-list {
+  display: grid;
+  gap: 12px;
+}
+
+.sop-card {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 12px 30px rgba(25, 72, 118, 0.08);
+}
+
+.sop-card-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.sop-card-head h3 {
+  margin: 4px 0;
+  color: var(--ink);
+  font-size: 20px;
+}
+
+.sop-card-head p,
+.sop-management-no {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.sop-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.sop-card-meta span {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+  border-radius: 999px;
+  padding: 7px 10px;
+  background: #e8f2ff;
+  color: #17365c;
+  font-weight: 800;
+  font-size: 13px;
+}
+
+.sop-note {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.55;
+  color: #31435d;
+}
+
+.sop-card-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 900px) {
+  .sop-form,
+  .sop-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
 .panel-requisition {
   max-width: 1180px;
   margin-inline: auto;
