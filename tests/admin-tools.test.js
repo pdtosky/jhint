@@ -10,6 +10,8 @@ const packageJson = fs.readFileSync(path.join(root, "package.json"), "utf8");
 
 assert(indexHtml.includes('data-admin-section="logs"'), "admin page should include a logs tab");
 assert(indexHtml.includes('data-admin-section="accounts"'), "admin page should include an account management tab");
+assert(indexHtml.includes('class="tab-btn active" data-admin-section="accounts"'), "account management tab should be the initial active admin tab");
+assert(!indexHtml.includes('class="tab-btn active" data-admin-section="overview"'), "overview tab should not be the initial active admin tab");
 assert(indexHtml.includes('data-admin-panel="logs"'), "admin page should include a logs panel");
 assert(indexHtml.includes('data-admin-panel="accounts"'), "admin page should include an accounts panel");
 assert(indexHtml.includes('id="adminLogList"'), "logs panel should render into adminLogList");
@@ -20,6 +22,9 @@ assert(appJs.includes("const adminLogList"), "app.js should bind adminLogList");
 assert(appJs.includes("function buildAdminLogEntries"), "app.js should build admin log entries");
 assert(appJs.includes("function renderAdminLogs"), "app.js should render admin logs");
 assert(appJs.includes("function renderAdminAccounts"), "app.js should render admin account management");
+assert(appJs.includes('let adminActiveSection = "accounts"'), "admin page should open to account management by default");
+assert(appJs.includes("function resetAdminAccountListState"), "admin logout/login should reset account list state");
+assert(appJs.includes("activateAdminAccountsTab({ reset: true })"), "admin login should immediately show and refresh account management");
 assert(appJs.includes("async function fetchAdminUsers"), "app.js should fetch users through the server API");
 assert(appJs.includes("async function createAdminUser"), "app.js should create users through the server API");
 assert(appJs.includes("async function deleteAdminUser"), "app.js should delete users through the server API");

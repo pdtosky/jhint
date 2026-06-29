@@ -116,7 +116,7 @@ let isDashboardListOpen = false;
 let isDashboardProgressOpen = false;
 let calendarCursor = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 let adminMonthFilter = "all";
-let adminActiveSection = "overview";
+let adminActiveSection = "accounts";
 let adminSearchKeyword = "";
 let adminLogSearchKeyword = "";
 let adminUsersCache = [];
@@ -3257,6 +3257,7 @@ async function handleAdminLogout() {
     await supabaseAuthClient.auth.signOut({ scope: "local" });
   }
   setAdminSession("");
+  resetAdminAccountListState();
   renderAdminSession();
   renderSopPage();
 }
@@ -4600,6 +4601,22 @@ function renderAdminAccounts() {
       `;
     })
     .join("");
+}
+
+function resetAdminAccountListState() {
+  adminUsersCache = [];
+  adminUsersLoaded = false;
+  adminUsersLoading = false;
+  adminUsersErrorMessage = "";
+  if (adminAccountStatus) adminAccountStatus.textContent = "관리자 계정 목록을 불러올 수 있습니다.";
+}
+
+function activateAdminAccountsTab(options = {}) {
+  adminActiveSection = "accounts";
+  if (options.reset) {
+    resetAdminAccountListState();
+  }
+  renderAdminPage();
 }
 
 async function getAdminAccessToken() {
@@ -7010,6 +7027,7 @@ async function handleAdminLogin(formElement) {
   adminLoginForm.reset();
   adminPageLoginForm.reset();
   renderAdminSession();
+  activateAdminAccountsTab({ reset: true });
   renderSopPage();
 }
 
