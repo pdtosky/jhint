@@ -1364,6 +1364,11 @@ function getSeedSops() {
   return (window.SMART_SOP_SEED?.sops || []).map(normalizeSopRecord);
 }
 
+function getSopSourceRecords() {
+  const seedSops = getSeedSops();
+  return seedSops.length ? seedSops : (state.sops || []).map(normalizeSopRecord);
+}
+
 function getSopSummary(sop) {
   const normalized = normalizeSopRecord(sop);
   return {
@@ -1399,8 +1404,7 @@ function getSopSearchText(sop) {
 
 function getFilteredSops({ publishedOnly = false } = {}) {
   const keyword = sopSearchKeyword;
-  return (state.sops || [])
-    .map(normalizeSopRecord)
+  return getSopSourceRecords()
     .filter((sop) => {
       if (publishedOnly && sop.document.status !== "배포완료") return false;
       if (!keyword) return true;
@@ -3408,9 +3412,6 @@ function renderAdminSession() {
       element.disabled = !isAdminLoggedIn;
     });
   }
-  if (sopPageRoot) {
-    renderSopPage();
-  }
 }
 
 function renderAdminPage() {
@@ -3428,23 +3429,25 @@ function renderAdminPage() {
 function renderSopPage() {
   if (!sopPageRoot) return;
   const allSops = getFilteredSops();
-  const publishedSops = getFilteredSops({ publishedOnly: true });
+  const sourceCount = getSopSourceRecords().length;
+  const selectedSop = allSops.find((sop) => sop.id === currentSopDraft?.id) || allSops[0] || null;
+  if (selectedSop) currentSopDraft = normalizeSopRecord(selectedSop);
   sopPageRoot.innerHTML = `
     <div class="panel-head">
       <div>
         <p class="panel-kicker">STANDARD OPERATING PROCEDURE</p>
         <h2>작업표준서</h2>
       </div>
-      <p>기존 Smart SOP 구조를 그대로 사용해 등록, 수정, 배포를 관리합니다.</p>
+      <p>기존 Smart SOP 데이터를 생산일정관리 안에서 바로 조회합니다.</p>
     </div>
 
-    ${!isAdminLoggedIn ? `
-      <div class="empty-state sop-login-notice">
-        <strong>관리자 로그인 후 작업표준서를 등록할 수 있습니다.</strong>
-        <span>작업자는 배포완료된 작업표준서만 조회할 수 있습니다.</span>
-        <button type="button" class="tab-btn" data-sop-action="go-admin-login">관리자 로그인하기</button>
+    <div class="sop-lite-notice">
+      <div>
+        <strong>로그인 없이 기존 작업표준서 ${sourceCount}건을 조회합니다.</strong>
+        <span>이 화면은 저장을 하지 않으므로 Supabase 데이터 사용량을 늘리지 않습니다.</span>
       </div>
-    ` : renderSopAdminEditor(allSops)}
+      <span class="status-badge done">조회 전용</span>
+    </div>
 
     <div class="sop-search-bar">
       <label>
@@ -3453,36 +3456,31 @@ function renderSopPage() {
       </label>
     </div>
 
-    <div class="sop-layout">
-      ${isAdminLoggedIn ? `
-        <section>
-          <div class="section-head compact">
-            <h3>등록된 작업표준서</h3>
-            <p>관리자는 수정/삭제 가능</p>
-          </div>
-          <div class="sop-list" data-sop-list-panel="admin">${renderSopList(allSops, { adminMode: true })}</div>
-        </section>
-      ` : ""}
+    <div class="sop-layout sop-lookup-layout">
       <section>
         <div class="section-head compact">
-          <h3>작업자 조회용</h3>
-          <p>배포완료된 표준서만 표시</p>
+          <h3>표준서 목록</h3>
+          <p>기존 Smart SOP에서 가져온 데이터</p>
         </div>
-        <div class="sop-list" data-sop-list-panel="worker">${renderSopList(publishedSops, { adminMode: false })}</div>
+        <div class="sop-list" data-sop-list-panel="worker">${renderSopList(allSops, { adminMode: false })}</div>
       </section>
+      <section data-sop-detail-panel>${renderSopDetail(selectedSop)}</section>
     </div>
   `;
 }
 
 function renderSopListsOnly() {
   if (!sopPageRoot) return;
-  const adminList = sopPageRoot.querySelector('[data-sop-list-panel="admin"]');
+  const filteredSops = getFilteredSops();
   const workerList = sopPageRoot.querySelector('[data-sop-list-panel="worker"]');
-  if (adminList) {
-    adminList.innerHTML = renderSopList(getFilteredSops(), { adminMode: true });
-  }
+  const detailPanel = sopPageRoot.querySelector("[data-sop-detail-panel]");
+  const selectedSop = filteredSops.find((sop) => sop.id === currentSopDraft?.id) || filteredSops[0] || null;
+  if (selectedSop) currentSopDraft = normalizeSopRecord(selectedSop);
   if (workerList) {
-    workerList.innerHTML = renderSopList(getFilteredSops({ publishedOnly: true }), { adminMode: false });
+    workerList.innerHTML = renderSopList(filteredSops, { adminMode: false });
+  }
+  if (detailPanel) {
+    detailPanel.innerHTML = renderSopDetail(selectedSop);
   }
 }
 
@@ -3694,8 +3692,9 @@ function renderSopList(sops, { adminMode = false } = {}) {
 function renderSopCard(sop, { adminMode = false } = {}) {
   const summary = getSopSummary(sop);
   const statusClass = summary.status === "배포완료" ? "done" : summary.status === "수정중" ? "working" : "waiting";
+  const isActive = currentSopDraft?.id === summary.id;
   return `
-    <article class="sop-card">
+    <article class="sop-card ${isActive ? "active" : ""}">
       <div class="sop-card-head">
         <div>
           <span class="sop-management-no">${escapeHtml(summary.managementNo)}</span>
@@ -3714,8 +3713,107 @@ function renderSopCard(sop, { adminMode = false } = {}) {
         ${adminMode && isAdminLoggedIn ? `
           <button type="button" class="tab-btn" data-sop-action="load" data-sop-id="${escapeHtml(summary.id)}">불러오기</button>
           <button type="button" class="danger-action-btn" data-sop-action="delete" data-sop-id="${escapeHtml(summary.id)}">삭제</button>
-        ` : `<button type="button" class="tab-btn" data-sop-action="load" data-sop-id="${escapeHtml(summary.id)}">상세보기</button>`}
+        ` : `<button type="button" class="tab-btn" data-sop-action="load" data-sop-id="${escapeHtml(summary.id)}">보기</button>`}
       </div>
+    </article>
+  `;
+}
+
+function renderSopInfoGrid(items) {
+  return `
+    <div class="sop-detail-grid">
+      ${items.map(([label, value]) => `
+        <div>
+          <strong>${escapeHtml(label)}</strong>
+          <span>${escapeHtml(value || "-")}</span>
+        </div>
+      `).join("")}
+    </div>
+  `;
+}
+
+function renderSopStaticTable(title, rows, columns) {
+  const safeRows = (rows || []).filter(hasSopRowValue);
+  return `
+    <section class="sop-edit-section sop-static-section">
+      <div class="section-head compact">
+        <h3>${escapeHtml(title)}</h3>
+      </div>
+      ${safeRows.length ? `
+        <div class="sop-table-wrap">
+          <table class="sop-edit-table">
+            <thead><tr>${columns.map((column) => `<th>${escapeHtml(column.label)}</th>`).join("")}</tr></thead>
+            <tbody>
+              ${safeRows.map((row) => `
+                <tr>
+                  ${columns.map((column) => `<td data-label="${escapeHtml(column.label)}">${escapeHtml(row[column.key] || "-")}</td>`).join("")}
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+        </div>
+      ` : `<div class="empty-state">등록된 내용이 없습니다.</div>`}
+    </section>
+  `;
+}
+
+function renderSopDetail(sop) {
+  if (!sop) {
+    return `<div class="empty-state sop-detail-empty">표준서를 선택하면 상세 내용이 표시됩니다.</div>`;
+  }
+
+  const normalized = normalizeSopRecord(sop);
+  const doc = normalized.document || {};
+  const basic = normalized.basic || {};
+  return `
+    <article class="sop-detail-panel">
+      <div class="sop-detail-title">
+        <div>
+          <span class="sop-management-no">${escapeHtml(doc.managementNo || "관리번호 없음")}</span>
+          <h3>${escapeHtml(basic.product || "제품명 미입력")}</h3>
+          <p>${escapeHtml(basic.vendor || "업체명 미입력")}</p>
+        </div>
+        <span class="status-badge done">${escapeHtml(doc.status || "배포완료")}</span>
+      </div>
+
+      ${renderSopInfoGrid([
+        ["공정", basic.process],
+        ["장비", basic.equipment],
+        ["작성자", doc.author],
+        ["등록일", doc.registeredDate],
+        ["제정일", basic.establishedDate],
+        ["최종수정", formatDateTime(doc.updatedAt)]
+      ])}
+
+      ${basic.note ? `<div class="order-note-box sop-detail-note"><strong>비고</strong><span>${escapeHtml(basic.note)}</span></div>` : ""}
+
+      ${renderSopStaticTable("작업순서", normalized.workSequence, [
+        { key: "order", label: "순서" },
+        { key: "name", label: "작업명" },
+        { key: "detail", label: "작업내용" },
+        { key: "check", label: "주의/확인" }
+      ])}
+      ${renderSopStaticTable("공정조건", normalized.processConditions, [
+        { key: "no", label: "번호" },
+        { key: "item", label: "관리항목" },
+        { key: "standard", label: "관리기준" },
+        { key: "method", label: "방법" },
+        { key: "record", label: "기록" },
+        { key: "action", label: "이상조치" }
+      ])}
+      ${renderSopStaticTable("BOM", normalized.bom, [
+        { key: "no", label: "No." },
+        { key: "material", label: "원단명" },
+        { key: "width", label: "재단폭" },
+        { key: "note", label: "비고" }
+      ])}
+      ${renderSopStaticTable("생산체크시트", normalized.productionChecklist, [
+        { key: "no", label: "No." },
+        { key: "item", label: "체크항목" },
+        { key: "standard", label: "판정기준" },
+        { key: "checkMethod", label: "확인방법" },
+        { key: "record", label: "기록" }
+      ])}
     </article>
   `;
 }
@@ -3765,7 +3863,7 @@ async function handleSopSubmit() {
 }
 
 function getExistingSop(id) {
-  return (state.sops || []).find((item) => item.id === String(id || ""));
+  return getSopSourceRecords().find((item) => item.id === String(id || ""));
 }
 
 function resetSopForm() {
