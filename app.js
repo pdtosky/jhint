@@ -1,6 +1,7 @@
 ﻿const ADMIN_SESSION_KEY = "production-admin-session-v1";
 const DUE_ALARM_KEY = "production-due-alarm-date-v1";
 const API_STATE_URL = "/api/state";
+const ADMIN_USERS_API_URL = "/api/admin-users";
 const APP_CONFIG = window.APP_CONFIG || {};
 const POLL_INTERVAL_MS = Number(APP_CONFIG.pollIntervalMs || 60000);
 const HOLIDAY_POLL_INTERVAL_MS = Number(
@@ -117,6 +118,11 @@ let calendarCursor = new Date(new Date().getFullYear(), new Date().getMonth(), 1
 let adminMonthFilter = "all";
 let adminActiveSection = "overview";
 let adminSearchKeyword = "";
+let adminLogSearchKeyword = "";
+let adminUsersCache = [];
+let adminUsersLoaded = false;
+let adminUsersLoading = false;
+let adminUsersErrorMessage = "";
 let isActivityFeedOpen = false;
 let workerHistorySearchKeyword = "";
 let activeOrderSearchKeyword = "";
@@ -212,6 +218,12 @@ const adminMonthInput = document.getElementById("adminMonthInput");
 const adminAllMonthsBtn = document.getElementById("adminAllMonthsBtn");
 const adminSearchInput = document.getElementById("adminSearchInput");
 const adminOverview = document.getElementById("adminOverview");
+const adminLogSearchInput = document.getElementById("adminLogSearchInput");
+const adminLogList = document.getElementById("adminLogList");
+const adminCreateUserForm = document.getElementById("adminCreateUserForm");
+const adminRefreshUsersBtn = document.getElementById("adminRefreshUsersBtn");
+const adminAccountStatus = document.getElementById("adminAccountStatus");
+const adminAccountList = document.getElementById("adminAccountList");
 const equipmentList = document.getElementById("equipmentList");
 const moldList = document.getElementById("moldList");
 const journalList = document.getElementById("journalList");
@@ -340,12 +352,42 @@ function bindEvents() {
     });
   }
 
+  if (adminLogSearchInput) {
+    adminLogSearchInput.addEventListener("input", () => {
+      adminLogSearchKeyword = String(adminLogSearchInput.value || "").trim().toLowerCase();
+      renderAdminPage();
+    });
+  }
+
   document.querySelectorAll("[data-admin-section]").forEach((button) => {
     button.addEventListener("click", () => {
       adminActiveSection = button.dataset.adminSection || "overview";
       renderAdminPage();
     });
   });
+
+  if (adminCreateUserForm) {
+    adminCreateUserForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      void createAdminUser(adminCreateUserForm);
+    });
+  }
+
+  if (adminRefreshUsersBtn) {
+    adminRefreshUsersBtn.addEventListener("click", () => {
+      void fetchAdminUsers({ force: true });
+    });
+  }
+
+  if (adminAccountList) {
+    adminAccountList.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-admin-user-action]");
+      if (!button) return;
+      if (button.dataset.adminUserAction === "delete") {
+        void deleteAdminUser(button.dataset.userId || "", button.dataset.userEmail || "");
+      }
+    });
+  }
 
   orderForm.addEventListener("submit", (event) => {
     event.preventDefault();
@@ -3429,12 +3471,15 @@ function renderAdminPage() {
   adminMonthInput.value = adminMonthFilter === "all" ? "" : adminMonthFilter;
   if (adminAllMonthsBtn) adminAllMonthsBtn.classList.toggle("active", adminMonthFilter === "all");
   if (adminSearchInput) adminSearchInput.value = adminSearchKeyword;
+  if (adminLogSearchInput) adminLogSearchInput.value = adminLogSearchKeyword;
   renderAdminSections();
   renderAdminOverview();
   renderEquipmentList();
   renderMoldList();
   renderJournalList();
   renderWorkerEfficiency();
+  renderAdminLogs();
+  renderAdminAccounts();
 }
 
 function renderSopPage() {
@@ -4407,6 +4452,309 @@ function renderAdminSections() {
   document.querySelectorAll("[data-admin-panel]").forEach((panel) => {
     panel.hidden = panel.dataset.adminPanel !== adminActiveSection;
   });
+}
+
+function getAdminActivityLabel(type) {
+  const labels = {
+    register: "발주 등록",
+    edit: "발주 수정",
+    start: "작업 시작",
+    temporaryPause: "일시정지",
+    pause: "작업 중지",
+    end: "작업 종료",
+    ship: "출하 등록",
+    shipping: "출하 메모",
+    hold: "발주 보류",
+    resumeHold: "보류 해제",
+    requisition: "발주의뢰 등록",
+    requisitionEdit: "발주의뢰 수정",
+    accountCreate: "계정 생성",
+    accountDelete: "계정 삭제"
+  };
+  return labels[type] || "기타 이력";
+}
+
+function getAdminLogTimestamp(entry) {
+  const timestamp = getValidTimestamp(entry?.timestamp || entry?.createdAt || entry?.updatedAt || "");
+  return timestamp || "";
+}
+
+function buildAdminLogEntries() {
+  const orderById = new Map(state.orders.map((order) => [order.id, order]));
+
+  return (state.activities || [])
+    .map((activity) => {
+      const order = orderById.get(activity.orderId);
+      const timestamp = getAdminLogTimestamp(activity);
+      const targetEmail = activity.targetEmail || activity.email || "";
+      const targetText = order
+        ? `${order.company || "-"} / ${order.product || "-"}`
+        : targetEmail || activity.requestId || activity.message || "-";
+      const actorText = activity.workerName || activity.adminEmail || activity.actor || currentAdminEmail || "-";
+      const detailParts = [
+        activity.message,
+        order?.machineName ? `장비 ${order.machineName}` : "",
+        order?.deliveryType ? `구분 ${order.deliveryType}` : "",
+        order?.dueDate ? `납기 ${formatDate(order.dueDate)}` : "",
+        activity.reason ? `사유 ${activity.reason}` : "",
+        targetEmail ? `대상 ${targetEmail}` : ""
+      ].filter(Boolean);
+
+      return {
+        id: activity.id || `${activity.type || "log"}-${timestamp}-${targetText}`,
+        timestamp,
+        type: activity.type || "log",
+        label: getAdminActivityLabel(activity.type),
+        actor: actorText,
+        target: targetText,
+        detail: detailParts.join(" · ") || getAdminActivityLabel(activity.type),
+        searchText: [activity.type, actorText, targetText, detailParts.join(" "), order?.company, order?.product, order?.workerName, order?.machineName]
+          .map((value) => String(value || "").toLowerCase())
+          .join(" ")
+      };
+    })
+    .filter((entry) => {
+      if (!entry.timestamp) return false;
+      if (adminMonthFilter !== "all" && toMonthKey(entry.timestamp) !== adminMonthFilter) return false;
+      const combinedKeyword = [adminSearchKeyword, adminLogSearchKeyword].filter(Boolean).join(" ").trim();
+      if (!combinedKeyword) return true;
+      return combinedKeyword
+        .split(/\s+/)
+        .filter(Boolean)
+        .every((keyword) => entry.searchText.includes(keyword));
+    })
+    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+}
+
+function renderAdminLogs() {
+  if (!adminLogList) return;
+  const rows = buildAdminLogEntries();
+
+  if (!rows.length) {
+    adminLogList.innerHTML = `<div class="empty-state">표시할 운영 로그가 없습니다.</div>`;
+    return;
+  }
+
+  adminLogList.innerHTML = rows
+    .slice(0, 300)
+    .map((item) => `
+      <article class="admin-log-card">
+        <div class="admin-log-main">
+          <span class="status-badge status-ready">${escapeHtml(item.label)}</span>
+          <strong>${escapeHtml(item.target)}</strong>
+          <p>${escapeHtml(item.detail)}</p>
+        </div>
+        <div class="admin-log-side">
+          <span>${formatDateTime(item.timestamp)}</span>
+          <strong>${escapeHtml(item.actor)}</strong>
+        </div>
+      </article>
+    `)
+    .join("");
+}
+
+function renderAdminAccounts() {
+  if (!adminAccountList) return;
+
+  if (adminActiveSection === "accounts" && isAdminLoggedIn && !adminUsersLoaded && !adminUsersLoading && !adminUsersErrorMessage) {
+    void fetchAdminUsers();
+  }
+
+  if (adminUsersLoading) {
+    adminAccountList.innerHTML = `<div class="empty-state">계정 목록을 불러오는 중입니다.</div>`;
+    return;
+  }
+
+  if (adminUsersErrorMessage) {
+    adminAccountList.innerHTML = `<div class="empty-state">${escapeHtml(adminUsersErrorMessage)}</div>`;
+    return;
+  }
+
+  if (!adminUsersLoaded) {
+    adminAccountList.innerHTML = `<div class="empty-state">계정 관리 탭을 열면 목록을 불러옵니다.</div>`;
+    return;
+  }
+
+  if (!adminUsersCache.length) {
+    adminAccountList.innerHTML = `<div class="empty-state">등록된 계정이 없습니다.</div>`;
+    return;
+  }
+
+  adminAccountList.innerHTML = adminUsersCache
+    .map((user) => {
+      const email = user.email || "-";
+      const isCurrentUser = String(email).toLowerCase() === String(currentAdminEmail).toLowerCase();
+      return `
+        <article class="progress-card admin-account-card">
+          <div class="progress-top">
+            <strong>${escapeHtml(email)}</strong>
+            <span class="status-badge ${user.confirmedAt ? "status-working" : "status-warning"}">${user.confirmedAt ? "사용 가능" : "확인 대기"}</span>
+          </div>
+          <div class="admin-compact-meta">
+            <span>생성 ${user.createdAt ? formatDateTime(user.createdAt) : "-"}</span>
+            <span>최근 로그인 ${user.lastSignInAt ? formatDateTime(user.lastSignInAt) : "-"}</span>
+            ${isCurrentUser ? "<span>현재 로그인 계정</span>" : ""}
+          </div>
+          <button type="button" class="danger-action-btn" data-admin-user-action="delete" data-user-id="${escapeHtml(user.id || "")}" data-user-email="${escapeHtml(email)}" ${isCurrentUser ? "disabled" : ""}>삭제</button>
+        </article>
+      `;
+    })
+    .join("");
+}
+
+async function getAdminAccessToken() {
+  if (!supabaseAuthClient) return "";
+  const { data } = await supabaseAuthClient.auth.getSession();
+  return data?.session?.access_token || "";
+}
+
+function normalizeAdminUser(user) {
+  return {
+    id: user.id || "",
+    email: user.email || "",
+    createdAt: user.created_at || user.createdAt || "",
+    confirmedAt: user.email_confirmed_at || user.confirmed_at || user.confirmedAt || "",
+    lastSignInAt: user.last_sign_in_at || user.lastSignInAt || ""
+  };
+}
+
+async function requestAdminUsersApi(method, body = null, query = "") {
+  if (window.location.protocol === "file:") {
+    throw new Error("계정 관리는 배포된 사이트 주소에서만 사용할 수 있습니다.");
+  }
+
+  const token = await getAdminAccessToken();
+  if (!token) {
+    throw new Error("관리자 로그인 세션이 없습니다. 다시 로그인해 주세요.");
+  }
+
+  const response = await fetch(`${ADMIN_USERS_API_URL}${query}`, {
+    method,
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`
+    },
+    body: body ? JSON.stringify(body) : null
+  });
+  const payload = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(payload.message || "계정 관리 요청에 실패했습니다.");
+  }
+
+  return payload;
+}
+
+async function fetchAdminUsers(options = {}) {
+  if (!adminAccountList || !isAdminLoggedIn) return;
+  if (adminUsersLoading) return;
+  if (adminUsersLoaded && !options.force) {
+    renderAdminAccounts();
+    return;
+  }
+
+  adminUsersLoading = true;
+  adminUsersErrorMessage = "";
+  if (adminAccountStatus) adminAccountStatus.textContent = "계정 목록을 불러오는 중입니다.";
+  renderAdminAccounts();
+
+  try {
+    const payload = await requestAdminUsersApi("GET");
+    adminUsersCache = (payload.users || []).map(normalizeAdminUser);
+    adminUsersLoaded = true;
+    if (adminAccountStatus) adminAccountStatus.textContent = `계정 ${adminUsersCache.length}개를 불러왔습니다.`;
+  } catch (error) {
+    adminUsersLoaded = false;
+    adminUsersErrorMessage = error.message;
+    if (adminAccountStatus) adminAccountStatus.textContent = error.message;
+    adminAccountList.innerHTML = `<div class="empty-state">${escapeHtml(error.message)}</div>`;
+  } finally {
+    adminUsersLoading = false;
+    renderAdminAccounts();
+  }
+}
+
+async function createAdminUser(formElement) {
+  if (!isAdminLoggedIn) {
+    showAppAlert("관리자 로그인 후 계정을 생성할 수 있습니다.");
+    return;
+  }
+
+  const formData = new FormData(formElement);
+  const email = String(formData.get("email") || "").trim().toLowerCase();
+  const password = String(formData.get("password") || "").trim();
+
+  if (!email || !password) {
+    showAppAlert("이메일과 임시 비밀번호를 입력해 주세요.");
+    return;
+  }
+
+  if (password.length < 8) {
+    showAppAlert("임시 비밀번호는 8자 이상으로 입력해 주세요.");
+    return;
+  }
+
+  try {
+    await requestAdminUsersApi("POST", { email, password });
+    state.activities.unshift({
+      id: crypto.randomUUID(),
+      type: "accountCreate",
+      adminEmail: currentAdminEmail,
+      targetEmail: email,
+      timestamp: new Date().toISOString(),
+      message: "관리자 계정이 생성되었습니다."
+    });
+    await persist();
+    formElement.reset();
+    adminUsersLoaded = false;
+    await fetchAdminUsers({ force: true });
+    renderAdminLogs();
+    showAppAlert("계정이 생성되었습니다.");
+  } catch (error) {
+    showAppAlert(error.message);
+  }
+}
+
+async function deleteAdminUser(userId, userEmail) {
+  if (!isAdminLoggedIn) {
+    showAppAlert("관리자 로그인 후 계정을 삭제할 수 있습니다.");
+    return;
+  }
+
+  if (!userId) {
+    showAppAlert("삭제할 계정 정보를 찾을 수 없습니다.");
+    return;
+  }
+
+  if (String(userEmail).toLowerCase() === String(currentAdminEmail).toLowerCase()) {
+    showAppAlert("현재 로그인 중인 본인 계정은 삭제할 수 없습니다.");
+    return;
+  }
+
+  const confirmed = await showAppConfirm(`${userEmail} 계정을 삭제하시겠습니까?`, {
+    confirmText: "삭제",
+    cancelText: "취소"
+  });
+  if (!confirmed) return;
+
+  try {
+    await requestAdminUsersApi("DELETE", null, `?id=${encodeURIComponent(userId)}`);
+    state.activities.unshift({
+      id: crypto.randomUUID(),
+      type: "accountDelete",
+      adminEmail: currentAdminEmail,
+      targetEmail: userEmail,
+      timestamp: new Date().toISOString(),
+      message: "관리자 계정이 삭제되었습니다."
+    });
+    await persist();
+    adminUsersLoaded = false;
+    await fetchAdminUsers({ force: true });
+    renderAdminLogs();
+    showAppAlert("계정이 삭제되었습니다.");
+  } catch (error) {
+    showAppAlert(error.message);
+  }
 }
 
 function adminMatchesSearch(order) {
