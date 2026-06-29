@@ -43,6 +43,11 @@ const apiPath = path.join(root, "api", "admin-users.js");
 assert(fs.existsSync(apiPath), "api/admin-users.js should exist for safe server-side account management");
 const apiSource = fs.readFileSync(apiPath, "utf8");
 assert(apiSource.includes("SUPABASE_SERVICE_ROLE_KEY"), "API route should read the service role key from env only");
+assert(apiSource.includes("SUPABASE_SECRET_KEY"), "API route should also accept the current Supabase secret key env name");
+assert(
+  apiSource.includes("SUPABASE_SERVICE_ROLE_KEY 또는 SUPABASE_SECRET_KEY"),
+  "missing secret-key message should explain both supported env names"
+);
 assert(apiSource.includes("/auth/v1/admin/users"), "API route should use Supabase Auth admin users endpoint");
 assert(apiSource.includes("verifyAdminRequest"), "API route should verify the caller before admin actions");
 assert(swJs.includes('pathname.startsWith("/api/")'), "service worker should not cache admin API responses");
