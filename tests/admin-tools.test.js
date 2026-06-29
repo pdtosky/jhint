@@ -25,6 +25,14 @@ assert(appJs.includes("function renderAdminAccounts"), "app.js should render adm
 assert(appJs.includes('let adminActiveSection = "accounts"'), "admin page should open to account management by default");
 assert(appJs.includes("function resetAdminAccountListState"), "admin logout/login should reset account list state");
 assert(appJs.includes("activateAdminAccountsTab({ reset: true })"), "admin login should immediately show and refresh account management");
+const lastAdminLoginStart = appJs.lastIndexOf("async function handleAdminLogin");
+assert(lastAdminLoginStart >= 0, "app.js should define handleAdminLogin");
+const nextCalendarAfterAdminLogin = appJs.indexOf("function renderCalendar", lastAdminLoginStart);
+const activeAdminLoginBody = appJs.slice(lastAdminLoginStart, nextCalendarAfterAdminLogin);
+assert(
+  activeAdminLoginBody.includes("activateAdminAccountsTab({ reset: true })"),
+  "the active final admin login handler should immediately show and refresh account management"
+);
 assert(appJs.includes("async function fetchAdminUsers"), "app.js should fetch users through the server API");
 assert(appJs.includes("async function createAdminUser"), "app.js should create users through the server API");
 assert(appJs.includes("async function deleteAdminUser"), "app.js should delete users through the server API");

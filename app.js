@@ -2723,6 +2723,7 @@ async function handleAdminLogin(formElement) {
   adminLoginForm.reset();
   adminPageLoginForm.reset();
   renderAdminSession();
+  activateAdminAccountsTab({ reset: true });
   renderSopPage();
 }
 
@@ -9220,6 +9221,7 @@ async function handleAdminLogin(formElement) {
   adminLoginForm.reset();
   adminPageLoginForm.reset();
   renderAdminSession();
+  activateAdminAccountsTab({ reset: true });
   renderSopPage();
 }
 
