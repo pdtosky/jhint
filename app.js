@@ -3408,6 +3408,9 @@ function renderAdminSession() {
       element.disabled = !isAdminLoggedIn;
     });
   }
+  if (sopPageRoot) {
+    renderSopPage();
+  }
 }
 
 function renderAdminPage() {
@@ -3439,6 +3442,7 @@ function renderSopPage() {
       <div class="empty-state sop-login-notice">
         <strong>관리자 로그인 후 작업표준서를 등록할 수 있습니다.</strong>
         <span>작업자는 배포완료된 작업표준서만 조회할 수 있습니다.</span>
+        <button type="button" class="tab-btn" data-sop-action="go-admin-login">관리자 로그인하기</button>
       </div>
     ` : renderSopAdminEditor(allSops)}
 
@@ -3456,7 +3460,7 @@ function renderSopPage() {
             <h3>등록된 작업표준서</h3>
             <p>관리자는 수정/삭제 가능</p>
           </div>
-          <div class="sop-list">${renderSopList(allSops, { adminMode: true })}</div>
+          <div class="sop-list" data-sop-list-panel="admin">${renderSopList(allSops, { adminMode: true })}</div>
         </section>
       ` : ""}
       <section>
@@ -3464,10 +3468,22 @@ function renderSopPage() {
           <h3>작업자 조회용</h3>
           <p>배포완료된 표준서만 표시</p>
         </div>
-        <div class="sop-list">${renderSopList(publishedSops, { adminMode: false })}</div>
+        <div class="sop-list" data-sop-list-panel="worker">${renderSopList(publishedSops, { adminMode: false })}</div>
       </section>
     </div>
   `;
+}
+
+function renderSopListsOnly() {
+  if (!sopPageRoot) return;
+  const adminList = sopPageRoot.querySelector('[data-sop-list-panel="admin"]');
+  const workerList = sopPageRoot.querySelector('[data-sop-list-panel="worker"]');
+  if (adminList) {
+    adminList.innerHTML = renderSopList(getFilteredSops(), { adminMode: true });
+  }
+  if (workerList) {
+    workerList.innerHTML = renderSopList(getFilteredSops({ publishedOnly: true }), { adminMode: false });
+  }
 }
 
 function renderSopAdminEditor(allSops) {
@@ -3811,7 +3827,7 @@ function handleSopPageInput(event) {
   const searchInput = event.target.closest("[data-sop-search]");
   if (searchInput) {
     sopSearchKeyword = String(searchInput.value || "").trim().toLowerCase();
-    renderSopPage();
+    renderSopListsOnly();
     return;
   }
 
@@ -3824,6 +3840,12 @@ function handleSopPageClick(event) {
   const button = event.target.closest("[data-sop-action]");
   if (!button) return;
   const action = button.dataset.sopAction;
+
+  if (action === "go-admin-login") {
+    switchView("adminView");
+    render();
+    return;
+  }
 
   if (action === "new") {
     editingSopId = "";
