@@ -5015,6 +5015,43 @@ html {
   align-content: center;
 }
 
+.sop-module-shell {
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: var(--shadow-soft);
+}
+
+.sop-module-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line);
+  background: linear-gradient(135deg, rgba(226, 241, 255, 0.9), rgba(255, 255, 255, 0.92));
+}
+
+.sop-module-toolbar strong,
+.sop-module-toolbar span {
+  display: block;
+}
+
+.sop-module-toolbar span:not(.status-badge) {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.sop-module-frame {
+  display: block;
+  width: 100%;
+  min-height: min(76vh, 900px);
+  border: 0;
+  background: #f4f8ff;
+}
+
 @media (max-width: 900px) {
   .sop-editor-head,
   .sop-editor-foot,

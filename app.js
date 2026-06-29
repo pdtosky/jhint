@@ -247,6 +247,8 @@ let pendingStartSnapshot = null;
 let selectedCalendarDateKey = "";
 const supabaseAuthClient = createSupabaseAuthClient();
 
+window.smartSopBridge = createSmartSopBridge();
+
 bindEvents();
 initializeApp();
 startDashboardClock();
@@ -987,6 +989,8 @@ function createEmptyState() {
     orders: seedOrders.map(normalizeOrderRecord),
     requisitions: [],
     sops: [],
+    sopWorkRecords: [],
+    sopDeletedIds: [],
     activities: [
       {
         id: crypto.randomUUID(),
@@ -1036,6 +1040,8 @@ function normalizeAppState(appState) {
     orders: (appState.orders || []).map(normalizeOrderRecord),
     requisitions: (appState.requisitions || appState.purchaseRequests || []).map(normalizeRequisitionRecord),
     sops: (appState.sops || appState.workStandards || []).map(normalizeSopRecord),
+    sopWorkRecords: appState.sopWorkRecords || appState.workRecords || [],
+    sopDeletedIds: appState.sopDeletedIds || [],
     activities: appState.activities || []
   };
 }
@@ -1102,6 +1108,7 @@ function bindAdminAuthListener() {
   supabaseAuthClient.auth.onAuthStateChange((_event, session) => {
     setAdminSession(session?.user?.email || "");
     renderAdminSession();
+    renderSopPage();
   });
 }
 
@@ -2674,6 +2681,7 @@ async function handleAdminLogin(formElement) {
   adminLoginForm.reset();
   adminPageLoginForm.reset();
   renderAdminSession();
+  renderSopPage();
 }
 
 function renderCalendar() {
@@ -3208,6 +3216,7 @@ async function handleAdminLogout() {
   }
   setAdminSession("");
   renderAdminSession();
+  renderSopPage();
 }
 
 async function handleRequisitionLogin(formElement) {
@@ -3240,6 +3249,7 @@ async function handleRequisitionLogin(formElement) {
     await supabaseAuthClient.auth.signOut({ scope: "local" });
     setAdminSession("");
     renderAdminSession();
+    renderSopPage();
     showAppAlert("이 계정은 발주의뢰 권한이 없습니다.");
     return;
   }
@@ -3257,6 +3267,7 @@ async function handleRequisitionLogout() {
   }
   setAdminSession("");
   renderAdminSession();
+  renderSopPage();
 }
 
 function render() {
@@ -3428,43 +3439,38 @@ function renderAdminPage() {
 
 function renderSopPage() {
   if (!sopPageRoot) return;
-  const allSops = getFilteredSops();
-  const sourceCount = getSopSourceRecords().length;
-  const selectedSop = allSops.find((sop) => sop.id === currentSopDraft?.id) || allSops[0] || null;
-  if (selectedSop) currentSopDraft = normalizeSopRecord(selectedSop);
+  const statusText = isAdminLoggedIn
+    ? "관리자 로그인 상태입니다. Smart SOP 관리자 기능을 사용할 수 있습니다."
+    : "관리자 기능은 생산일정관리 관리자 로그인 후 사용할 수 있습니다.";
+  const countText = `${getSmartSopRecords().length}건`;
+  const existingFrame = sopPageRoot.querySelector(".sop-module-frame");
+
+  if (existingFrame) {
+    const statusEl = sopPageRoot.querySelector("[data-sop-module-status]");
+    const countEl = sopPageRoot.querySelector("[data-sop-module-count]");
+    if (statusEl) statusEl.textContent = statusText;
+    if (countEl) countEl.textContent = countText;
+    return;
+  }
+
   sopPageRoot.innerHTML = `
     <div class="panel-head">
       <div>
         <p class="panel-kicker">STANDARD OPERATING PROCEDURE</p>
         <h2>작업표준서</h2>
       </div>
-      <p>기존 Smart SOP 데이터를 생산일정관리 안에서 바로 조회합니다.</p>
+      <p>기존 Smart SOP 화면을 생산일정관리 안에서 그대로 사용합니다.</p>
     </div>
 
-    <div class="sop-lite-notice">
-      <div>
-        <strong>로그인 없이 기존 작업표준서 ${sourceCount}건을 조회합니다.</strong>
-        <span>이 화면은 저장을 하지 않으므로 Supabase 데이터 사용량을 늘리지 않습니다.</span>
-      </div>
-      <span class="status-badge done">조회 전용</span>
-    </div>
-
-    <div class="sop-search-bar">
-      <label>
-        작업표준서 검색
-        <input type="search" data-sop-search value="${escapeHtml(sopSearchKeyword)}" placeholder="업체명, 제품명, 공정명, 장비명, 관리번호 검색" autocomplete="off" />
-      </label>
-    </div>
-
-    <div class="sop-layout sop-lookup-layout">
-      <section>
-        <div class="section-head compact">
-          <h3>표준서 목록</h3>
-          <p>기존 Smart SOP에서 가져온 데이터</p>
+    <div class="sop-module-shell">
+      <div class="sop-module-toolbar">
+        <div>
+          <strong>Smart SOP 연결</strong>
+          <span data-sop-module-status>${escapeHtml(statusText)}</span>
         </div>
-        <div class="sop-list" data-sop-list-panel="worker">${renderSopList(allSops, { adminMode: false })}</div>
-      </section>
-      <section data-sop-detail-panel>${renderSopDetail(selectedSop)}</section>
+        <span class="status-badge done" data-sop-module-count>${escapeHtml(countText)}</span>
+      </div>
+      <iframe class="sop-module-frame" title="작업표준서 Smart SOP" src="sop/index.html?v=20260629-01"></iframe>
     </div>
   `;
 }
@@ -4176,6 +4182,221 @@ async function importSeedSops() {
     showAppAlert(getPersistErrorMessage(error));
     renderSopPage();
   }
+}
+
+function createSmartSopBridge() {
+  return {
+    isAdminLoggedIn: () => isAdminLoggedIn,
+    request: handleSmartSopBridgeRequest
+  };
+}
+
+function makeSmartSopError(message, status = 400) {
+  const error = new Error(message);
+  error.status = status;
+  return error;
+}
+
+function getSmartSopKey(sop) {
+  const summary = getSopSummary(sop);
+  return [
+    sop.id || "",
+    summary.managementNo,
+    summary.vendor,
+    summary.product
+  ].join("|");
+}
+
+function getSmartSopRecords({ publishedOnly = false, query = "" } = {}) {
+  const deletedIds = new Set(state.sopDeletedIds || []);
+  const merged = new Map();
+
+  getSeedSops().forEach((sop) => {
+    if (!deletedIds.has(sop.id)) {
+      merged.set(getSmartSopKey(sop), normalizeSopRecord(sop));
+    }
+  });
+
+  (state.sops || []).forEach((sop) => {
+    const normalized = normalizeSopRecord(sop);
+    if (!deletedIds.has(normalized.id)) {
+      merged.set(getSmartSopKey(normalized), normalized);
+    }
+  });
+
+  const keyword = String(query || "").trim().toLowerCase();
+  return Array.from(merged.values())
+    .filter((sop) => {
+      if (publishedOnly && sop.document.status !== "배포완료") return false;
+      if (!keyword) return true;
+      return getSopSearchText(sop).includes(keyword);
+    })
+    .sort((left, right) => String(right.document.updatedAt || right.createdAt).localeCompare(String(left.document.updatedAt || left.createdAt)));
+}
+
+function getSmartSopRecord(id) {
+  return getSmartSopRecords().find((sop) => sop.id === String(id || "")) || null;
+}
+
+async function saveSmartSopRecord(input) {
+  if (!isAdminLoggedIn) {
+    throw makeSmartSopError("관리자 로그인 후 저장할 수 있습니다.", 403);
+  }
+
+  const nextSop = normalizeSopRecord({
+    ...input,
+    id: input?.id || crypto.randomUUID(),
+    createdAt: input?.createdAt || new Date().toISOString()
+  });
+  nextSop.document.updatedAt = new Date().toISOString();
+
+  if (!nextSop.basic.vendor || !nextSop.basic.product || !nextSop.basic.process) {
+    throw makeSmartSopError("업체명, 제품명, 공정명은 반드시 입력해 주세요.", 400);
+  }
+
+  const rollbackSops = [...(state.sops || [])];
+  const rollbackDeleted = [...(state.sopDeletedIds || [])];
+  const index = rollbackSops.findIndex((sop) => sop.id === nextSop.id);
+
+  state.sops = [...rollbackSops];
+  if (index >= 0) state.sops[index] = nextSop;
+  else state.sops.unshift(nextSop);
+  state.sopDeletedIds = rollbackDeleted.filter((id) => id !== nextSop.id);
+
+  try {
+    await persist({ throwOnError: true });
+    return nextSop;
+  } catch (error) {
+    state.sops = rollbackSops;
+    state.sopDeletedIds = rollbackDeleted;
+    throw error;
+  }
+}
+
+async function deleteSmartSopRecord(id) {
+  if (!isAdminLoggedIn) {
+    throw makeSmartSopError("관리자 로그인 후 삭제할 수 있습니다.", 403);
+  }
+
+  const targetId = String(id || "");
+  const rollbackSops = [...(state.sops || [])];
+  const rollbackDeleted = [...(state.sopDeletedIds || [])];
+
+  state.sops = rollbackSops.filter((sop) => sop.id !== targetId);
+  state.sopDeletedIds = Array.from(new Set([...rollbackDeleted, targetId].filter(Boolean)));
+
+  try {
+    await persist({ throwOnError: true });
+    return true;
+  } catch (error) {
+    state.sops = rollbackSops;
+    state.sopDeletedIds = rollbackDeleted;
+    throw error;
+  }
+}
+
+function listSmartSopWorkRecords({ sopId = "", date = "" } = {}) {
+  return (state.sopWorkRecords || [])
+    .filter((record) => {
+      if (sopId && record.sopId !== sopId) return false;
+      if (date && record.workDate !== date) return false;
+      return true;
+    })
+    .sort((left, right) => String(right.createdAt || "").localeCompare(String(left.createdAt || "")));
+}
+
+function calculateSmartSopMoldTotal(sopId) {
+  return (state.sopWorkRecords || [])
+    .filter((record) => record.sopId === sopId)
+    .reduce((sum, record) => sum + toNumber(record.moldUse?.dailyShots), 0);
+}
+
+async function saveSmartSopWorkRecord(input) {
+  const sopId = String(input?.sopId || "").trim();
+  const workDate = String(input?.workDate || "").trim();
+  const workerName = String(input?.workerName || "").trim();
+
+  if (!sopId) throw makeSmartSopError("작업표준서를 선택해 주세요.", 400);
+  if (!workDate) throw makeSmartSopError("작업일자를 입력해 주세요.", 400);
+  if (!workerName) throw makeSmartSopError("작업자명을 입력해 주세요.", 400);
+  if (!getSmartSopRecord(sopId)) throw makeSmartSopError("작업표준서를 찾을 수 없습니다.", 404);
+
+  const rollback = [...(state.sopWorkRecords || [])];
+  const dailyShots = Math.max(0, toNumber(input?.moldUse?.dailyShots));
+  const record = {
+    id: crypto.randomUUID(),
+    sopId,
+    workDate,
+    workerName,
+    checklist: Array.isArray(input?.checklist) ? input.checklist : [],
+    moldUse: {
+      ...(input?.moldUse || {}),
+      dailyShots,
+      totalShots: calculateSmartSopMoldTotal(sopId) + dailyShots
+    },
+    createdAt: new Date().toISOString()
+  };
+
+  state.sopWorkRecords = [record, ...rollback];
+  try {
+    await persist({ throwOnError: true });
+    return record;
+  } catch (error) {
+    state.sopWorkRecords = rollback;
+    throw error;
+  }
+}
+
+async function handleSmartSopBridgeRequest(request) {
+  const method = String(request?.method || "GET").toUpperCase();
+  const path = String(request?.path || "");
+  const searchParams = new URLSearchParams(String(request?.search || "").replace(/^\?/, ""));
+
+  if (method === "GET" && path === "/api/sops") {
+    return { status: 200, body: { sops: getSmartSopRecords({ query: searchParams.get("q") || "" }) } };
+  }
+
+  if (method === "GET" && path === "/api/worker/sops") {
+    return { status: 200, body: { sops: getSmartSopRecords({ publishedOnly: true, query: searchParams.get("q") || "" }) } };
+  }
+
+  if (method === "GET" && path === "/api/work-records") {
+    return {
+      status: 200,
+      body: {
+        records: listSmartSopWorkRecords({
+          sopId: searchParams.get("sopId") || "",
+          date: searchParams.get("date") || ""
+        })
+      }
+    };
+  }
+
+  if (method === "POST" && path === "/api/work-records") {
+    return { status: 200, body: { record: await saveSmartSopWorkRecord(request.body || {}) } };
+  }
+
+  if (method === "POST" && path === "/api/sops") {
+    return { status: 200, body: { sop: await saveSmartSopRecord(request.body || {}) } };
+  }
+
+  if (path.startsWith("/api/sops/")) {
+    const id = decodeURIComponent(path.split("/").pop() || "");
+    if (method === "GET") {
+      const sop = getSmartSopRecord(id);
+      return sop
+        ? { status: 200, body: { sop } }
+        : { status: 404, body: { error: "SOP not found" } };
+    }
+    if (method === "DELETE") {
+      const deleted = await deleteSmartSopRecord(id);
+      return deleted
+        ? { status: 200, body: { ok: true } }
+        : { status: 404, body: { error: "SOP not found" } };
+    }
+  }
+
+  return { status: 404, body: { error: "API not found" } };
 }
 
 function renderAdminSections() {
@@ -6441,6 +6662,7 @@ async function handleAdminLogin(formElement) {
   adminLoginForm.reset();
   adminPageLoginForm.reset();
   renderAdminSession();
+  renderSopPage();
 }
 
 function handlePersistError(error) {
@@ -6483,6 +6705,7 @@ async function handleAdminLogin(formElement) {
   adminLoginForm.reset();
   adminPageLoginForm.reset();
   renderAdminSession();
+  renderSopPage();
 }
 
 function buildEquipmentSummary() {
@@ -6925,6 +7148,7 @@ async function handleAdminLogin(formElement) {
   adminLoginForm.reset();
   adminPageLoginForm.reset();
   renderAdminSession();
+  renderSopPage();
 }
 
 function renderCalendar() {
@@ -8396,6 +8620,7 @@ async function handleAdminLogin(formElement) {
   adminLoginForm.reset();
   adminPageLoginForm.reset();
   renderAdminSession();
+  renderSopPage();
 }
 
 async function handleAdminLogin(formElement) {
@@ -8434,6 +8659,7 @@ async function handleAdminLogin(formElement) {
   adminLoginForm.reset();
   adminPageLoginForm.reset();
   renderAdminSession();
+  renderSopPage();
 }
 
 function showAppAlert(message) {
@@ -8628,6 +8854,7 @@ async function handleAdminLogin(formElement) {
   adminLoginForm.reset();
   adminPageLoginForm.reset();
   renderAdminSession();
+  renderSopPage();
 }
 
 

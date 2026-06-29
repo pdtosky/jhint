@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>작업표준서</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1>Smart SOP</h1>
+    <nav>
+      <button id="adminTab" type="button">관리자</button>
+      <button id="workerTab" type="button">작업자</button>
+    </nav>
+  </header>
+  <main>
+    <section id="adminView"></section>
+    <section id="workerView" hidden></section>
+  </main>
+  <script src="bridge.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
