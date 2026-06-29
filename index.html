@@ -616,84 +616,7 @@
 
       <section class="view-panel" id="sopView">
         <section class="panel panel-sop">
-          <div class="panel-head">
-            <div>
-              <p class="panel-kicker">STANDARD OPERATING PROCEDURE</p>
-              <h2>작업표준서</h2>
-            </div>
-            <p>생산일정관리 로그인 방식으로 등록과 배포를 관리합니다.</p>
-          </div>
-
-          <div id="sopLockedNotice" class="empty-state">
-            <strong>관리자 로그인 후 작업표준서를 등록할 수 있습니다.</strong>
-            <span>작업자는 배포완료된 작업표준서를 조회할 수 있습니다.</span>
-          </div>
-
-          <div id="sopAdminContent" hidden>
-            <form id="sopForm" class="sop-form">
-              <input type="hidden" name="sopId" />
-              <label>
-                관리번호
-                <input type="text" name="managementNo" placeholder="예: SOP-2026-001" />
-              </label>
-              <label>
-                업체명
-                <input type="text" name="vendor" placeholder="예: 스탠다드에너지" required />
-              </label>
-              <label>
-                제품명
-                <input type="text" name="product" placeholder="예: RS4 Apron Tape" required />
-              </label>
-              <label>
-                공정명
-                <input type="text" name="process" placeholder="예: 타발" required />
-              </label>
-              <label>
-                장비명
-                <input type="text" name="equipment" placeholder="예: 1호기" />
-              </label>
-              <label>
-                배포상태
-                <select name="status">
-                  <option value="임시저장">임시저장</option>
-                  <option value="수정중">수정중</option>
-                  <option value="배포완료">배포완료</option>
-                </select>
-              </label>
-              <label class="wide-field">
-                작업 기준 / 주의사항
-                <textarea name="note" rows="4" placeholder="작업 조건, 주의사항, 검사 기준 등을 입력"></textarea>
-              </label>
-              <div class="sop-form-actions">
-                <button type="submit" class="primary-btn">작업표준서 저장</button>
-                <button type="button" class="tab-btn" id="sopNewBtn">새 표준서</button>
-              </div>
-            </form>
-          </div>
-
-          <div class="sop-search-bar">
-            <label>
-              작업표준서 검색
-              <input type="search" id="sopSearchInput" placeholder="업체명, 제품명, 공정명, 장비명 검색" autocomplete="off" />
-            </label>
-          </div>
-
-          <div class="sop-layout">
-            <section>
-              <div class="section-head compact">
-                <h3>등록된 작업표준서</h3>
-                <p>관리자는 수정/삭제 가능</p>
-              </div>
-              <div id="sopAdminList" class="sop-list"></div>
-            </section>
-            <section>
-              <div class="section-head compact">
-                <h3>작업자 조회용</h3>
-                <p>배포완료된 표준서만 표시</p>
-              </div>
-              <div id="sopWorkerList" class="sop-list"></div>
-            </section>
-          </div>
+          <div id="sopPageRoot"></div>
         </section>
       </section>
     </main>
@@ -726,7 +649,8 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="config.js?v=20260629-02"></script>
-  <script src="app.js?v=20260629-02"></script>
+  <script src="sop-seed.js?v=20260629-01"></script>
+  <script src="app.js?v=20260629-03"></script>
 </body>
 </html>
 

@@ -4685,17 +4685,64 @@ html {
   gap: 18px;
 }
 
-.sop-form {
+.sop-login-notice {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 14px;
+  gap: 6px;
+}
+
+.sop-editor {
+  display: grid;
+  gap: 16px;
   padding: 18px;
   border: 1px solid var(--line);
   border-radius: 24px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.84), rgba(244, 249, 255, 0.74));
+}
+
+.sop-editor-head,
+.sop-editor-foot {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.sop-editor-head h3,
+.sop-editor-head p {
+  margin: 0;
+}
+
+.sop-editor-head p,
+.sop-editor-foot,
+.sop-search-bar label {
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.sop-editor-actions,
+.sop-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.sop-edit-section {
+  display: grid;
+  gap: 12px;
+  padding: 15px;
+  border: 1px solid rgba(116, 153, 190, 0.28);
+  border-radius: 22px;
   background: rgba(255, 255, 255, 0.72);
 }
 
-.sop-form label,
+.sop-field-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.sop-field-grid label,
 .sop-search-bar label {
   display: grid;
   gap: 8px;
@@ -4703,9 +4750,9 @@ html {
   color: var(--ink);
 }
 
-.sop-form input,
-.sop-form select,
-.sop-form textarea,
+.sop-field-grid input,
+.sop-field-grid select,
+.sop-edit-table textarea,
 .sop-search-bar input {
   width: 100%;
   border: 1px solid var(--line);
@@ -4716,21 +4763,56 @@ html {
   font: inherit;
 }
 
-.sop-form textarea {
+.sop-edit-table textarea {
+  min-height: 42px;
+  padding: 10px 11px;
   resize: vertical;
-  min-height: 100px;
+  line-height: 1.35;
 }
 
-.sop-form .wide-field {
+.sop-field-grid .wide-field {
   grid-column: 1 / -1;
 }
 
-.sop-form-actions {
-  grid-column: 1 / -1;
-  display: flex;
-  gap: 10px;
-  justify-content: flex-end;
-  flex-wrap: wrap;
+.sop-readonly-field {
+  display: grid;
+  gap: 8px;
+  padding: 13px 14px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: #edf5ff;
+}
+
+.sop-readonly-field strong {
+  font-size: 0.86rem;
+  color: var(--muted);
+}
+
+.sop-table-wrap {
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+}
+
+.sop-edit-table {
+  min-width: 760px;
+  background: rgba(255, 255, 255, 0.96);
+}
+
+.sop-edit-table th,
+.sop-edit-table td {
+  padding: 8px;
+  vertical-align: top;
+  font-size: 0.88rem;
+}
+
+.sop-edit-table th {
+  background: #eaf3ff;
+  color: #163350;
+}
+
+.sop-wide-cell {
+  min-width: 220px;
 }
 
 .sop-search-bar {
@@ -4742,7 +4824,7 @@ html {
 
 .sop-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 18px;
   align-items: start;
 }
@@ -4817,9 +4899,30 @@ html {
 }
 
 @media (max-width: 900px) {
-  .sop-form,
+  .sop-editor-head,
+  .sop-editor-foot,
+  .sop-field-grid,
   .sop-layout {
     grid-template-columns: 1fr;
+    display: grid;
+  }
+
+  .sop-editor-actions,
+  .sop-row-actions {
+    justify-content: stretch;
+  }
+
+  .sop-editor-actions button,
+  .sop-row-actions button {
+    width: 100%;
+  }
+
+  .sop-edit-section {
+    padding: 12px;
+  }
+
+  .sop-edit-table {
+    min-width: 680px;
   }
 }
 
