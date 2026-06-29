@@ -1,8 +1,11 @@
 ﻿const ADMIN_SESSION_KEY = "production-admin-session-v1";
 const DUE_ALARM_KEY = "production-due-alarm-date-v1";
 const API_STATE_URL = "/api/state";
-const POLL_INTERVAL_MS = 60000;
 const APP_CONFIG = window.APP_CONFIG || {};
+const POLL_INTERVAL_MS = Number(APP_CONFIG.pollIntervalMs || 60000);
+const HOLIDAY_POLL_INTERVAL_MS = Number(
+  APP_CONFIG.holidayPollIntervalMs || APP_CONFIG.weekendPollIntervalMs || 300000
+);
 const BACKEND_MODE = APP_CONFIG.backend || "api";
 
 const TEXT = {
@@ -2397,14 +2400,33 @@ async function syncStateFromRemote(options = {}) {
   }
 }
 
+function getHolidayDateSet() {
+  return new Set((APP_CONFIG.holidayDates || []).map((date) => String(date || "").trim()).filter(Boolean));
+}
+
+function isWeekendOrHoliday(date = new Date()) {
+  const day = date.getDay();
+  if (day === 0 || day === 6) return true;
+  return getHolidayDateSet().has(toDateKey(date));
+}
+
+function getCurrentPollIntervalMs(date = new Date()) {
+  return isWeekendOrHoliday(date) ? HOLIDAY_POLL_INTERVAL_MS : POLL_INTERVAL_MS;
+}
+
 function startStatePolling() {
   if (syncTimerId) {
-    clearInterval(syncTimerId);
+    clearTimeout(syncTimerId);
   }
 
-  syncTimerId = setInterval(() => {
-    syncStateFromRemote();
-  }, POLL_INTERVAL_MS);
+  const scheduleNextSync = () => {
+    syncTimerId = setTimeout(async () => {
+      await syncStateFromRemote();
+      scheduleNextSync();
+    }, getCurrentPollIntervalMs());
+  };
+
+  scheduleNextSync();
 
   if (!isVisibilitySyncBound) {
     document.addEventListener("visibilitychange", () => {

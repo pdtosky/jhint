@@ -5,5 +5,10 @@ window.APP_CONFIG = {
   supabaseTable: "app_state",
   supabaseRowId: "main",
   adminEmails: ["tape@jhint.net"],
-  requisitionEmails: []
+  requisitionEmails: [],
+  pollIntervalMs: 60000,
+  weekendPollIntervalMs: 300000,
+  holidayPollIntervalMs: 300000,
+  // 공휴일이나 회사 휴무일은 "YYYY-MM-DD" 형식으로 추가하세요.
+  holidayDates: []
 };
