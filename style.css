@@ -4364,7 +4364,7 @@ html {
 
 .admin-account-row {
   display: grid;
-  grid-template-columns: minmax(230px, 1.1fr) minmax(300px, 1.25fr) minmax(260px, 1fr) auto;
+  grid-template-columns: minmax(190px, 0.95fr) minmax(280px, 1.1fr) minmax(0, 1.35fr);
   gap: 10px;
   align-items: center;
   padding: 12px 14px;
@@ -4413,16 +4413,18 @@ html {
 }
 
 .admin-account-state {
-  grid-template-columns: repeat(2, max-content);
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  column-gap: 8px;
-  row-gap: 5px;
+  gap: 6px;
 }
 
-.admin-account-actions {
+.admin-account-row .admin-account-actions {
+  grid-column: 1 / -1;
   display: flex;
   gap: 8px;
   justify-content: flex-end;
+  min-width: 0;
 }
 
 .admin-account-actions .tab-btn,

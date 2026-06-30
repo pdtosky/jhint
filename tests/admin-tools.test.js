@@ -5,6 +5,7 @@ const path = require("node:path");
 const root = path.join(__dirname, "..");
 const indexHtml = fs.readFileSync(path.join(root, "index.html"), "utf8");
 const appJs = fs.readFileSync(path.join(root, "app.js"), "utf8");
+const styleCss = fs.readFileSync(path.join(root, "style.css"), "utf8");
 const swJs = fs.readFileSync(path.join(root, "sw.js"), "utf8");
 const packageJson = fs.readFileSync(path.join(root, "package.json"), "utf8");
 
@@ -45,6 +46,12 @@ assert(appJs.includes("ADMIN_ACCOUNT_ROLES"), "app.js should define account role
 assert(appJs.includes('data-admin-user-action="saveProfile"'), "account list should include a compact save action for name and role");
 assert(appJs.includes('"/api/admin-users"'), "app.js should call the admin users API route");
 assert(!appJs.includes("SUPABASE_SERVICE_ROLE_KEY"), "service role key must never be referenced in browser code");
+assert(
+  styleCss.includes("grid-template-columns: minmax(190px, 0.95fr) minmax(280px, 1.1fr) minmax(0, 1.35fr);"),
+  "account rows should reserve flexible space for status metadata without overlapping action buttons"
+);
+assert(styleCss.includes(".admin-account-row .admin-account-actions"), "account actions should occupy their own full-width grid area");
+assert(styleCss.includes("flex-wrap: wrap;"), "account status metadata should wrap instead of overlapping controls");
 
 const apiPath = path.join(root, "api", "admin-users.js");
 assert(fs.existsSync(apiPath), "api/admin-users.js should exist for safe server-side account management");
