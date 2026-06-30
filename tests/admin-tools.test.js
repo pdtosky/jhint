@@ -23,6 +23,16 @@ assert(appJs.includes("const adminLogList"), "app.js should bind adminLogList");
 assert(appJs.includes("function buildAdminLogEntries"), "app.js should build admin log entries");
 assert(appJs.includes("function renderAdminLogs"), "app.js should render admin logs");
 assert(appJs.includes("function renderAdminAccounts"), "app.js should render admin account management");
+const renderAdminAccountsStart = appJs.indexOf("function renderAdminAccounts");
+const nextAdminAccountsFunction = appJs.indexOf("function getShortAdminUserId", renderAdminAccountsStart);
+const renderAdminAccountsBody = appJs.slice(renderAdminAccountsStart, nextAdminAccountsFunction);
+assert(!renderAdminAccountsBody.includes("fetchAdminUsers"), "renderAdminAccounts should not trigger account list network requests while rendering");
+assert(appJs.includes("function ensureAdminUsersLoaded"), "app.js should load admin users from explicit tab/login/refresh events");
+assert(appJs.includes("ensureAdminUsersLoaded();"), "opening the account tab should request users explicitly");
+assert(
+  appJs.includes("ensureAdminUsersLoaded({ force: Boolean(options.reset) })"),
+  "admin login should force-refresh the account list outside the render cycle"
+);
 assert(appJs.includes('let adminActiveSection = "accounts"'), "admin page should open to account management by default");
 assert(appJs.includes("function resetAdminAccountListState"), "admin logout/login should reset account list state");
 assert(appJs.includes("activateAdminAccountsTab({ reset: true })"), "admin login should immediately show and refresh account management");

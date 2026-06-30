@@ -369,6 +369,9 @@ function bindEvents() {
     button.addEventListener("click", () => {
       adminActiveSection = button.dataset.adminSection || "overview";
       renderAdminPage();
+      if (adminActiveSection === "accounts") {
+        ensureAdminUsersLoaded();
+      }
     });
   });
 
@@ -4574,10 +4577,6 @@ function renderAdminLogs() {
 function renderAdminAccounts() {
   if (!adminAccountList) return;
 
-  if (adminActiveSection === "accounts" && isAdminLoggedIn && !adminUsersLoaded && !adminUsersLoading && !adminUsersErrorMessage) {
-    void fetchAdminUsers();
-  }
-
   if (adminUsersLoading) {
     adminAccountList.innerHTML = `<div class="empty-state">계정 목록을 불러오는 중입니다.</div>`;
     return;
@@ -4666,12 +4665,20 @@ function resetAdminAccountListState() {
   if (adminAccountStatus) adminAccountStatus.textContent = "관리자 계정 목록을 불러올 수 있습니다.";
 }
 
+function ensureAdminUsersLoaded(options = {}) {
+  if (!adminAccountList || !isAdminLoggedIn || adminActiveSection !== "accounts") return;
+  if (adminUsersLoading) return;
+  if (adminUsersLoaded && !options.force) return;
+  void fetchAdminUsers({ force: Boolean(options.force) });
+}
+
 function activateAdminAccountsTab(options = {}) {
   adminActiveSection = "accounts";
   if (options.reset) {
     resetAdminAccountListState();
   }
   renderAdminPage();
+  ensureAdminUsersLoaded({ force: Boolean(options.reset) });
 }
 
 async function getAdminAccessToken() {
