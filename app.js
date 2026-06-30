@@ -2,6 +2,12 @@
 const DUE_ALARM_KEY = "production-due-alarm-date-v1";
 const API_STATE_URL = "/api/state";
 const ADMIN_USERS_API_URL = "/api/admin-users";
+const ADMIN_ACCOUNT_ROLES = [
+  { value: "admin", label: "관리자" },
+  { value: "sales", label: "영업" },
+  { value: "worker", label: "작업자" },
+  { value: "viewer", label: "조회" }
+];
 const APP_CONFIG = window.APP_CONFIG || {};
 const POLL_INTERVAL_MS = Number(APP_CONFIG.pollIntervalMs || 60000);
 const HOLIDAY_POLL_INTERVAL_MS = Number(
@@ -383,6 +389,14 @@ function bindEvents() {
     adminAccountList.addEventListener("click", (event) => {
       const button = event.target.closest("[data-admin-user-action]");
       if (!button) return;
+      if (button.dataset.adminUserAction === "saveProfile") {
+        const row = button.closest("[data-admin-user-row]");
+        const userId = row?.dataset.userId || "";
+        const userEmail = row?.dataset.userEmail || "";
+        const displayName = row?.querySelector("[data-admin-user-name]")?.value || "";
+        const role = row?.querySelector("[data-admin-user-role]")?.value || "viewer";
+        void updateAdminUserProfile(userId, userEmail, displayName, role);
+      }
       if (button.dataset.adminUserAction === "delete") {
         void deleteAdminUser(button.dataset.userId || "", button.dataset.userEmail || "");
       }
@@ -2712,8 +2726,10 @@ async function handleAdminLogin(formElement) {
     return;
   }
 
-  const sessionEmail = data?.user?.email || data?.session?.user?.email || adminEmail;
-  if (!isAllowedAdminEmail(sessionEmail)) {
+  const sessionUser = data?.user || data?.session?.user || {};
+  const sessionEmail = sessionUser.email || adminEmail;
+  const sessionRole = sessionUser.app_metadata?.jhint_role || sessionUser.appMetadata?.jhint_role || "";
+  if (!isAllowedAdminEmail(sessionEmail) && sessionRole !== "admin") {
     await supabaseAuthClient.auth.signOut({ scope: "local" });
     showAppAlert("이 계정은 관리자 권한이 없습니다.");
     return;
@@ -4585,22 +4601,60 @@ function renderAdminAccounts() {
   adminAccountList.innerHTML = adminUsersCache
     .map((user) => {
       const email = user.email || "-";
+      const displayName = user.displayName || "";
+      const roleLabel = getAdminAccountRoleLabel(user.role);
       const isCurrentUser = String(email).toLowerCase() === String(currentAdminEmail).toLowerCase();
       return `
-        <article class="progress-card admin-account-card">
-          <div class="progress-top">
+        <article class="admin-account-row" data-admin-user-row data-user-id="${escapeHtml(user.id || "")}" data-user-email="${escapeHtml(email)}">
+          <div class="admin-account-identity">
+            <span class="admin-account-label">아이디</span>
             <strong>${escapeHtml(email)}</strong>
-            <span class="status-badge ${user.confirmedAt ? "status-working" : "status-warning"}">${user.confirmedAt ? "사용 가능" : "확인 대기"}</span>
+            <span class="admin-account-sub">이름 ${escapeHtml(displayName || "미입력")}</span>
           </div>
-          <div class="admin-compact-meta">
+          <div class="admin-account-fields">
+            <label>
+              사용자 이름
+              <input type="text" value="${escapeHtml(displayName)}" placeholder="이름 입력" data-admin-user-name />
+            </label>
+            <label>
+              권한
+              <select data-admin-user-role>
+                ${renderAdminAccountRoleOptions(user.role)}
+              </select>
+            </label>
+          </div>
+          <div class="admin-account-state">
+            <span class="status-badge ${user.confirmedAt ? "status-working" : "status-warning"}">${user.confirmedAt ? "사용 가능" : "확인 대기"}</span>
+            <span class="status-badge done">${escapeHtml(roleLabel)}</span>
             <span>생성 ${user.createdAt ? formatDateTime(user.createdAt) : "-"}</span>
             <span>최근 로그인 ${user.lastSignInAt ? formatDateTime(user.lastSignInAt) : "-"}</span>
+            <span>UID ${escapeHtml(getShortAdminUserId(user.id))}</span>
             ${isCurrentUser ? "<span>현재 로그인 계정</span>" : ""}
           </div>
-          <button type="button" class="danger-action-btn" data-admin-user-action="delete" data-user-id="${escapeHtml(user.id || "")}" data-user-email="${escapeHtml(email)}" ${isCurrentUser ? "disabled" : ""}>삭제</button>
+          <div class="admin-account-actions">
+            <button type="button" class="tab-btn" data-admin-user-action="saveProfile">저장</button>
+            <button type="button" class="danger-action-btn" data-admin-user-action="delete" data-user-id="${escapeHtml(user.id || "")}" data-user-email="${escapeHtml(email)}" ${isCurrentUser ? "disabled" : ""}>삭제</button>
+          </div>
         </article>
       `;
     })
+    .join("");
+}
+
+function getShortAdminUserId(userId) {
+  const safeId = String(userId || "").trim();
+  if (!safeId) return "-";
+  return safeId.slice(0, 8);
+}
+
+function getAdminAccountRoleLabel(role) {
+  return ADMIN_ACCOUNT_ROLES.find((item) => item.value === role)?.label || "조회";
+}
+
+function renderAdminAccountRoleOptions(role) {
+  const activeRole = ADMIN_ACCOUNT_ROLES.some((item) => item.value === role) ? role : "viewer";
+  return ADMIN_ACCOUNT_ROLES
+    .map((item) => `<option value="${escapeHtml(item.value)}"${item.value === activeRole ? " selected" : ""}>${escapeHtml(item.label)}</option>`)
     .join("");
 }
 
@@ -4627,9 +4681,16 @@ async function getAdminAccessToken() {
 }
 
 function normalizeAdminUser(user) {
+  const userMetadata = user.user_metadata || user.userMetadata || user.raw_user_meta_data || {};
+  const appMetadata = user.app_metadata || user.appMetadata || user.raw_app_meta_data || {};
+  const role = ADMIN_ACCOUNT_ROLES.some((item) => item.value === appMetadata.jhint_role)
+    ? appMetadata.jhint_role
+    : "viewer";
   return {
     id: user.id || "",
     email: user.email || "",
+    displayName: userMetadata.display_name || userMetadata.name || "",
+    role,
     createdAt: user.created_at || user.createdAt || "",
     confirmedAt: user.email_confirmed_at || user.confirmed_at || user.confirmedAt || "",
     lastSignInAt: user.last_sign_in_at || user.lastSignInAt || ""
@@ -4713,7 +4774,7 @@ async function createAdminUser(formElement) {
   }
 
   try {
-    await requestAdminUsersApi("POST", { email, password });
+    await requestAdminUsersApi("POST", { email, password, role: "viewer" });
     state.activities.unshift({
       id: crypto.randomUUID(),
       type: "accountCreate",
@@ -4728,6 +4789,44 @@ async function createAdminUser(formElement) {
     await fetchAdminUsers({ force: true });
     renderAdminLogs();
     showAppAlert("계정이 생성되었습니다.");
+  } catch (error) {
+    showAppAlert(error.message);
+  }
+}
+
+async function updateAdminUserProfile(userId, userEmail, displayName, role) {
+  if (!isAdminLoggedIn) {
+    showAppAlert("관리자 로그인 후 계정 정보를 수정할 수 있습니다.");
+    return;
+  }
+
+  if (!userId) {
+    showAppAlert("수정할 계정 정보를 찾을 수 없습니다.");
+    return;
+  }
+
+  const selectedRole = ADMIN_ACCOUNT_ROLES.some((item) => item.value === role) ? role : "viewer";
+  const cleanName = String(displayName || "").trim();
+
+  try {
+    await requestAdminUsersApi("PATCH", {
+      id: userId,
+      displayName: cleanName,
+      role: selectedRole
+    });
+    state.activities.unshift({
+      id: crypto.randomUUID(),
+      type: "accountUpdate",
+      adminEmail: currentAdminEmail,
+      targetEmail: userEmail,
+      timestamp: new Date().toISOString(),
+      message: `계정 정보가 수정되었습니다. 권한: ${getAdminAccountRoleLabel(selectedRole)}`
+    });
+    await persist();
+    adminUsersLoaded = false;
+    await fetchAdminUsers({ force: true });
+    renderAdminLogs();
+    showAppAlert("계정 정보가 저장되었습니다.");
   } catch (error) {
     showAppAlert(error.message);
   }
@@ -9210,8 +9309,10 @@ async function handleAdminLogin(formElement) {
     return;
   }
 
-  const sessionEmail = data?.user?.email || data?.session?.user?.email || adminEmail;
-  if (!isAllowedAdminEmail(sessionEmail)) {
+  const sessionUser = data?.user || data?.session?.user || {};
+  const sessionEmail = sessionUser.email || adminEmail;
+  const sessionRole = sessionUser.app_metadata?.jhint_role || sessionUser.appMetadata?.jhint_role || "";
+  if (!isAllowedAdminEmail(sessionEmail) && sessionRole !== "admin") {
     await supabaseAuthClient.auth.signOut({ scope: "local" });
     showAppAlert("이 계정은 관리자 권한이 없습니다.");
     return;

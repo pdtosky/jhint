@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="style.css?v=20260629-09" />
+<link rel="stylesheet" href="style.css?v=20260630-01" />
 </head>
 <body>
   <div class="page-shell">
@@ -582,11 +582,11 @@
               <section class="admin-block" data-admin-panel="accounts">
                 <div class="section-head compact">
                   <h3>계정 관리</h3>
-                  <p>실제 로그인 계정 생성, 목록 확인, 삭제</p>
+                  <p>로그인 계정 생성, 이름 입력, 권한 설정, 삭제</p>
                 </div>
                 <div class="admin-account-notice">
                   <strong>보안 안내</strong>
-                  <span>계정 생성과 삭제는 서버 API에서만 처리합니다. Vercel 환경변수에 SUPABASE_SERVICE_ROLE_KEY가 있어야 작동합니다.</span>
+                  <span>계정 생성, 이름 수정, 권한 변경, 삭제는 서버 API에서만 처리합니다. 권한은 관리자, 영업, 작업자, 조회로 구분됩니다.</span>
                 </div>
                 <form id="adminCreateUserForm" class="admin-account-form">
                   <label>
@@ -695,7 +695,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="config.js?v=20260629-02"></script>
   <script src="sop-seed.js?v=20260629-02"></script>
-<script src="app.js?v=20260629-09"></script>
+<script src="app.js?v=20260630-01"></script>
 </body>
 </html>
 

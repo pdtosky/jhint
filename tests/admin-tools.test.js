@@ -33,9 +33,16 @@ assert(
   activeAdminLoginBody.includes("activateAdminAccountsTab({ reset: true })"),
   "the active final admin login handler should immediately show and refresh account management"
 );
+assert(
+  activeAdminLoginBody.includes('jhint_role') && activeAdminLoginBody.includes('sessionRole !== "admin"'),
+  "the active final admin login handler should allow users with the admin role"
+);
 assert(appJs.includes("async function fetchAdminUsers"), "app.js should fetch users through the server API");
 assert(appJs.includes("async function createAdminUser"), "app.js should create users through the server API");
+assert(appJs.includes("async function updateAdminUserProfile"), "app.js should update user names and roles through the server API");
 assert(appJs.includes("async function deleteAdminUser"), "app.js should delete users through the server API");
+assert(appJs.includes("ADMIN_ACCOUNT_ROLES"), "app.js should define account role options");
+assert(appJs.includes('data-admin-user-action="saveProfile"'), "account list should include a compact save action for name and role");
 assert(appJs.includes('"/api/admin-users"'), "app.js should call the admin users API route");
 assert(!appJs.includes("SUPABASE_SERVICE_ROLE_KEY"), "service role key must never be referenced in browser code");
 
@@ -49,6 +56,9 @@ assert(
   "missing secret-key message should explain both supported env names"
 );
 assert(apiSource.includes("/auth/v1/admin/users"), "API route should use Supabase Auth admin users endpoint");
+assert(apiSource.includes('"PATCH"'), "API route should support profile and role updates");
+assert(apiSource.includes("app_metadata"), "API route should store roles in app_metadata");
+assert(apiSource.includes("user_metadata"), "API route should store display names in user_metadata");
 assert(apiSource.includes("verifyAdminRequest"), "API route should verify the caller before admin actions");
 assert(swJs.includes('pathname.startsWith("/api/")'), "service worker should not cache admin API responses");
 

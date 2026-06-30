@@ -4358,12 +4358,77 @@ html {
   margin-bottom: 12px;
 }
 
-.admin-account-card {
-  position: relative;
+.admin-account-list {
+  gap: 8px;
 }
 
-.admin-account-card .danger-action-btn {
-  justify-self: end;
+.admin-account-row {
+  display: grid;
+  grid-template-columns: minmax(230px, 1.1fr) minmax(300px, 1.25fr) minmax(260px, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.86);
+}
+
+.admin-account-identity,
+.admin-account-state {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.admin-account-label,
+.admin-account-sub,
+.admin-account-state span:not(.status-badge) {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.admin-account-identity strong {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 1.02rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-account-fields {
+  display: grid;
+  grid-template-columns: minmax(130px, 1fr) minmax(120px, 0.72fr);
+  gap: 8px;
+}
+
+.admin-account-fields label {
+  margin: 0;
+}
+
+.admin-account-fields input,
+.admin-account-fields select {
+  min-height: 42px;
+  padding: 10px 12px;
+  border-radius: 14px;
+}
+
+.admin-account-state {
+  grid-template-columns: repeat(2, max-content);
+  align-items: center;
+  column-gap: 8px;
+  row-gap: 5px;
+}
+
+.admin-account-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.admin-account-actions .tab-btn,
+.admin-account-actions .danger-action-btn {
+  min-height: 42px;
+  padding: 0 16px;
 }
 
 .admin-overview-block {
@@ -4504,6 +4569,28 @@ html {
   [data-admin-panel="journal"] .activity-feed {
     grid-template-columns: 1fr;
   }
+
+  .admin-account-row {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .admin-account-fields {
+    grid-template-columns: 1fr 0.8fr;
+  }
+
+  .admin-account-state {
+    grid-template-columns: repeat(2, minmax(0, max-content));
+  }
+
+  .admin-account-actions {
+    justify-content: stretch;
+  }
+
+  .admin-account-actions .tab-btn,
+  .admin-account-actions .danger-action-btn {
+    flex: 1;
+  }
 }
 
 @media (max-width: 1180px) {
@@ -4532,6 +4619,11 @@ html {
 
   .admin-log-card,
   .admin-account-form {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-account-fields,
+  .admin-account-state {
     grid-template-columns: 1fr;
   }
 

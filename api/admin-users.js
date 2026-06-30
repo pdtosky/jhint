@@ -1,5 +1,6 @@
 const DEFAULT_SUPABASE_URL = "https://fftdjnjnvusgrbbfbwcw.supabase.co";
 const DEFAULT_ADMIN_EMAIL = "tape@jhint.net";
+const ADMIN_ROLES = new Set(["admin", "sales", "worker", "viewer"]);
 
 function sendJson(response, statusCode, payload) {
   response.statusCode = statusCode;
@@ -21,6 +22,15 @@ function getAdminEmails() {
     .split(/[,\s]+/)
     .map((email) => email.trim().toLowerCase())
     .filter(Boolean);
+}
+
+function normalizeRole(value, fallback = "viewer") {
+  const role = String(value || "").trim().toLowerCase();
+  return ADMIN_ROLES.has(role) ? role : fallback;
+}
+
+function parseDisplayName(value) {
+  return String(value || "").trim().slice(0, 60);
 }
 
 function readRequestBody(request) {
@@ -72,7 +82,8 @@ async function verifyAdminRequest(request, supabaseUrl, serviceRoleKey) {
     return { ok: false, status: 401, message: "관리자 로그인 세션을 확인할 수 없습니다." };
   }
 
-  if (!getAdminEmails().includes(email)) {
+  const role = normalizeRole(userPayload.app_metadata?.jhint_role, "");
+  if (!getAdminEmails().includes(email) && role !== "admin") {
     return { ok: false, status: 403, message: "이 계정은 관리자 권한이 없습니다." };
   }
 
@@ -108,6 +119,8 @@ async function createUser(request, supabaseUrl, serviceRoleKey) {
   const body = await readRequestBody(request);
   const email = String(body.email || "").trim().toLowerCase();
   const password = String(body.password || "").trim();
+  const displayName = parseDisplayName(body.displayName);
+  const role = normalizeRole(body.role);
 
   if (!email || !password) {
     const error = new Error("이메일과 비밀번호를 입력해 주세요.");
@@ -128,7 +141,58 @@ async function createUser(request, supabaseUrl, serviceRoleKey) {
       body: JSON.stringify({
         email,
         password,
-        email_confirm: true
+        email_confirm: true,
+        app_metadata: {
+          jhint_role: role
+        },
+        user_metadata: {
+          display_name: displayName,
+          name: displayName
+        }
+      })
+    },
+    supabaseUrl,
+    serviceRoleKey
+  );
+}
+
+async function updateUser(request, supabaseUrl, serviceRoleKey) {
+  const body = await readRequestBody(request);
+  const userId = String(body.id || "").trim();
+  const role = normalizeRole(body.role, "");
+  const displayName = parseDisplayName(body.displayName);
+
+  if (!userId) {
+    const error = new Error("수정할 계정 ID가 없습니다.");
+    error.status = 400;
+    throw error;
+  }
+
+  if (!role) {
+    const error = new Error("계정 권한을 선택해 주세요.");
+    error.status = 400;
+    throw error;
+  }
+
+  const users = await listUsers(supabaseUrl, serviceRoleKey);
+  const currentUser = users.find((user) => user.id === userId) || {};
+  const currentAppMetadata = currentUser.app_metadata || currentUser.raw_app_meta_data || {};
+  const currentUserMetadata = currentUser.user_metadata || currentUser.raw_user_meta_data || {};
+
+  return callSupabaseAdmin(
+    `/auth/v1/admin/users/${encodeURIComponent(userId)}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({
+        app_metadata: {
+          ...currentAppMetadata,
+          jhint_role: role
+        },
+        user_metadata: {
+          ...currentUserMetadata,
+          display_name: displayName,
+          name: displayName
+        }
       })
     },
     supabaseUrl,
@@ -155,8 +219,8 @@ async function deleteUser(request, adminUserId, supabaseUrl, serviceRoleKey) {
 }
 
 module.exports = async function adminUsersHandler(request, response) {
-  if (!["GET", "POST", "DELETE"].includes(request.method)) {
-    response.setHeader("Allow", "GET, POST, DELETE");
+  if (!["GET", "POST", "PATCH", "DELETE"].includes(request.method)) {
+    response.setHeader("Allow", "GET, POST, PATCH, DELETE");
     sendJson(response, 405, { message: "지원하지 않는 요청입니다." });
     return;
   }
@@ -186,6 +250,12 @@ module.exports = async function adminUsersHandler(request, response) {
     if (request.method === "POST") {
       const user = await createUser(request, supabaseUrl, serviceRoleKey);
       sendJson(response, 201, { user });
+      return;
+    }
+
+    if (request.method === "PATCH") {
+      const user = await updateUser(request, supabaseUrl, serviceRoleKey);
+      sendJson(response, 200, { user });
       return;
     }
 
