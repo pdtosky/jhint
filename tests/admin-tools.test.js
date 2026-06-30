@@ -24,6 +24,15 @@ assert(appJs.includes("function buildAdminLogEntries"), "app.js should build adm
 assert(appJs.includes("function renderAdminLogs"), "app.js should render admin logs");
 assert(appJs.includes("function renderAdminAccounts"), "app.js should render admin account management");
 assert(appJs.includes("function isAdminAccountEditorFocused"), "account management should preserve in-progress name and role edits during background renders");
+assert(appJs.includes("function shouldRenderAdminAccountsInPageRender"), "admin page renders should not redraw account lists during normal polling");
+const renderAdminPageStart = appJs.indexOf("function renderAdminPage");
+const nextAdminPageFunction = appJs.indexOf("function renderSopPage", renderAdminPageStart);
+const renderAdminPageBody = appJs.slice(renderAdminPageStart, nextAdminPageFunction);
+assert(
+  renderAdminPageBody.includes("shouldRenderAdminAccountsInPageRender(options)") &&
+    renderAdminPageBody.includes("renderAdminAccounts(options.accountOptions || {})"),
+  "renderAdminPage should guard account list redraws during automatic background renders"
+);
 const renderAdminAccountsStart = appJs.indexOf("function renderAdminAccounts");
 const nextAdminAccountsFunction = appJs.indexOf("function getShortAdminUserId", renderAdminAccountsStart);
 const renderAdminAccountsBody = appJs.slice(renderAdminAccountsStart, nextAdminAccountsFunction);

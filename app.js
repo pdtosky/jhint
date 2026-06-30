@@ -3488,7 +3488,15 @@ function renderAdminSession() {
   }
 }
 
-function renderAdminPage() {
+function shouldRenderAdminAccountsInPageRender(options = {}) {
+  if (options.forceAccounts) return true;
+  if (!adminAccountList) return false;
+  if (adminActiveSection !== "accounts") return false;
+  if (adminUsersLoading || adminUsersErrorMessage || !adminUsersLoaded) return true;
+  return !adminAccountList.innerHTML.trim();
+}
+
+function renderAdminPage(options = {}) {
   adminMonthInput.value = adminMonthFilter === "all" ? "" : adminMonthFilter;
   if (adminAllMonthsBtn) adminAllMonthsBtn.classList.toggle("active", adminMonthFilter === "all");
   if (adminSearchInput) adminSearchInput.value = adminSearchKeyword;
@@ -3500,7 +3508,9 @@ function renderAdminPage() {
   renderJournalList();
   renderWorkerEfficiency();
   renderAdminLogs();
-  renderAdminAccounts();
+  if (shouldRenderAdminAccountsInPageRender(options)) {
+    renderAdminAccounts(options.accountOptions || {});
+  }
 }
 
 function renderSopPage() {
@@ -4677,6 +4687,7 @@ function resetAdminAccountListState() {
   adminUsersLoading = false;
   adminUsersErrorMessage = "";
   if (adminAccountStatus) adminAccountStatus.textContent = "관리자 계정 목록을 불러올 수 있습니다.";
+  if (adminAccountList) adminAccountList.innerHTML = "";
 }
 
 function ensureAdminUsersLoaded(options = {}) {
@@ -4691,7 +4702,7 @@ function activateAdminAccountsTab(options = {}) {
   if (options.reset) {
     resetAdminAccountListState();
   }
-  renderAdminPage();
+  renderAdminPage({ forceAccounts: true });
   ensureAdminUsersLoaded({ force: Boolean(options.reset) });
 }
 
