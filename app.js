@@ -122,6 +122,7 @@ let isDashboardListOpen = false;
 let isDashboardProgressOpen = false;
 let calendarCursor = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 let adminMonthFilter = "all";
+let adminJournalDateFilter = "";
 let adminActiveSection = "accounts";
 let adminSearchKeyword = "";
 let adminLogSearchKeyword = "";
@@ -224,6 +225,10 @@ const adminMonthInput = document.getElementById("adminMonthInput");
 const adminAllMonthsBtn = document.getElementById("adminAllMonthsBtn");
 const adminSearchInput = document.getElementById("adminSearchInput");
 const adminOverview = document.getElementById("adminOverview");
+const adminJournalDateInput = document.getElementById("adminJournalDateInput");
+const adminJournalTodayBtn = document.getElementById("adminJournalTodayBtn");
+const adminJournalClearDayBtn = document.getElementById("adminJournalClearDayBtn");
+const journalSummary = document.getElementById("journalSummary");
 const adminLogSearchInput = document.getElementById("adminLogSearchInput");
 const adminLogList = document.getElementById("adminLogList");
 const adminCreateUserForm = document.getElementById("adminCreateUserForm");
@@ -341,13 +346,35 @@ function bindEvents() {
 
   adminMonthInput.addEventListener("change", () => {
     adminMonthFilter = adminMonthInput.value || toMonthKey(new Date());
+    if (adminJournalDateFilter && adminMonthFilter !== "all" && toMonthKey(adminJournalDateFilter) !== adminMonthFilter) {
+      adminJournalDateFilter = "";
+    }
     renderAdminPage();
   });
 
   if (adminAllMonthsBtn) {
     adminAllMonthsBtn.addEventListener("click", () => {
       adminMonthFilter = "all";
+      adminJournalDateFilter = "";
       renderAdminPage();
+    });
+  }
+
+  if (adminJournalDateInput) {
+    adminJournalDateInput.addEventListener("change", () => {
+      setAdminJournalDateFilter(adminJournalDateInput.value || "");
+    });
+  }
+
+  if (adminJournalTodayBtn) {
+    adminJournalTodayBtn.addEventListener("click", () => {
+      setAdminJournalDateFilter(toDateKey(new Date()));
+    });
+  }
+
+  if (adminJournalClearDayBtn) {
+    adminJournalClearDayBtn.addEventListener("click", () => {
+      setAdminJournalDateFilter("");
     });
   }
 
@@ -3496,10 +3523,29 @@ function shouldRenderAdminAccountsInPageRender(options = {}) {
   return !adminAccountList.innerHTML.trim();
 }
 
+function setAdminJournalDateFilter(dateKey) {
+  adminJournalDateFilter = dateKey || "";
+  if (adminJournalDateFilter) {
+    adminMonthFilter = toMonthKey(adminJournalDateFilter);
+  }
+  renderAdminPage();
+}
+
 function renderAdminPage(options = {}) {
   adminMonthInput.value = adminMonthFilter === "all" ? "" : adminMonthFilter;
   if (adminAllMonthsBtn) adminAllMonthsBtn.classList.toggle("active", adminMonthFilter === "all");
   if (adminSearchInput) adminSearchInput.value = adminSearchKeyword;
+  if (adminJournalDateInput) {
+    adminJournalDateInput.value = adminJournalDateFilter;
+    if (adminMonthFilter !== "all") {
+      const [year, month] = adminMonthFilter.split("-");
+      adminJournalDateInput.min = `${year}-${month}-01`;
+      adminJournalDateInput.max = `${year}-${month}-${String(new Date(Number(year), Number(month), 0).getDate()).padStart(2, "0")}`;
+    } else {
+      adminJournalDateInput.removeAttribute("min");
+      adminJournalDateInput.removeAttribute("max");
+    }
+  }
   if (adminLogSearchInput) adminLogSearchInput.value = adminLogSearchKeyword;
   renderAdminSections();
   renderAdminOverview();
@@ -8884,18 +8930,28 @@ function buildEquipmentSummary() {
     });
 }
 
+function getJournalDateKey(order) {
+  const baseDate = order.endTime || order.startTime || order.orderDate || order.dueDate || "";
+  return baseDate ? String(baseDate).slice(0, 10) : "";
+}
+
 function buildProductionJournal() {
   return getSortedOrders(getFilteredAdminMonthOrders())
     .filter((order) => order.workerName || order.productionQty || order.totalHitQty || order.workQty || order.workHitQty || order.pauseReason)
     .map((order) => ({
-      date: (order.endTime || order.startTime || order.orderDate || "").slice(0, 10),
-      workerName: order.workerName || "관리자",
+      date: getJournalDateKey(order),
+      company: order.company || "-",
+      product: order.product || "-",
+      dueDate: order.dueDate || "",
+      workerName: order.workerName || "작업자 미지정",
       machineName: order.machineName || "",
-      qty: Number(order.productionQty || 0),
-      hitQty: Number(order.totalHitQty || 0),
+      qty: Number(order.productionQty || order.workQty || 0),
+      hitQty: Number(order.totalHitQty || order.hitQty || order.workHitQty || 0),
       elapsedMs: Number(order.elapsedMs || 0),
       statusText: getOrderStatusTextClean(order),
-      orderText: `${order.company} / ${order.product}`,
+      startText: order.startTime ? formatDateTime(order.startTime) : "-",
+      endText: order.endTime ? formatDateTime(order.endTime) : order.status === "working" ? "진행 중" : "-",
+      orderText: `${order.company || "-"} / ${order.product || "-"}`,
       note: order.pauseReason
         ? `중지 사유: ${order.pauseReason}`
         : order.status === "complete"
@@ -8955,59 +9011,127 @@ function renderMoldList() {
     .join("");
 }
 
+function getFilteredProductionJournalRows() {
+  const rows = buildProductionJournal().filter((item) => item.date);
+  if (!adminJournalDateFilter) return rows;
+  return rows.filter((item) => item.date === adminJournalDateFilter);
+}
+
+function renderJournalSummary(rows) {
+  if (!journalSummary) return;
+
+  if (!rows.length) {
+    journalSummary.innerHTML = `<div class="empty-state">선택한 조건의 생산일지가 없습니다.</div>`;
+    return;
+  }
+
+  const workerMap = rows.reduce((map, item) => {
+    const workerName = item.workerName || "작업자 미지정";
+    if (!map.has(workerName)) {
+      map.set(workerName, { workerName, jobCount: 0, qty: 0, hitQty: 0, elapsedMs: 0, tasks: new Set() });
+    }
+    const worker = map.get(workerName);
+    worker.jobCount += 1;
+    worker.qty += Number(item.qty || 0);
+    worker.hitQty += Number(item.hitQty || 0);
+    worker.elapsedMs += Number(item.elapsedMs || 0);
+    worker.tasks.add(item.product || item.orderText || "-");
+    return map;
+  }, new Map());
+
+  const totalQty = rows.reduce((sum, item) => sum + Number(item.qty || 0), 0);
+  const totalHitQty = rows.reduce((sum, item) => sum + Number(item.hitQty || 0), 0);
+  const totalMs = rows.reduce((sum, item) => sum + Number(item.elapsedMs || 0), 0);
+  const title = adminJournalDateFilter
+    ? `${formatDate(adminJournalDateFilter)} ${getKoreanWeekday(adminJournalDateFilter)}`
+    : adminMonthFilter === "all"
+      ? "전체 기간 생산일지"
+      : `${adminMonthFilter.replace("-", "년 ")}월 생산일지`;
+
+  journalSummary.innerHTML = `
+    <article class="journal-summary-main">
+      <span>선택 기준</span>
+      <strong>${escapeHtml(title)}</strong>
+      <p>작업자 ${workerMap.size}명 · 작업 ${rows.length}건 · 생산 ${totalQty.toLocaleString()} · 타발 ${totalHitQty.toLocaleString()} · ${formatElapsedMs(totalMs)}</p>
+    </article>
+    ${[...workerMap.values()]
+      .sort((a, b) => b.jobCount - a.jobCount || a.workerName.localeCompare(b.workerName, "ko-KR"))
+      .map((worker) => {
+        const taskPreview = [...worker.tasks].slice(0, 2).join(" / ");
+        return `
+          <article class="journal-summary-worker">
+            <strong>${escapeHtml(worker.workerName)}</strong>
+            <span>작업 ${worker.jobCount}건 · ${formatElapsedMs(worker.elapsedMs)}</span>
+            <p>${escapeHtml(taskPreview || "-")}</p>
+            <small>생산 ${worker.qty.toLocaleString()} · 타발 ${worker.hitQty.toLocaleString()}</small>
+          </article>
+        `;
+      })
+      .join("")}
+  `;
+}
+
 function renderJournalList() {
-  const rows = buildProductionJournal();
+  const rows = getFilteredProductionJournalRows();
+  renderJournalSummary(rows);
+
   if (!rows.length) {
     journalList.innerHTML = `<div class="empty-state">작업자 입력 기반 생산일지가 없습니다.</div>`;
     return;
   }
 
-  const workerGroups = rows.reduce((map, item) => {
-    const workerName = item.workerName || "작업자 미지정";
-    if (!map.has(workerName)) {
-      map.set(workerName, []);
+  const dayGroups = rows.reduce((map, item) => {
+    const dateKey = item.date || "날짜 미지정";
+    if (!map.has(dateKey)) {
+      map.set(dateKey, []);
     }
-    map.get(workerName).push(item);
+    map.get(dateKey).push(item);
     return map;
   }, new Map());
 
-  journalList.innerHTML = [...workerGroups.entries()]
-    .sort(([leftName], [rightName]) => leftName.localeCompare(rightName, "ko-KR"))
-    .map(([workerName, items]) => {
-      const sortedItems = items.sort((a, b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime());
-      const totalQty = sortedItems.reduce((sum, item) => sum + Number(item.qty || 0), 0);
-      const totalHitQty = sortedItems.reduce((sum, item) => sum + Number(item.hitQty || 0), 0);
-      const totalMs = sortedItems.reduce((sum, item) => sum + Number(item.elapsedMs || 0), 0);
+  journalList.innerHTML = [...dayGroups.entries()]
+    .sort(([leftDate], [rightDate]) => new Date(rightDate || 0).getTime() - new Date(leftDate || 0).getTime())
+    .map(([dateKey, items]) => {
+      const workerCount = new Set(items.map((item) => item.workerName).filter(Boolean)).size;
+      const totalQty = items.reduce((sum, item) => sum + Number(item.qty || 0), 0);
+      const totalHitQty = items.reduce((sum, item) => sum + Number(item.hitQty || 0), 0);
+      const totalMs = items.reduce((sum, item) => sum + Number(item.elapsedMs || 0), 0);
 
       return `
-        <details class="journal-worker-group">
-          <summary>
-            <span class="journal-worker-name">${escapeHtml(workerName)}</span>
-            <span class="journal-worker-summary">작업 ${sortedItems.length}건 · 생산 ${totalQty.toLocaleString()} · 타발 ${totalHitQty.toLocaleString()} · ${formatElapsedMs(totalMs)}</span>
-          </summary>
-          <div class="journal-worker-list">
-            ${sortedItems
+        <section class="journal-day-group">
+          <div class="journal-day-title">
+            <div>
+              <strong>${formatDate(dateKey)}</strong>
+              <span>${getKoreanWeekday(dateKey)}</span>
+            </div>
+            <p>작업자 ${workerCount}명 · 작업 ${items.length}건 · 생산 ${totalQty.toLocaleString()} · 타발 ${totalHitQty.toLocaleString()} · ${formatElapsedMs(totalMs)}</p>
+          </div>
+          <div class="journal-day-list">
+            ${items
+              .sort((a, b) => a.workerName.localeCompare(b.workerName, "ko-KR") || a.product.localeCompare(b.product, "ko-KR"))
               .map((item) => `
                 <article class="journal-work-card">
                   <div class="journal-work-date">
-                    <strong>${formatDate(item.date)}</strong>
-                    <span>${getKoreanWeekday(item.date)}</span>
+                    <strong>${escapeHtml(item.workerName)}</strong>
+                    <span>장비 ${escapeHtml(item.machineName || "-")}</span>
                   </div>
                   <div class="journal-work-main">
-                    <strong>${escapeHtml(item.orderText)}</strong>
-                    <span>${escapeHtml(item.statusText)} · 장비 ${escapeHtml(item.machineName || "-")}</span>
+                    <strong>${escapeHtml(item.product)}</strong>
+                    <span>${escapeHtml(item.company)} · ${escapeHtml(item.statusText)} · 납기 ${item.dueDate ? formatDate(item.dueDate) : "-"}</span>
                   </div>
                   <div class="journal-work-numbers">
                     <span>생산 ${Number(item.qty || 0).toLocaleString()}</span>
                     <span>타발 ${Number(item.hitQty || 0).toLocaleString()}</span>
                     <span>작업시간 ${formatElapsedMs(item.elapsedMs || 0)}</span>
+                    <span>시작 ${escapeHtml(item.startText)}</span>
+                    <span>완료 ${escapeHtml(item.endText)}</span>
                   </div>
                   <p>${escapeHtml(item.note)}</p>
                 </article>
               `)
               .join("")}
           </div>
-        </details>
+        </section>
       `;
     })
     .join("");

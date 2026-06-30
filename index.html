@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="style.css?v=20260630-05" />
+<link rel="stylesheet" href="style.css?v=20260630-06" />
 </head>
 <body>
   <div class="page-shell">
@@ -550,8 +550,17 @@
               <section class="admin-block" data-admin-panel="journal">
                 <div class="section-head compact">
                   <h3>&#49373;&#49328;&#51068;&#51648;</h3>
-                  <p>&#51089;&#50629;&#51088;&#44032; &#51077;&#47141;&#54620; &#51060;&#47141; &#44592;&#51456; &#51068;&#51648;</p>
+                  <p>월과 일을 선택해 매일 누가 무엇을 작업했는지 확인</p>
                 </div>
+                <div class="journal-filter-bar">
+                  <label>
+                    조회 일
+                    <input type="date" id="adminJournalDateInput" />
+                  </label>
+                  <button type="button" class="tab-btn" id="adminJournalTodayBtn">오늘 보기</button>
+                  <button type="button" class="tab-btn" id="adminJournalClearDayBtn">월 전체 보기</button>
+                </div>
+                <div id="journalSummary" class="journal-summary-grid"></div>
                 <div id="journalList" class="activity-feed"></div>
               </section>
 
@@ -695,7 +704,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="config.js?v=20260629-02"></script>
   <script src="sop-seed.js?v=20260629-02"></script>
-<script src="app.js?v=20260630-05"></script>
+<script src="app.js?v=20260630-06"></script>
 </body>
 </html>
 
