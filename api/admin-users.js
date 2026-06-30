@@ -90,6 +90,16 @@ async function verifyAdminRequest(request, supabaseUrl, serviceRoleKey) {
   return { ok: true, email, userId: userPayload.id || "" };
 }
 
+function getSupabaseErrorMessage(payload) {
+  return (
+    payload.msg ||
+    payload.message ||
+    payload.error_description ||
+    payload.error ||
+    "Supabase 계정 관리 요청에 실패했습니다."
+  );
+}
+
 async function callSupabaseAdmin(path, options, supabaseUrl, serviceRoleKey) {
   const response = await fetch(`${supabaseUrl}${path}`, {
     ...options,
@@ -102,8 +112,7 @@ async function callSupabaseAdmin(path, options, supabaseUrl, serviceRoleKey) {
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
-    const message = payload.msg || payload.message || payload.error_description || payload.error || "Supabase 계정 관리 요청에 실패했습니다.";
-    const error = new Error(message);
+    const error = new Error(getSupabaseErrorMessage(payload));
     error.status = response.status;
     throw error;
   }
@@ -182,7 +191,7 @@ async function updateUser(request, supabaseUrl, serviceRoleKey) {
   return callSupabaseAdmin(
     `/auth/v1/admin/users/${encodeURIComponent(userId)}`,
     {
-      method: "PATCH",
+      method: "PUT",
       body: JSON.stringify({
         app_metadata: {
           ...currentAppMetadata,

@@ -23,10 +23,15 @@ assert(appJs.includes("const adminLogList"), "app.js should bind adminLogList");
 assert(appJs.includes("function buildAdminLogEntries"), "app.js should build admin log entries");
 assert(appJs.includes("function renderAdminLogs"), "app.js should render admin logs");
 assert(appJs.includes("function renderAdminAccounts"), "app.js should render admin account management");
+assert(appJs.includes("function isAdminAccountEditorFocused"), "account management should preserve in-progress name and role edits during background renders");
 const renderAdminAccountsStart = appJs.indexOf("function renderAdminAccounts");
 const nextAdminAccountsFunction = appJs.indexOf("function getShortAdminUserId", renderAdminAccountsStart);
 const renderAdminAccountsBody = appJs.slice(renderAdminAccountsStart, nextAdminAccountsFunction);
 assert(!renderAdminAccountsBody.includes("fetchAdminUsers"), "renderAdminAccounts should not trigger account list network requests while rendering");
+assert(
+  renderAdminAccountsBody.includes("isAdminAccountEditorFocused()") && renderAdminAccountsBody.includes("!options.force"),
+  "renderAdminAccounts should not replace focused account editor fields during polling renders"
+);
 assert(appJs.includes("function ensureAdminUsersLoaded"), "app.js should load admin users from explicit tab/login/refresh events");
 assert(appJs.includes("ensureAdminUsersLoaded();"), "opening the account tab should request users explicitly");
 assert(
@@ -74,6 +79,11 @@ assert(
 );
 assert(apiSource.includes("/auth/v1/admin/users"), "API route should use Supabase Auth admin users endpoint");
 assert(apiSource.includes('"PATCH"'), "API route should support profile and role updates");
+const updateUserStart = apiSource.indexOf("async function updateUser");
+const deleteUserStart = apiSource.indexOf("async function deleteUser", updateUserStart);
+const updateUserBody = apiSource.slice(updateUserStart, deleteUserStart);
+assert(updateUserBody.includes('method: "PUT"'), "profile updates should forward to Supabase Auth Admin with PUT");
+assert(!updateUserBody.includes('method: "PATCH"'), "profile updates should not forward PATCH to Supabase Auth Admin");
 assert(apiSource.includes("app_metadata"), "API route should store roles in app_metadata");
 assert(apiSource.includes("user_metadata"), "API route should store display names in user_metadata");
 assert(apiSource.includes("verifyAdminRequest"), "API route should verify the caller before admin actions");

@@ -4574,8 +4574,22 @@ function renderAdminLogs() {
     .join("");
 }
 
-function renderAdminAccounts() {
+function isAdminAccountEditorFocused() {
+  if (!adminAccountList) return false;
+  const activeElement = document.activeElement;
+  return Boolean(
+    activeElement &&
+    adminAccountList.contains(activeElement) &&
+    activeElement.matches("[data-admin-user-name], [data-admin-user-role]")
+  );
+}
+
+function renderAdminAccounts(options = {}) {
   if (!adminAccountList) return;
+
+  if (!options.force && adminUsersLoaded && !adminUsersLoading && !adminUsersErrorMessage && isAdminAccountEditorFocused()) {
+    return;
+  }
 
   if (adminUsersLoading) {
     adminAccountList.innerHTML = `<div class="empty-state">계정 목록을 불러오는 중입니다.</div>`;
@@ -4742,7 +4756,7 @@ async function fetchAdminUsers(options = {}) {
   adminUsersLoading = true;
   adminUsersErrorMessage = "";
   if (adminAccountStatus) adminAccountStatus.textContent = "계정 목록을 불러오는 중입니다.";
-  renderAdminAccounts();
+  renderAdminAccounts({ force: true });
 
   try {
     const payload = await requestAdminUsersApi("GET");
@@ -4756,7 +4770,7 @@ async function fetchAdminUsers(options = {}) {
     adminAccountList.innerHTML = `<div class="empty-state">${escapeHtml(error.message)}</div>`;
   } finally {
     adminUsersLoading = false;
-    renderAdminAccounts();
+    renderAdminAccounts({ force: true });
   }
 }
 
