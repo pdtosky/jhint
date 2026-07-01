@@ -25,9 +25,15 @@ const finalRenderJournalBody = appJs.slice(finalRenderJournalStart, finalRenderW
 assert(finalRenderJournalBody.includes("renderJournalSummary(rows)"), "renderJournalList should update the daily worker summary");
 assert(finalRenderJournalBody.includes("journal-day-group"), "renderJournalList should group work by day for capture");
 assert(finalRenderJournalBody.includes("journal-day-title"), "renderJournalList should show the selected date heading");
+assert(!appJs.includes("journal-summary-worker"), "journal should not render separate worker summary cards");
+assert(finalRenderJournalBody.includes("journal-report-table"), "journal details should render as a report-style table/list");
+assert(finalRenderJournalBody.includes("journal-report-row"), "journal details should use compact report rows");
+assert(!finalRenderJournalBody.includes("item.note"), "journal rows should avoid repeated completion note text in the executive report view");
 
 assert(styleCss.includes(".journal-filter-bar"), "journal day controls should have dedicated layout styles");
 assert(styleCss.includes(".journal-summary-grid"), "daily worker summary should use a compact grid");
 assert(styleCss.includes(".journal-day-group"), "daily journal details should have grouped capture styles");
+assert(styleCss.includes(".journal-report-table"), "journal report table should have dedicated styles");
+assert(styleCss.includes(".journal-report-row"), "journal report rows should have dedicated styles");
 
 console.log("admin journal test passed");

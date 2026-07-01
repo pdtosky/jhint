@@ -1,4 +1,4 @@
-const CACHE_NAME = "jhint-production-app-v20260701-03";
+const CACHE_NAME = "jhint-production-app-v20260701-04";
 const CORE_ASSETS = [
   "/",
   "/index.html",

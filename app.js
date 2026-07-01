@@ -9102,20 +9102,7 @@ function renderJournalSummary(rows) {
     return;
   }
 
-  const workerMap = rows.reduce((map, item) => {
-    const workerName = item.workerName || "작업자 미지정";
-    if (!map.has(workerName)) {
-      map.set(workerName, { workerName, jobCount: 0, qty: 0, hitQty: 0, elapsedMs: 0, tasks: new Set() });
-    }
-    const worker = map.get(workerName);
-    worker.jobCount += 1;
-    worker.qty += Number(item.qty || 0);
-    worker.hitQty += Number(item.hitQty || 0);
-    worker.elapsedMs += Number(item.elapsedMs || 0);
-    worker.tasks.add(item.product || item.orderText || "-");
-    return map;
-  }, new Map());
-
+  const workerCount = new Set(rows.map((item) => item.workerName).filter(Boolean)).size;
   const totalQty = rows.reduce((sum, item) => sum + Number(item.qty || 0), 0);
   const totalHitQty = rows.reduce((sum, item) => sum + Number(item.hitQty || 0), 0);
   const totalMs = rows.reduce((sum, item) => sum + Number(item.elapsedMs || 0), 0);
@@ -9127,24 +9114,18 @@ function renderJournalSummary(rows) {
 
   journalSummary.innerHTML = `
     <article class="journal-summary-main">
-      <span>선택 기준</span>
-      <strong>${escapeHtml(title)}</strong>
-      <p>작업자 ${workerMap.size}명 · 작업 ${rows.length}건 · 생산 ${totalQty.toLocaleString()} · 타발 ${totalHitQty.toLocaleString()} · ${formatElapsedMs(totalMs)}</p>
+      <div class="journal-summary-title">
+        <span>선택 기준</span>
+        <strong>${escapeHtml(title)}</strong>
+      </div>
+      <dl class="journal-summary-metrics">
+        <div><dt>작업자</dt><dd>${workerCount}명</dd></div>
+        <div><dt>작업</dt><dd>${rows.length}건</dd></div>
+        <div><dt>생산</dt><dd>${totalQty.toLocaleString()}</dd></div>
+        <div><dt>타발</dt><dd>${totalHitQty.toLocaleString()}</dd></div>
+        <div><dt>작업시간</dt><dd>${formatElapsedMs(totalMs)}</dd></div>
+      </dl>
     </article>
-    ${[...workerMap.values()]
-      .sort((a, b) => b.jobCount - a.jobCount || a.workerName.localeCompare(b.workerName, "ko-KR"))
-      .map((worker) => {
-        const taskPreview = [...worker.tasks].slice(0, 2).join(" / ");
-        return `
-          <article class="journal-summary-worker">
-            <strong>${escapeHtml(worker.workerName)}</strong>
-            <span>작업 ${worker.jobCount}건 · ${formatElapsedMs(worker.elapsedMs)}</span>
-            <p>${escapeHtml(taskPreview || "-")}</p>
-            <small>생산 ${worker.qty.toLocaleString()} · 타발 ${worker.hitQty.toLocaleString()}</small>
-          </article>
-        `;
-      })
-      .join("")}
   `;
 }
 
@@ -9183,27 +9164,35 @@ function renderJournalList() {
             </div>
             <p>작업자 ${workerCount}명 · 작업 ${items.length}건 · 생산 ${totalQty.toLocaleString()} · 타발 ${totalHitQty.toLocaleString()} · ${formatElapsedMs(totalMs)}</p>
           </div>
-          <div class="journal-day-list">
+          <div class="journal-report-table" role="table" aria-label="${escapeHtml(formatDate(dateKey))} 생산일지 상세">
+            <div class="journal-report-head" role="row">
+              <span role="columnheader">작업자</span>
+              <span role="columnheader">업체 / 제품</span>
+              <span role="columnheader">장비</span>
+              <span role="columnheader">생산</span>
+              <span role="columnheader">타발</span>
+              <span role="columnheader">작업시간</span>
+              <span role="columnheader">완료시각</span>
+              <span role="columnheader">상태</span>
+            </div>
             ${items
               .sort((a, b) => a.workerName.localeCompare(b.workerName, "ko-KR") || a.product.localeCompare(b.product, "ko-KR"))
               .map((item) => `
-                <article class="journal-work-card">
-                  <div class="journal-work-date">
-                    <strong>${escapeHtml(item.workerName)}</strong>
-                    <span>장비 ${escapeHtml(item.machineName || "-")}</span>
+                <article class="journal-report-row" role="row">
+                  <div class="journal-cell journal-worker-cell" role="cell">
+                    <strong>${escapeHtml(item.workerName || "미지정")}</strong>
                   </div>
-                  <div class="journal-work-main">
-                    <strong>${escapeHtml(item.product)}</strong>
-                    <span>${escapeHtml(item.company)} · ${escapeHtml(item.statusText)} · 납기 ${item.dueDate ? formatDate(item.dueDate) : "-"}</span>
+                  <div class="journal-cell journal-product-cell" role="cell">
+                    <strong>${escapeHtml(item.company || "-")}</strong>
+                    <span>${escapeHtml(item.product || "-")}</span>
+                    <small>납기 ${item.dueDate ? formatDate(item.dueDate) : "-"}</small>
                   </div>
-                  <div class="journal-work-numbers">
-                    <span>생산 ${Number(item.qty || 0).toLocaleString()}</span>
-                    <span>타발 ${Number(item.hitQty || 0).toLocaleString()}</span>
-                    <span>작업시간 ${formatElapsedMs(item.elapsedMs || 0)}</span>
-                    <span>시작 ${escapeHtml(item.startText)}</span>
-                    <span>완료 ${escapeHtml(item.endText)}</span>
-                  </div>
-                  <p>${escapeHtml(item.note)}</p>
+                  <div class="journal-cell" role="cell">${escapeHtml(item.machineName || "-")}</div>
+                  <div class="journal-cell number" role="cell">${Number(item.qty || 0).toLocaleString()}</div>
+                  <div class="journal-cell number" role="cell">${Number(item.hitQty || 0).toLocaleString()}</div>
+                  <div class="journal-cell" role="cell">${formatElapsedMs(item.elapsedMs || 0)}</div>
+                  <div class="journal-cell" role="cell">${escapeHtml(item.endText || "-")}</div>
+                  <div class="journal-cell" role="cell"><span class="journal-status-pill">${escapeHtml(item.statusText || "-")}</span></div>
                 </article>
               `)
               .join("")}
