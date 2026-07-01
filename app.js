@@ -7866,6 +7866,13 @@ function getOrderLastWorkEndAt(order) {
   return new Date(lastTime).toISOString();
 }
 
+function getOrderLastPauseAt(order) {
+  const candidates = getOrderActivityTimestamps(order, ["pause"]);
+  if (!candidates.length) return "";
+  const lastTime = Math.max(...candidates.map((timestamp) => new Date(timestamp).getTime()));
+  return new Date(lastTime).toISOString();
+}
+
 function formatDetailDateTime(dateString) {
   const timestamp = getValidTimestamp(dateString);
   if (!timestamp) return "-";
@@ -9230,35 +9237,47 @@ function renderEquipmentDetailRows(item) {
 }
 
 function getJournalDateKey(order) {
-  const baseDate = order.endTime || order.startTime || order.orderDate || order.dueDate || "";
+  const baseDate = order.endTime || getOrderLastPauseAt(order) || order.startTime || order.orderDate || order.dueDate || "";
   return baseDate ? String(baseDate).slice(0, 10) : "";
 }
 
 function buildProductionJournal() {
-  return getSortedOrders(getFilteredAdminMonthOrders())
+  return getSortedOrders(state.orders.filter(adminMatchesSearch))
     .filter((order) => order.workerName || order.productionQty || order.totalHitQty || order.workQty || order.workHitQty || order.pauseReason)
-    .map((order) => ({
-      date: getJournalDateKey(order),
-      company: order.company || "-",
-      product: order.product || "-",
-      dueDate: order.dueDate || "",
-      workerName: order.workerName || "작업자 미지정",
-      machineName: order.machineName || "",
-      qty: Number(order.productionQty || order.workQty || 0),
-      hitQty: Number(order.totalHitQty || order.hitQty || order.workHitQty || 0),
-      elapsedMs: Number(order.elapsedMs || 0),
-      statusText: getOrderStatusTextClean(order),
-      startText: order.startTime ? formatDateTime(order.startTime) : "-",
-      endText: order.endTime ? formatDateTime(order.endTime) : order.status === "working" ? "진행 중" : "-",
-      orderText: `${order.company || "-"} / ${order.product || "-"}`,
-      note: order.pauseReason
-        ? `중지 사유: ${order.pauseReason}`
-        : order.status === "complete"
-          ? "작업이 완료되었습니다."
-          : order.status === "working"
-            ? "작업 진행 중입니다."
-            : "작업 대기 상태입니다."
-    }));
+    .map((order) => {
+      const pauseAt = getOrderLastPauseAt(order);
+      const journalDate = getJournalDateKey(order);
+      return {
+        date: journalDate,
+        company: order.company || "-",
+        product: order.product || "-",
+        dueDate: order.dueDate || "",
+        workerName: order.workerName || "작업자 미지정",
+        machineName: order.machineName || "",
+        qty: Number(order.productionQty || order.workQty || 0),
+        hitQty: Number(order.totalHitQty || order.hitQty || order.workHitQty || 0),
+        elapsedMs: Number(order.elapsedMs || 0),
+        statusKey: order.status || "",
+        statusText: getOrderStatusTextClean(order),
+        startText: getOrderFirstWorkStartAt(order) ? formatDateTime(getOrderFirstWorkStartAt(order)) : "-",
+        endText: order.endTime
+          ? formatDateTime(order.endTime)
+          : order.status === "paused" && pauseAt
+            ? `중지 ${formatDateTime(pauseAt)}`
+            : order.status === "working"
+              ? "진행 중"
+              : "-",
+        orderText: `${order.company || "-"} / ${order.product || "-"}`,
+        note: order.pauseReason
+          ? `중지 사유: ${order.pauseReason}`
+          : order.status === "complete"
+            ? "작업이 완료되었습니다."
+            : order.status === "working"
+              ? "작업 진행 중입니다."
+              : "작업 대기 상태입니다."
+      };
+    })
+    .filter((item) => adminMonthFilter === "all" || toMonthKey(item.date) === adminMonthFilter);
 }
 
 function renderEquipmentList() {
@@ -9411,12 +9430,20 @@ function renderJournalList() {
               <span role="columnheader">생산</span>
               <span role="columnheader">타발</span>
               <span role="columnheader">작업시간</span>
-              <span role="columnheader">완료시각</span>
+              <span role="columnheader">완료/중지</span>
               <span role="columnheader">상태</span>
             </div>
             ${items
               .sort((a, b) => a.workerName.localeCompare(b.workerName, "ko-KR") || a.product.localeCompare(b.product, "ko-KR"))
-              .map((item) => `
+              .map((item) => {
+                const statusClass = item.statusKey === "paused"
+                  ? "journal-status-paused"
+                  : item.statusKey === "working"
+                    ? "journal-status-working"
+                    : item.statusKey === "complete"
+                      ? "journal-status-complete"
+                      : "";
+                return `
                 <article class="journal-report-row" role="row">
                   <div class="journal-cell journal-worker-cell" role="cell">
                     <strong>${escapeHtml(item.workerName || "미지정")}</strong>
@@ -9431,9 +9458,10 @@ function renderJournalList() {
                   <div class="journal-cell number" role="cell">${Number(item.hitQty || 0).toLocaleString()}</div>
                   <div class="journal-cell" role="cell">${formatElapsedMs(item.elapsedMs || 0)}</div>
                   <div class="journal-cell" role="cell">${escapeHtml(item.endText || "-")}</div>
-                  <div class="journal-cell" role="cell"><span class="journal-status-pill">${escapeHtml(item.statusText || "-")}</span></div>
+                  <div class="journal-cell" role="cell"><span class="journal-status-pill ${statusClass}">${escapeHtml(item.statusText || "-")}</span></div>
                 </article>
-              `)
+              `;
+              })
               .join("")}
           </div>
         </section>

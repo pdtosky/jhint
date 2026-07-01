@@ -1563,6 +1563,24 @@ tbody tr:last-child td {
   border: 1px solid rgba(91, 148, 211, 0.22);
 }
 
+.journal-status-pill.journal-status-paused {
+  color: #b45309;
+  background: rgba(255, 244, 214, 0.96);
+  border-color: rgba(217, 119, 6, 0.28);
+}
+
+.journal-status-pill.journal-status-working {
+  color: #047857;
+  background: rgba(209, 250, 229, 0.96);
+  border-color: rgba(16, 185, 129, 0.28);
+}
+
+.journal-status-pill.journal-status-complete {
+  color: #1d4ed8;
+  background: rgba(219, 234, 254, 0.96);
+  border-color: rgba(59, 130, 246, 0.28);
+}
+
 .journal-work-card {
   display: grid;
   grid-template-columns: minmax(112px, 0.55fr) minmax(0, 1.45fr);
