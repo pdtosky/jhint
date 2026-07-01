@@ -1458,23 +1458,33 @@ tbody tr:last-child td {
 .journal-report-row {
   display: grid;
   grid-template-columns: minmax(76px, 0.6fr) minmax(270px, 2fr) minmax(64px, 0.52fr) minmax(70px, 0.55fr) minmax(70px, 0.55fr) minmax(96px, 0.72fr) minmax(112px, 0.86fr) minmax(74px, 0.58fr);
-  gap: 10px;
-  align-items: center;
+  gap: 0;
+  align-items: stretch;
 }
 
 .journal-report-head {
-  padding: 11px 14px;
   background: rgba(232, 242, 255, 0.94);
 }
 
 .journal-report-head span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: 42px;
+  padding: 8px 10px;
+  text-align: center;
   color: var(--sub);
   font-size: 0.82rem;
   font-weight: 950;
 }
 
+.journal-report-head span + span {
+  border-left: 1px solid rgba(211, 224, 236, 0.9);
+}
+
 .journal-report-row {
-  padding: 10px 14px;
+  min-height: 58px;
   border-top: 1px solid rgba(211, 224, 236, 0.9);
   background: rgba(255, 255, 255, 0.94);
 }
@@ -1484,16 +1494,25 @@ tbody tr:last-child td {
 }
 
 .journal-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   min-width: 0;
+  padding: 9px 10px;
+  text-align: center;
   color: var(--ink);
   font-size: 0.88rem;
   font-weight: 800;
   overflow-wrap: anywhere;
 }
 
+.journal-cell + .journal-cell {
+  border-left: 1px solid rgba(211, 224, 236, 0.9);
+}
+
 .journal-cell.number {
   font-variant-numeric: tabular-nums;
-  text-align: right;
+  text-align: center;
   white-space: nowrap;
 }
 
@@ -1505,7 +1524,10 @@ tbody tr:last-child td {
 
 .journal-product-cell {
   display: grid;
+  align-items: start;
+  justify-content: stretch;
   gap: 2px;
+  text-align: left;
 }
 
 .journal-product-cell strong {
@@ -1639,6 +1661,7 @@ tbody tr:last-child td {
     grid-template-columns: 0.75fr 1.4fr;
     gap: 7px 10px;
     align-items: start;
+    padding: 10px 12px;
   }
 
   .journal-product-cell,
@@ -1649,6 +1672,17 @@ tbody tr:last-child td {
 
   .journal-cell.number {
     text-align: left;
+  }
+
+  .journal-cell,
+  .journal-cell.number {
+    justify-content: flex-start;
+    padding: 0;
+    text-align: left;
+  }
+
+  .journal-cell + .journal-cell {
+    border-left: 0;
   }
 
   .journal-cell:nth-child(3)::before {

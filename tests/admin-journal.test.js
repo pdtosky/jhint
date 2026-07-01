@@ -37,5 +37,14 @@ assert(styleCss.includes(".journal-summary-grid"), "daily worker summary should 
 assert(styleCss.includes(".journal-day-group"), "daily journal details should have grouped capture styles");
 assert(styleCss.includes(".journal-report-table"), "journal report table should have dedicated styles");
 assert(styleCss.includes(".journal-report-row"), "journal report rows should have dedicated styles");
+assert(styleCss.includes("gap: 0;"), "journal report grid should not use gaps that misalign header and body columns");
+assert(styleCss.includes("border-left: 1px solid rgba(211, 224, 236, 0.9);"), "journal report cells should have vertical dividers");
+assert(styleCss.includes("justify-content: center;"), "journal report cells should center their values inside each column");
+assert(styleCss.includes("text-align: center;"), "journal report values should align with their column headers");
+const productCellStyleStart = styleCss.indexOf(".journal-product-cell {");
+const productCellStyleEnd = styleCss.indexOf(".journal-product-cell strong", productCellStyleStart);
+const productCellStyle = styleCss.slice(productCellStyleStart, productCellStyleEnd);
+assert(productCellStyle.includes("align-items: start;"), "product cell should keep long product text readable while other cells are centered");
+assert(productCellStyle.includes("text-align: left;"), "product cell should remain left aligned for long company and product names");
 
 console.log("admin journal test passed");
