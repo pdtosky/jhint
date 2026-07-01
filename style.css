@@ -4681,30 +4681,70 @@ html {
 }
 
 .admin-account-list {
-  gap: 8px;
+  gap: 0;
+}
+
+.admin-account-table {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.88);
+}
+
+.admin-account-head,
+.admin-account-row {
+  display: grid;
+  grid-template-columns: minmax(190px, 1.15fr) minmax(150px, 0.8fr) minmax(120px, 0.62fr) minmax(90px, 0.5fr) minmax(150px, 0.72fr) minmax(190px, 0.9fr) minmax(150px, 0.68fr);
+  align-items: stretch;
+}
+
+.admin-account-head {
+  background: rgba(229, 241, 255, 0.92);
+  border-bottom: 1px solid rgba(211, 224, 236, 0.9);
+  color: var(--sub);
+  font-size: 0.82rem;
+  font-weight: 900;
+}
+
+.admin-account-head span,
+.admin-account-cell {
+  display: flex;
+  min-width: 0;
+  min-height: 58px;
+  align-items: center;
+  padding: 10px 12px;
+}
+
+.admin-account-head span {
+  justify-content: center;
+  text-align: center;
 }
 
 .admin-account-row {
-  display: grid;
-  grid-template-columns: minmax(190px, 0.95fr) minmax(280px, 1.1fr) minmax(0, 1.35fr);
-  gap: 10px;
-  align-items: center;
-  padding: 12px 14px;
-  border: 1px solid var(--line);
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.86);
+  border-bottom: 1px solid rgba(211, 224, 236, 0.88);
+}
+
+.admin-account-row:last-child {
+  border-bottom: 0;
+}
+
+.admin-account-cell + .admin-account-cell,
+.admin-account-head span + span {
+  border-left: 1px solid rgba(211, 224, 236, 0.9);
 }
 
 .admin-account-identity,
-.admin-account-state {
+.admin-account-login-cell {
   display: grid;
-  gap: 5px;
+  gap: 4px;
+  align-content: center;
   min-width: 0;
 }
 
 .admin-account-label,
 .admin-account-sub,
-.admin-account-state span:not(.status-badge) {
+.admin-account-login-cell span:not(.status-badge),
+.admin-account-current {
   color: var(--muted);
   font-size: 0.82rem;
 }
@@ -4717,42 +4757,45 @@ html {
   white-space: nowrap;
 }
 
-.admin-account-fields {
-  display: grid;
-  grid-template-columns: minmax(130px, 1fr) minmax(120px, 0.72fr);
-  gap: 8px;
-}
-
-.admin-account-fields label {
-  margin: 0;
-}
-
-.admin-account-fields input,
-.admin-account-fields select {
-  min-height: 42px;
+.admin-account-name-cell input,
+.admin-account-role-cell select {
+  width: 100%;
+  min-height: 38px;
   padding: 10px 12px;
-  border-radius: 14px;
+  border-radius: 12px;
 }
 
-.admin-account-state {
+.admin-account-status-cell,
+.admin-account-actions {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  justify-content: center;
 }
 
-.admin-account-row .admin-account-actions {
-  grid-column: 1 / -1;
+.admin-account-actions {
   display: flex;
   gap: 8px;
-  justify-content: flex-end;
-  min-width: 0;
+  flex-wrap: wrap;
 }
 
 .admin-account-actions .tab-btn,
 .admin-account-actions .danger-action-btn {
-  min-height: 42px;
-  padding: 0 16px;
+  min-height: 36px;
+  padding: 0 12px;
+}
+
+.admin-account-actions .danger-action-btn {
+  min-width: 54px;
+}
+
+.admin-account-current {
+  display: inline-flex;
+  width: fit-content;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(229, 241, 255, 0.95);
+  color: #315f9d;
+  font-weight: 800;
 }
 
 .admin-overview-block {
@@ -5075,17 +5118,52 @@ html {
     grid-template-columns: 1fr;
   }
 
+  .admin-account-table {
+    border: 0;
+    background: transparent;
+  }
+
+  .admin-account-head {
+    display: none;
+  }
+
   .admin-account-row {
     grid-template-columns: 1fr;
     align-items: stretch;
+    overflow: hidden;
+    margin-bottom: 10px;
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.88);
   }
 
-  .admin-account-fields {
-    grid-template-columns: 1fr 0.8fr;
+  .admin-account-row:last-child {
+    margin-bottom: 0;
   }
 
-  .admin-account-state {
-    grid-template-columns: repeat(2, minmax(0, max-content));
+  .admin-account-cell {
+    min-height: auto;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 9px 12px;
+    border-left: 0;
+    border-bottom: 1px solid rgba(211, 224, 236, 0.88);
+  }
+
+  .admin-account-cell::before {
+    content: attr(data-account-label);
+    flex: 0 0 86px;
+    color: var(--muted);
+    font-size: 0.78rem;
+    font-weight: 900;
+  }
+
+  .admin-account-cell + .admin-account-cell {
+    border-left: 0;
+  }
+
+  .admin-account-cell:last-child {
+    border-bottom: 0;
   }
 
   .admin-account-actions {

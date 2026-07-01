@@ -71,11 +71,21 @@ assert(appJs.includes('data-admin-user-action="saveProfile"'), "account list sho
 assert(appJs.includes('"/api/admin-users"'), "app.js should call the admin users API route");
 assert(!appJs.includes("SUPABASE_SERVICE_ROLE_KEY"), "service role key must never be referenced in browser code");
 assert(
-  styleCss.includes("grid-template-columns: minmax(190px, 0.95fr) minmax(280px, 1.1fr) minmax(0, 1.35fr);"),
-  "account rows should reserve flexible space for status metadata without overlapping action buttons"
+  renderAdminAccountsBody.includes('class="admin-account-table"') &&
+    renderAdminAccountsBody.includes('class="admin-account-head"') &&
+    renderAdminAccountsBody.includes('class="admin-account-row"'),
+  "account list should render as a table with a header and aligned rows"
 );
-assert(styleCss.includes(".admin-account-row .admin-account-actions"), "account actions should occupy their own full-width grid area");
-assert(styleCss.includes("flex-wrap: wrap;"), "account status metadata should wrap instead of overlapping controls");
+assert(styleCss.includes(".admin-account-table"), "account list should have a table shell");
+assert(
+  styleCss.includes(".admin-account-head,") && styleCss.includes(".admin-account-row {"),
+  "account table header and rows should share the same grid structure"
+);
+assert(
+  styleCss.includes("grid-template-columns: minmax(190px, 1.15fr) minmax(150px, 0.8fr) minmax(120px, 0.62fr) minmax(90px, 0.5fr) minmax(150px, 0.72fr) minmax(190px, 0.9fr) minmax(150px, 0.68fr);"),
+  "account rows should use compact table columns for identity, name, role, status, dates, and actions"
+);
+assert(styleCss.includes(".admin-account-cell + .admin-account-cell"), "account cells should have vertical dividers like a table");
 
 const apiPath = path.join(root, "api", "admin-users.js");
 assert(fs.existsSync(apiPath), "api/admin-users.js should exist for safe server-side account management");

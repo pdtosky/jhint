@@ -4661,7 +4661,7 @@ function renderAdminAccounts(options = {}) {
     return;
   }
 
-  adminAccountList.innerHTML = adminUsersCache
+  const rows = adminUsersCache
     .map((user) => {
       const email = user.email || "-";
       const displayName = user.displayName || "";
@@ -4669,32 +4669,32 @@ function renderAdminAccounts(options = {}) {
       const isCurrentUser = String(email).toLowerCase() === String(currentAdminEmail).toLowerCase();
       return `
         <article class="admin-account-row" data-admin-user-row data-user-id="${escapeHtml(user.id || "")}" data-user-email="${escapeHtml(email)}">
-          <div class="admin-account-identity">
+          <div class="admin-account-cell admin-account-identity" data-account-label="아이디">
             <span class="admin-account-label">아이디</span>
             <strong>${escapeHtml(email)}</strong>
             <span class="admin-account-sub">이름 ${escapeHtml(displayName || "미입력")}</span>
           </div>
-          <div class="admin-account-fields">
-            <label>
-              사용자 이름
-              <input type="text" value="${escapeHtml(displayName)}" placeholder="이름 입력" data-admin-user-name />
-            </label>
-            <label>
-              권한
-              <select data-admin-user-role>
-                ${renderAdminAccountRoleOptions(user.role)}
-              </select>
-            </label>
+          <div class="admin-account-cell admin-account-name-cell" data-account-label="사용자 이름">
+            <input type="text" value="${escapeHtml(displayName)}" placeholder="이름 입력" data-admin-user-name />
           </div>
-          <div class="admin-account-state">
+          <div class="admin-account-cell admin-account-role-cell" data-account-label="권한">
+            <select data-admin-user-role>
+              ${renderAdminAccountRoleOptions(user.role)}
+            </select>
+          </div>
+          <div class="admin-account-cell admin-account-status-cell" data-account-label="상태">
             <span class="status-badge ${user.confirmedAt ? "status-working" : "status-warning"}">${user.confirmedAt ? "사용 가능" : "확인 대기"}</span>
-            <span class="status-badge done">${escapeHtml(roleLabel)}</span>
-            <span>생성 ${user.createdAt ? formatDateTime(user.createdAt) : "-"}</span>
-            <span>최근 로그인 ${user.lastSignInAt ? formatDateTime(user.lastSignInAt) : "-"}</span>
-            <span>UID ${escapeHtml(getShortAdminUserId(user.id))}</span>
-            ${isCurrentUser ? "<span>현재 로그인 계정</span>" : ""}
           </div>
-          <div class="admin-account-actions">
+          <div class="admin-account-cell admin-account-date-cell" data-account-label="생성일">
+            <span>${user.createdAt ? formatDateTime(user.createdAt) : "-"}</span>
+          </div>
+          <div class="admin-account-cell admin-account-login-cell" data-account-label="최근 로그인">
+            <span>${user.lastSignInAt ? formatDateTime(user.lastSignInAt) : "-"}</span>
+            <span class="admin-account-sub">UID ${escapeHtml(getShortAdminUserId(user.id))}</span>
+            ${isCurrentUser ? '<span class="admin-account-current">현재 로그인</span>' : ""}
+          </div>
+          <div class="admin-account-cell admin-account-actions" data-account-label="관리">
+            <span class="status-badge done">${escapeHtml(roleLabel)}</span>
             <button type="button" class="tab-btn" data-admin-user-action="saveProfile">저장</button>
             <button type="button" class="danger-action-btn" data-admin-user-action="delete" data-user-id="${escapeHtml(user.id || "")}" data-user-email="${escapeHtml(email)}" ${isCurrentUser ? "disabled" : ""}>삭제</button>
           </div>
@@ -4702,6 +4702,21 @@ function renderAdminAccounts(options = {}) {
       `;
     })
     .join("");
+
+  adminAccountList.innerHTML = `
+    <section class="admin-account-table" aria-label="계정 목록">
+      <div class="admin-account-head" aria-hidden="true">
+        <span>아이디</span>
+        <span>사용자 이름</span>
+        <span>권한</span>
+        <span>상태</span>
+        <span>생성일</span>
+        <span>최근 로그인</span>
+        <span>관리</span>
+      </div>
+      ${rows}
+    </section>
+  `;
 }
 
 function getShortAdminUserId(userId) {
