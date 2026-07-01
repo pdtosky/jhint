@@ -394,7 +394,7 @@ function bindEvents() {
 
   document.querySelectorAll("[data-admin-section]").forEach((button) => {
     button.addEventListener("click", () => {
-      adminActiveSection = button.dataset.adminSection || "overview";
+      adminActiveSection = button.dataset.adminSection || "accounts";
       renderAdminPage();
       if (adminActiveSection === "accounts") {
         ensureAdminUsersLoaded();
@@ -3592,7 +3592,7 @@ function renderSopPage() {
         </div>
         <span class="status-badge done" data-sop-module-count>${escapeHtml(countText)}</span>
       </div>
-      <iframe class="sop-module-frame" title="작업표준서 Smart SOP" src="sop/index.html?v=20260701-02"></iframe>
+      <iframe class="sop-module-frame" title="작업표준서 Smart SOP" src="sop/index.html?v=20260701-03"></iframe>
     </div>
   `;
 }
@@ -8897,20 +8897,33 @@ function buildEquipmentSummary() {
   const equipmentMap = new Map();
   const plannedMsPerMachine = getAdminMonthlyAvailableMs();
   const workingDayCount = getAdminWorkingDayKeys().length;
+  const nowIso = new Date().toISOString();
 
   getFilteredAdminMonthOrders().forEach((order) => {
     const name = order.machineName || "미지정 장비";
     if (!equipmentMap.has(name)) {
-      equipmentMap.set(name, { name, actualMs: 0, jobCount: 0, workerSet: new Set() });
+      equipmentMap.set(name, {
+        name,
+        actualMs: 0,
+        jobCount: 0,
+        workerSet: new Set(),
+        productionQty: 0,
+        hitQty: 0,
+        orders: []
+      });
     }
     const row = equipmentMap.get(name);
-    row.actualMs += Number(order.elapsedMs || 0);
-    if (Number(order.elapsedMs || 0) > 0 || isActiveWorkStatus(order) || order.status === "paused" || order.status === "complete") {
+    const actualMs = isActiveWorkStatus(order) ? getAccumulatedElapsedMs(order, nowIso) : Number(order.elapsedMs || 0);
+    row.actualMs += actualMs;
+    if (actualMs > 0 || isActiveWorkStatus(order) || order.status === "paused" || order.status === "complete") {
       row.jobCount += 1;
+      row.orders.push(order);
     }
     if (order.workerName) {
       row.workerSet.add(order.workerName);
     }
+    row.productionQty += Number(order.productionQty || 0);
+    row.hitQty += Number(order.totalHitQty || order.hitQty || 0);
   });
 
   return [...equipmentMap.values()]
@@ -8918,16 +8931,63 @@ function buildEquipmentSummary() {
     .map((item) => {
       const plannedMs = plannedMsPerMachine;
       const percent = plannedMs > 0 ? Math.round((item.actualMs / plannedMs) * 100) : 0;
+      const tone = getEquipmentUtilTone(percent);
       return {
         name: item.name,
         actualMs: item.actualMs,
         plannedMs,
-        percent: Math.min(percent, 100),
+        percent,
+        displayPercent: Math.min(percent, 100),
+        toneClass: tone.className,
+        toneLabel: tone.label,
         jobCount: item.jobCount,
         workerCount: item.workerSet.size,
-        workingDayCount
+        workingDayCount,
+        productionQty: item.productionQty,
+        hitQty: item.hitQty,
+        orders: getSortedOrders(item.orders)
       };
     });
+}
+
+function getEquipmentUtilTone(percent) {
+  if (percent > 100) {
+    return { className: "equipment-tone-over", label: "확인필요" };
+  }
+  if (percent >= 70) {
+    return { className: "equipment-tone-high", label: "정상" };
+  }
+  if (percent >= 40) {
+    return { className: "equipment-tone-good", label: "보통" };
+  }
+  return { className: "equipment-tone-low", label: "낮음" };
+}
+
+function renderEquipmentDetailRows(item) {
+  if (!item.orders?.length) {
+    return `<div class="empty-state compact-empty">상세 작업 이력이 없습니다.</div>`;
+  }
+
+  return item.orders
+    .map((order) => {
+      const workMs = isActiveWorkStatus(order)
+        ? getAccumulatedElapsedMs(order, new Date().toISOString())
+        : Number(order.elapsedMs || 0);
+      return `
+        <div class="equipment-detail-row">
+          <div class="equipment-detail-main">
+            <strong>${escapeHtml(order.product || "-")}</strong>
+            <span>${escapeHtml(order.company || "-")}</span>
+          </div>
+          <span>작업자 ${escapeHtml(order.workerName || "미지정")}</span>
+          <span>${escapeHtml(getOrderStatusTextClean(order))}</span>
+          <span>${formatElapsedMs(workMs)}</span>
+          <span>생산 ${Number(order.productionQty || 0).toLocaleString()}</span>
+          <span>타발 ${Number(order.totalHitQty || order.hitQty || 0).toLocaleString()}</span>
+        </div>
+      `;
+    })
+    .join("");
 }
 
 function getJournalDateKey(order) {
@@ -8963,26 +9023,43 @@ function buildProductionJournal() {
 }
 
 function renderEquipmentList() {
+  if (!equipmentList) return;
+
   const rows = buildEquipmentSummary();
   if (!rows.length) {
     equipmentList.innerHTML = `<div class="empty-state">작업자 입력 기반 장비 가동 데이터가 없습니다.</div>`;
     return;
   }
 
-  equipmentList.innerHTML = rows
+  equipmentList.innerHTML = `<div class="equipment-card-grid">${rows
     .map((item) => `
-      <article class="progress-card">
-        <div class="progress-top">
-          <strong>${escapeHtml(item.name)}</strong>
-          <span class="status-badge ${item.percent >= 85 ? "status-working" : item.percent >= 60 ? "status-ready" : "status-warning"}">${item.percent}%</span>
+      <details class="equipment-card ${item.toneClass}">
+        <summary>
+          <div class="equipment-card-title">
+            <span>장비</span>
+            <strong>${escapeHtml(item.name)}</strong>
+          </div>
+          <div class="equipment-util">
+            <strong>${item.percent}%</strong>
+            <span>${item.toneLabel}</span>
+          </div>
+        </summary>
+        <div class="bar-track"><div class="bar-fill" style="width:${item.displayPercent}%"></div></div>
+        <div class="equipment-metrics">
+          <span><strong>${formatElapsedMs(item.actualMs)}</strong><em>작업시간</em></span>
+          <span><strong>${item.jobCount.toLocaleString()}건</strong><em>작업건수</em></span>
+          <span><strong>${item.workerCount.toLocaleString()}명</strong><em>작업자</em></span>
+          <span><strong>${item.productionQty.toLocaleString()}</strong><em>생산수</em></span>
+          <span><strong>${item.hitQty.toLocaleString()}</strong><em>타발수</em></span>
+          <span><strong>${item.workingDayCount}일</strong><em>근무일</em></span>
         </div>
-        <p class="progress-meta">총 작업시간 ${formatElapsedMs(item.actualMs)} / 기준시간 ${formatElapsedMs(item.plannedMs)}</p>
-        <p class="progress-meta">근무 가능일 ${item.workingDayCount}일 기준 / 주말 및 공휴일 제외 / 1일 8시간</p>
-        <p class="progress-meta">작업건수 ${item.jobCount} / 작업자 ${item.workerCount}</p>
-        <div class="bar-track"><div class="bar-fill" style="width:${Math.min(item.percent, 100)}%"></div></div>
-      </article>
+        <p class="equipment-calc">가동율 ${item.percent}% = 실제 작업 ${formatElapsedMs(item.actualMs)} / 월 가능 ${formatElapsedMs(item.plannedMs)} · 주말 및 공휴일 제외</p>
+        <div class="equipment-detail-list">
+          ${renderEquipmentDetailRows(item)}
+        </div>
+      </details>
     `)
-    .join("");
+    .join("")}</div>`;
 }
 
 function renderMoldList() {
