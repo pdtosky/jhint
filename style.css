@@ -1516,6 +1516,24 @@ tbody tr:last-child td {
   white-space: nowrap;
 }
 
+.journal-status-cell {
+  flex-direction: column;
+  gap: 4px;
+}
+
+.journal-status-cell small {
+  display: -webkit-box;
+  max-width: 100%;
+  overflow: hidden;
+  color: #8a5b13;
+  font-size: 0.72rem;
+  font-weight: 850;
+  line-height: 1.25;
+  text-align: center;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
 .journal-worker-cell strong {
   color: #006a60;
   font-size: 0.98rem;

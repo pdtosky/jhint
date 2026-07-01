@@ -9259,6 +9259,7 @@ function buildProductionJournal() {
         elapsedMs: Number(order.elapsedMs || 0),
         statusKey: order.status || "",
         statusText: getOrderStatusTextClean(order),
+        pauseReason: order.pauseReason || "",
         startText: getOrderFirstWorkStartAt(order) ? formatDateTime(getOrderFirstWorkStartAt(order)) : "-",
         endText: order.endTime
           ? formatDateTime(order.endTime)
@@ -9458,7 +9459,10 @@ function renderJournalList() {
                   <div class="journal-cell number" role="cell">${Number(item.hitQty || 0).toLocaleString()}</div>
                   <div class="journal-cell" role="cell">${formatElapsedMs(item.elapsedMs || 0)}</div>
                   <div class="journal-cell" role="cell">${escapeHtml(item.endText || "-")}</div>
-                  <div class="journal-cell" role="cell"><span class="journal-status-pill ${statusClass}">${escapeHtml(item.statusText || "-")}</span></div>
+                  <div class="journal-cell journal-status-cell" role="cell">
+                    <span class="journal-status-pill ${statusClass}">${escapeHtml(item.statusText || "-")}</span>
+                    ${item.pauseReason ? `<small>사유 ${escapeHtml(item.pauseReason)}</small>` : ""}
+                  </div>
                 </article>
               `;
               })
