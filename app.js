@@ -9039,8 +9039,8 @@ function renderEquipmentList() {
             <span>장비</span>
             <strong>${escapeHtml(item.name)}</strong>
           </div>
-          <div class="equipment-util">
-            <strong>${item.percent}%</strong>
+          <div class="equipment-util" data-raw-percent="${item.percent}">
+            <strong>${item.displayPercent}%</strong>
             <span>${item.toneLabel}</span>
           </div>
         </summary>
@@ -9053,7 +9053,7 @@ function renderEquipmentList() {
           <span><strong>${item.hitQty.toLocaleString()}</strong><em>타발수</em></span>
           <span><strong>${item.workingDayCount}일</strong><em>근무일</em></span>
         </div>
-        <p class="equipment-calc">가동율 ${item.percent}% = 실제 작업 ${formatElapsedMs(item.actualMs)} / 월 가능 ${formatElapsedMs(item.plannedMs)} · 주말 및 공휴일 제외</p>
+        <p class="equipment-calc">가동율 ${item.displayPercent}% = 실제 작업 ${formatElapsedMs(item.actualMs)} / 월 가능 ${formatElapsedMs(item.plannedMs)} · 주말 및 공휴일 제외</p>
         <div class="equipment-detail-list">
           ${renderEquipmentDetailRows(item)}
         </div>

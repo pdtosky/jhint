@@ -4745,7 +4745,7 @@ html {
 
 .equipment-detail-row {
   display: grid;
-  grid-template-columns: minmax(120px, 1.4fr) repeat(5, minmax(64px, auto));
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 6px;
   align-items: center;
   min-width: 0;
@@ -4761,6 +4761,7 @@ html {
   display: grid;
   gap: 2px;
   min-width: 0;
+  grid-column: 1 / -1;
 }
 
 .equipment-detail-main strong,
@@ -4770,6 +4771,7 @@ html {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .equipment-detail-main strong {

@@ -15,6 +15,8 @@ assert(appJs.includes("function getEquipmentUtilTone"), "equipment utilization s
 assert(appJs.includes("function renderEquipmentDetailRows"), "equipment cards should include expandable job details");
 assert(appJs.includes("equipment-card-grid"), "equipment list should render in the new compact card grid");
 assert(appJs.includes("equipment-tone-over"), "equipment utilization should mark over-100 percent values for review");
+assert(appJs.includes("displayPercent") && appJs.includes("<strong>${item.displayPercent}%</strong>"), "visible equipment percent should be capped at 100 percent");
+assert(appJs.includes("data-raw-percent"), "raw over-100 percent should remain available for calculation context");
 assert(appJs.includes("productionQty"), "equipment cards should include production quantity aggregation");
 assert(appJs.includes("totalHitQty"), "equipment cards should include hit quantity aggregation");
 assert(appJs.includes("plannedMs"), "equipment cards should show monthly available-time basis");
@@ -23,6 +25,11 @@ assert(appJs.includes("item.orders"), "equipment cards should keep source orders
 assert(styleCss.includes(".equipment-card-grid"), "equipment cards should have a dedicated responsive grid");
 assert(styleCss.includes(".equipment-metrics"), "equipment cards should use compact metric cells");
 assert(styleCss.includes(".equipment-detail-row"), "equipment expanded details should have compact rows");
+assert(
+  styleCss.includes("grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);"),
+  "equipment details should wrap into two safe columns instead of overflowing the card"
+);
+assert(styleCss.includes("overflow-wrap: anywhere;"), "long equipment detail text should stay inside its card");
 assert(styleCss.includes(".equipment-tone-high"), "equipment utilization should have a high/normal color");
 assert(styleCss.includes(".equipment-tone-good"), "equipment utilization should have a moderate color");
 assert(styleCss.includes(".equipment-tone-low"), "equipment utilization should have a low color");
