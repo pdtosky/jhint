@@ -3537,14 +3537,8 @@ function renderAdminPage(options = {}) {
   if (adminSearchInput) adminSearchInput.value = adminSearchKeyword;
   if (adminJournalDateInput) {
     adminJournalDateInput.value = adminJournalDateFilter;
-    if (adminMonthFilter !== "all") {
-      const [year, month] = adminMonthFilter.split("-");
-      adminJournalDateInput.min = `${year}-${month}-01`;
-      adminJournalDateInput.max = `${year}-${month}-${String(new Date(Number(year), Number(month), 0).getDate()).padStart(2, "0")}`;
-    } else {
-      adminJournalDateInput.removeAttribute("min");
-      adminJournalDateInput.removeAttribute("max");
-    }
+    adminJournalDateInput.removeAttribute("min");
+    adminJournalDateInput.removeAttribute("max");
   }
   if (adminLogSearchInput) adminLogSearchInput.value = adminLogSearchKeyword;
   renderAdminSections();

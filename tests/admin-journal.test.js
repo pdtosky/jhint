@@ -17,6 +17,8 @@ assert(appJs.includes("const adminJournalDateInput"), "app.js should bind the jo
 assert(appJs.includes("function getFilteredProductionJournalRows"), "journal rows should be filtered by selected month and day");
 assert(appJs.includes("function renderJournalSummary"), "journal should render a capture-friendly daily worker summary");
 assert(appJs.includes("function setAdminJournalDateFilter"), "journal day selection should keep month and day filters in sync");
+assert(!appJs.includes("adminJournalDateInput.min"), "journal date picker should not block past months with a min date");
+assert(!appJs.includes("adminJournalDateInput.max"), "journal date picker should not block future/past month navigation with a max date");
 
 const finalRenderJournalStart = appJs.lastIndexOf("function renderJournalList");
 const finalRenderWorkerEfficiencyStart = appJs.indexOf("function renderWorkerEfficiency", finalRenderJournalStart);
