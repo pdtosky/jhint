@@ -27,3 +27,10 @@ assert(
     css.includes("grid-template-columns: repeat(3, minmax(0, 1fr))"),
   "SOP stylesheet should include compact card and three-check horizontal row styles."
 );
+
+assert(
+  css.includes("grid-template-columns: minmax(0, 1fr) 30px") &&
+    css.includes("place-items: center") &&
+    css.includes("text-align: center"),
+  "SOP checklist cycle controls should keep labels and check boxes centered in equal-height cells."
+);

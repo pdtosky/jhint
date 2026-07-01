@@ -68,10 +68,23 @@ textarea { min-height: 64px; resize: vertical; }
 .worker-check-status-row span { color: #34465a; font-weight: 800; }
 .worker-checklist-meta span { min-width: 0; overflow-wrap: anywhere; }
 .worker-check-status-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
-.worker-check-status-row label { display: flex; align-items: center; justify-content: space-between; gap: 5px; padding: 5px 6px; border-radius: 9px; background: #f5f9fd; font-size: 12px; font-weight: 800; }
+.worker-check-status-row label {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 30px;
+  align-items: center;
+  min-height: 40px;
+  gap: 6px;
+  padding: 5px 6px;
+  border-radius: 9px;
+  background: #f5f9fd;
+  font-size: 12px;
+  font-weight: 800;
+  text-align: center;
+}
+.worker-check-status-row span { min-width: 0; line-height: 1; }
 .worker-check-note { display: grid; grid-template-columns: 42px minmax(0, 1fr); align-items: center; gap: 6px; font-size: 12px; font-weight: 800; }
 .worker-check-note input { min-width: 0; height: 34px; padding: 7px 9px; }
-.cycle-check { width: 30px; height: 30px; padding: 0; border: 2px solid #8fa1b2; border-radius: 7px; background: #fff; color: #111827; font-size: 18px; font-weight: 800; line-height: 1; }
+.cycle-check { display: grid; place-items: center; width: 30px; height: 30px; padding: 0; border: 2px solid #8fa1b2; border-radius: 7px; background: #fff; color: #111827; font-size: 18px; font-weight: 800; line-height: 1; }
 .cycle-check.is-check { border-color: #116329; background: #f0fff4; color: #116329; }
 .cycle-check.is-x { border-color: #b42318; background: #fff5f5; color: #b42318; }
 .worker-save-result { margin: 10px; padding: 10px; border: 1px solid #97d4a8; border-radius: 6px; background: #f0fff4; color: #116329; font-weight: 700; text-align: center; }
@@ -293,7 +306,7 @@ body.print-preview-open .print-document { width: min(980px, 100%); margin: 0 aut
   .worker-checklist-meta { gap: 4px; }
   .worker-checklist-meta p { grid-template-columns: 34px minmax(0, 1fr); gap: 4px; padding: 5px 6px; font-size: 11.5px; }
   .worker-check-status-row { gap: 4px; }
-  .worker-check-status-row label { padding: 4px 5px; font-size: 11.5px; }
+  .worker-check-status-row label { grid-template-columns: minmax(0, 1fr) 28px; min-height: 36px; padding: 4px 5px; font-size: 11.5px; }
   .worker-check-note { grid-template-columns: 38px minmax(0, 1fr); }
   .cycle-check { width: 28px; height: 28px; justify-self: end; font-size: 16px; }
   .worker-mold-record { margin-top: 8px; }

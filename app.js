@@ -3592,7 +3592,7 @@ function renderSopPage() {
         </div>
         <span class="status-badge done" data-sop-module-count>${escapeHtml(countText)}</span>
       </div>
-      <iframe class="sop-module-frame" title="작업표준서 Smart SOP" src="sop/index.html?v=20260701-01"></iframe>
+      <iframe class="sop-module-frame" title="작업표준서 Smart SOP" src="sop/index.html?v=20260701-02"></iframe>
     </div>
   `;
 }
