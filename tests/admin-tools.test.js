@@ -59,8 +59,12 @@ assert(
   "the active final admin login handler should immediately show and refresh account management"
 );
 assert(
-  activeAdminLoginBody.includes('jhint_role') && activeAdminLoginBody.includes('sessionRole !== "admin"'),
-  "the active final admin login handler should allow users with the admin role"
+  activeAdminLoginBody.includes("getSessionRole(sessionUser, sessionEmail)") && activeAdminLoginBody.includes("!sessionRole"),
+  "the active final admin login handler should accept any configured jhint role"
+);
+assert(
+  activeAdminLoginBody.includes('canAccessView("adminView")'),
+  "the active final admin login handler should only open account management for roles with admin page access"
 );
 assert(appJs.includes("async function fetchAdminUsers"), "app.js should fetch users through the server API");
 assert(appJs.includes("async function createAdminUser"), "app.js should create users through the server API");

@@ -1,6 +1,11 @@
 const DEFAULT_SUPABASE_URL = "https://fftdjnjnvusgrbbfbwcw.supabase.co";
 const DEFAULT_ADMIN_EMAIL = "tape@jhint.net";
-const ADMIN_ROLES = new Set(["admin", "sales", "worker", "viewer"]);
+const ADMIN_ROLES = new Set(["admin", "production", "sales", "office", "quality", "shipping"]);
+const LEGACY_ROLE_ALIASES = {
+  worker: "production",
+  viewer: "shipping",
+  general: "office"
+};
 
 function sendJson(response, statusCode, payload) {
   response.statusCode = statusCode;
@@ -24,8 +29,9 @@ function getAdminEmails() {
     .filter(Boolean);
 }
 
-function normalizeRole(value, fallback = "viewer") {
-  const role = String(value || "").trim().toLowerCase();
+function normalizeRole(value, fallback = "production") {
+  const rawRole = String(value || "").trim().toLowerCase();
+  const role = LEGACY_ROLE_ALIASES[rawRole] || rawRole;
   return ADMIN_ROLES.has(role) ? role : fallback;
 }
 

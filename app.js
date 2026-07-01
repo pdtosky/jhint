@@ -4,10 +4,36 @@ const API_STATE_URL = "/api/state";
 const ADMIN_USERS_API_URL = "/api/admin-users";
 const ADMIN_ACCOUNT_ROLES = [
   { value: "admin", label: "관리자" },
+  { value: "production", label: "생산" },
   { value: "sales", label: "영업" },
-  { value: "worker", label: "작업자" },
-  { value: "viewer", label: "조회" }
+  { value: "office", label: "총무" },
+  { value: "quality", label: "품질" },
+  { value: "shipping", label: "출하" }
 ];
+const LEGACY_ROLE_ALIASES = {
+  worker: "production",
+  viewer: "shipping",
+  general: "office"
+};
+const ROLE_VIEW_PERMISSIONS = {
+  admin: ["dashboardView", "ordersView", "requisitionView", "workerView", "shippingView", "sopView", "adminView"],
+  production: ["dashboardView", "workerView"],
+  sales: ["dashboardView", "requisitionView", "ordersView", "shippingView"],
+  office: ["dashboardView", "ordersView", "requisitionView", "workerView", "shippingView", "sopView", "adminView"],
+  quality: ["dashboardView", "ordersView", "requisitionView", "workerView", "shippingView", "sopView"],
+  shipping: ["dashboardView", "shippingView"]
+};
+const ROLE_ADMIN_SECTION_PERMISSIONS = {
+  admin: ["equipment", "mold", "journal", "worker", "logs", "accounts"],
+  office: ["equipment", "mold", "journal", "worker", "logs"],
+  production: [],
+  sales: [],
+  quality: [],
+  shipping: []
+};
+const ADMIN_ONLY_SECTIONS = {
+  accounts: ["admin"]
+};
 const APP_CONFIG = window.APP_CONFIG || {};
 const POLL_INTERVAL_MS = Number(APP_CONFIG.pollIntervalMs || 60000);
 const HOLIDAY_POLL_INTERVAL_MS = Number(
@@ -148,6 +174,7 @@ let syncTimerId = null;
 let isStateSyncing = false;
 let isVisibilitySyncBound = false;
 let currentAdminEmail = "";
+let currentAdminRole = "";
 let currentRequisitionEmail = "";
 let pendingRequisitionOrderSource = null;
 
@@ -308,7 +335,10 @@ function bindEvents() {
   });
 
   resetOrdersBtn.addEventListener("click", () => {
-    if (!isAdminLoggedIn) return;
+    if (!isAdminLoggedIn || !canAccessView("adminView")) {
+      showPermissionDenied("adminView");
+      return;
+    }
     confirmModal.hidden = false;
   });
 
@@ -394,6 +424,10 @@ function bindEvents() {
 
   document.querySelectorAll("[data-admin-section]").forEach((button) => {
     button.addEventListener("click", () => {
+      if (!canAccessAdminSection(button.dataset.adminSection)) {
+        showAppAlert("이 관리자 메뉴에 접근할 권한이 없습니다.");
+        return;
+      }
       adminActiveSection = button.dataset.adminSection || "accounts";
       renderAdminPage();
       if (adminActiveSection === "accounts") {
@@ -424,7 +458,7 @@ function bindEvents() {
         const userId = row?.dataset.userId || "";
         const userEmail = row?.dataset.userEmail || "";
         const displayName = row?.querySelector("[data-admin-user-name]")?.value || "";
-        const role = row?.querySelector("[data-admin-user-role]")?.value || "viewer";
+        const role = row?.querySelector("[data-admin-user-role]")?.value || "production";
         void updateAdminUserProfile(userId, userEmail, displayName, role);
       }
       if (button.dataset.adminUserAction === "delete") {
@@ -435,7 +469,10 @@ function bindEvents() {
 
   orderForm.addEventListener("submit", (event) => {
     event.preventDefault();
-    if (!isAdminLoggedIn) return;
+    if (!isAdminLoggedIn || !canAccessView("ordersView")) {
+      showPermissionDenied("ordersView");
+      return;
+    }
     const formData = new FormData(orderForm);
     const nextOrder = {
       id: crypto.randomUUID(),
@@ -487,7 +524,10 @@ function bindEvents() {
 
   orderEditForm.addEventListener("submit", (event) => {
     event.preventDefault();
-    if (!isAdminLoggedIn) return;
+    if (!isAdminLoggedIn || !canAccessView("ordersView")) {
+      showPermissionDenied("ordersView");
+      return;
+    }
 
     const orderId = String(editOrderIdInput.value || "");
     const order = state.orders.find((item) => item.id === orderId);
@@ -726,6 +766,11 @@ function canHoldOrder(order) {
 }
 
 async function updateWorkState(nextStatus, lockedInput = {}) {
+  if (!canAccessView("workerView")) {
+    showPermissionDenied("workerView");
+    return;
+  }
+
   const formData = new FormData(workerForm);
   const workerName = String(lockedInput.workerName ?? formData.get("workerName") ?? "").trim();
   const machineName = String(lockedInput.machineName ?? formData.get("machineName") ?? "").trim();
@@ -862,6 +907,11 @@ function setWorkStartConfirmationLocked(isLocked) {
 }
 
 function preparePause() {
+  if (!canAccessView("workerView")) {
+    showPermissionDenied("workerView");
+    return;
+  }
+
   const formData = new FormData(workerForm);
   const workerName = String(formData.get("workerName") || "").trim();
   const machineName = String(formData.get("machineName") || "").trim();
@@ -885,6 +935,11 @@ function preparePause() {
 }
 
 async function pauseTemporarily() {
+  if (!canAccessView("workerView")) {
+    showPermissionDenied("workerView");
+    return;
+  }
+
   const formData = new FormData(workerForm);
   const workerName = String(formData.get("workerName") || "").trim();
   const machineName = String(formData.get("machineName") || "").trim();
@@ -942,6 +997,11 @@ async function pauseTemporarily() {
 }
 
 async function finalizePause() {
+  if (!canAccessView("workerView")) {
+    showPermissionDenied("workerView");
+    return;
+  }
+
   const workQty = String(workQtyInput.value || "").trim();
   const workHitQty = String(workHitQtyInput.value || "").trim();
   const pauseReason = String(pauseReasonInput.value || "").trim();
@@ -988,6 +1048,11 @@ async function finalizePause() {
 }
 
 function prepareCompletion() {
+  if (!canAccessView("workerView")) {
+    showPermissionDenied("workerView");
+    return;
+  }
+
   const formData = new FormData(workerForm);
   const workerName = String(formData.get("workerName") || "").trim();
   const machineName = String(formData.get("machineName") || "").trim();
@@ -1003,6 +1068,11 @@ function prepareCompletion() {
 }
 
 async function finalizeCompletion() {
+  if (!canAccessView("workerView")) {
+    showPermissionDenied("workerView");
+    return;
+  }
+
   const productionQty = String(productionQtyInput.value || "").trim();
   const totalHitQty = String(totalHitQtyInput.value || "").trim();
   if (!pendingCompletionOrderId || !pendingCompletionWorkerName || productionQty === "") return;
@@ -1175,24 +1245,76 @@ function isAllowedRequisitionEmail(email) {
   return allowlist.includes(normalizedEmail);
 }
 
-function setAdminSession(email) {
+function normalizeAccountRole(value, fallback = "") {
+  const rawRole = String(value || "").trim().toLowerCase();
+  const role = LEGACY_ROLE_ALIASES[rawRole] || rawRole;
+  return ADMIN_ACCOUNT_ROLES.some((item) => item.value === role) ? role : fallback;
+}
+
+function getSessionRole(user = {}, email = "") {
+  const appMetadata = user.app_metadata || user.appMetadata || user.raw_app_meta_data || {};
+  const role = normalizeAccountRole(appMetadata.jhint_role, "");
+  if (role) return role;
+  return isAllowedAdminEmail(email) ? "admin" : "";
+}
+
+function canAccessView(targetId) {
+  if (targetId === "dashboardView") return true;
+  if (!currentAdminRole) return true;
+  return (ROLE_VIEW_PERMISSIONS[currentAdminRole] || ["dashboardView"]).includes(targetId);
+}
+
+function canAccessAdminSection(section) {
+  const normalizedSection = String(section || "").trim();
+  if (!normalizedSection) return false;
+  if (ADMIN_ONLY_SECTIONS[normalizedSection]) {
+    return ADMIN_ONLY_SECTIONS[normalizedSection].includes(currentAdminRole);
+  }
+  return (ROLE_ADMIN_SECTION_PERMISSIONS[currentAdminRole] || []).includes(normalizedSection);
+}
+
+function showPermissionDenied(targetId = "") {
+  const pageNames = {
+    ordersView: "발주 입력",
+    requisitionView: "발주의뢰",
+    workerView: "작업자 입력",
+    shippingView: "출하",
+    sopView: "작업표준서",
+    adminView: "관리자 페이지"
+  };
+  const pageName = pageNames[targetId] || "해당 페이지";
+  showAppAlert(`${pageName}에 접근할 권한이 없습니다.`);
+}
+
+function getCurrentRoleLabel() {
+  return getAdminAccountRoleLabel(currentAdminRole);
+}
+
+function setAdminSession(email, role = "") {
   const normalizedEmail = String(email || "").trim().toLowerCase();
-  isAdminLoggedIn = isAllowedAdminEmail(normalizedEmail);
-  isRequisitionLoggedIn = isAllowedRequisitionEmail(normalizedEmail);
-  currentAdminEmail = isAdminLoggedIn ? normalizedEmail : "";
+  const normalizedRole = normalizeAccountRole(role, normalizedEmail && isAllowedAdminEmail(normalizedEmail) ? "admin" : "");
+  const isLoggedIn = Boolean(normalizedEmail && normalizedRole);
+  currentAdminRole = isLoggedIn ? normalizedRole : "";
+  isAdminLoggedIn = isLoggedIn;
+  isRequisitionLoggedIn = isLoggedIn && canAccessView("requisitionView");
+  currentAdminEmail = isLoggedIn ? normalizedEmail : "";
   currentRequisitionEmail = isRequisitionLoggedIn ? normalizedEmail : "";
 }
 
 async function restoreAdminSession() {
   if (!supabaseAuthClient) return;
   const { data } = await supabaseAuthClient.auth.getSession();
-  setAdminSession(data?.session?.user?.email || "");
+  const sessionUser = data?.session?.user || {};
+  const sessionEmail = sessionUser.email || "";
+  setAdminSession(sessionEmail, getSessionRole(sessionUser, sessionEmail));
 }
 
 function bindAdminAuthListener() {
   if (!supabaseAuthClient) return;
   supabaseAuthClient.auth.onAuthStateChange((_event, session) => {
-    setAdminSession(session?.user?.email || "");
+    const sessionUser = session?.user || {};
+    const sessionEmail = sessionUser.email || "";
+    setAdminSession(sessionEmail, getSessionRole(sessionUser, sessionEmail));
     renderAdminSession();
     renderSopPage();
   });
@@ -1507,6 +1629,10 @@ function getFilteredSops({ publishedOnly = false } = {}) {
 }
 
 function switchView(targetId) {
+  if (!canAccessView(targetId)) {
+    showPermissionDenied(targetId);
+    targetId = "dashboardView";
+  }
   tabButtons.forEach((item) => item.classList.toggle("active", item.dataset.viewTarget === targetId));
   viewPanels.forEach((panel) => panel.classList.toggle("active", panel.id === targetId));
 }
@@ -2375,15 +2501,15 @@ async function handleRequisitionAction(button) {
     return;
   }
   if (action === "edit") {
-    if (!isRequisitionLoggedIn) {
-      showAppAlert("발주의뢰 로그인 후 수정할 수 있습니다.");
+    if (!isRequisitionLoggedIn || !canAccessView("requisitionView")) {
+      showPermissionDenied("requisitionView");
       return;
     }
     loadRequisitionForEdit(request);
     return;
   }
-  if (!isAdminLoggedIn) {
-    showAppAlert("관리자 로그인 후 처리할 수 있습니다.");
+  if (!isAdminLoggedIn || !canAccessView("ordersView")) {
+    showPermissionDenied("ordersView");
     return;
   }
 
@@ -2758,18 +2884,20 @@ async function handleAdminLogin(formElement) {
 
   const sessionUser = data?.user || data?.session?.user || {};
   const sessionEmail = sessionUser.email || adminEmail;
-  const sessionRole = sessionUser.app_metadata?.jhint_role || sessionUser.appMetadata?.jhint_role || "";
-  if (!isAllowedAdminEmail(sessionEmail) && sessionRole !== "admin") {
+  const sessionRole = getSessionRole(sessionUser, sessionEmail);
+  if (!sessionRole) {
     await supabaseAuthClient.auth.signOut({ scope: "local" });
-    showAppAlert("이 계정은 관리자 권한이 없습니다.");
+    showAppAlert("이 계정은 생산일정관리 권한이 없습니다.");
     return;
   }
 
-  setAdminSession(sessionEmail);
+  setAdminSession(sessionEmail, sessionRole);
   adminLoginForm.reset();
   adminPageLoginForm.reset();
   renderAdminSession();
-  activateAdminAccountsTab({ reset: true });
+  if (canAccessView("adminView")) {
+    activateAdminAccountsTab({ reset: true });
+  }
   renderSopPage();
 }
 
@@ -3334,8 +3462,11 @@ async function handleRequisitionLogin(formElement) {
     return;
   }
 
-  const sessionEmail = data?.user?.email || data?.session?.user?.email || requisitionEmail;
-  if (!isAllowedRequisitionEmail(sessionEmail)) {
+  const sessionUser = data?.user || data?.session?.user || {};
+  const sessionEmail = sessionUser.email || requisitionEmail;
+  const sessionRole = getSessionRole(sessionUser, sessionEmail);
+  setAdminSession(sessionEmail, sessionRole);
+  if (!isRequisitionLoggedIn) {
     await supabaseAuthClient.auth.signOut({ scope: "local" });
     setAdminSession("");
     renderAdminSession();
@@ -3344,7 +3475,6 @@ async function handleRequisitionLogin(formElement) {
     return;
   }
 
-  setAdminSession(sessionEmail);
   formElement.reset();
   prefillRequisitionRequester();
   renderAdminSession();
@@ -3481,38 +3611,46 @@ function getSortedOrders(orders) {
 function renderAdminSession() {
   adminLoginPanel.hidden = isAdminLoggedIn;
   adminSessionPanel.hidden = !isAdminLoggedIn;
-  adminSessionUser.textContent = currentAdminEmail || "admin";
+  adminSessionUser.textContent = currentAdminEmail ? `${currentAdminEmail} · ${getCurrentRoleLabel()}` : "admin";
   if (requisitionLoginPanel) requisitionLoginPanel.hidden = isRequisitionLoggedIn;
   if (requisitionSessionPanel) requisitionSessionPanel.hidden = !isRequisitionLoggedIn;
-  if (requisitionSessionUser) requisitionSessionUser.textContent = currentRequisitionEmail || "request user";
+  if (requisitionSessionUser) requisitionSessionUser.textContent = currentRequisitionEmail ? `${currentRequisitionEmail} · ${getCurrentRoleLabel()}` : "request user";
   if (requisitionContent) requisitionContent.hidden = !isRequisitionLoggedIn;
+  const canUseRequisition = isAdminLoggedIn && canAccessView("requisitionView");
   if (requisitionForm) {
     Array.from(requisitionForm.elements).forEach((element) => {
-      element.disabled = !isRequisitionLoggedIn;
+      element.disabled = !canUseRequisition;
     });
   }
-  if (addRequisitionItemBtn) addRequisitionItemBtn.disabled = !isRequisitionLoggedIn;
-  ordersLockedNotice.hidden = isAdminLoggedIn;
-  ordersContent.hidden = !isAdminLoggedIn;
+  if (addRequisitionItemBtn) addRequisitionItemBtn.disabled = !canUseRequisition;
+  const canUseOrders = isAdminLoggedIn && canAccessView("ordersView");
+  const canUseAdminPage = isAdminLoggedIn && canAccessView("adminView");
+  const canUseSop = isAdminLoggedIn && canAccessView("sopView");
+  ordersLockedNotice.hidden = canUseOrders;
+  ordersContent.hidden = !canUseOrders;
   Array.from(orderForm.elements).forEach((element) => {
-    element.disabled = !isAdminLoggedIn;
+    element.disabled = !canUseOrders;
   });
   Array.from(orderEditForm.elements).forEach((element) => {
     if (element === cancelEditBtn) return;
-    element.disabled = !isAdminLoggedIn;
+    element.disabled = !canUseOrders;
   });
-  if (!isAdminLoggedIn) {
+  if (!canUseOrders) {
     closeOrderEditPanel();
   }
-  adminPageLocked.hidden = isAdminLoggedIn;
-  adminPageContent.hidden = !isAdminLoggedIn;
-  if (sopLockedNotice) sopLockedNotice.hidden = isAdminLoggedIn;
-  if (sopAdminContent) sopAdminContent.hidden = !isAdminLoggedIn;
+  adminPageLocked.hidden = canUseAdminPage;
+  adminPageContent.hidden = !canUseAdminPage;
+  if (sopLockedNotice) sopLockedNotice.hidden = canUseSop;
+  if (sopAdminContent) sopAdminContent.hidden = !canUseSop;
   if (sopForm) {
     Array.from(sopForm.elements).forEach((element) => {
-      element.disabled = !isAdminLoggedIn;
+      element.disabled = !canUseSop;
     });
   }
+  tabButtons.forEach((button) => {
+    const targetId = button.dataset.viewTarget || "";
+    button.hidden = Boolean(currentAdminRole) && !canAccessView(targetId);
+  });
 }
 
 function shouldRenderAdminAccountsInPageRender(options = {}) {
@@ -4516,12 +4654,26 @@ async function handleSmartSopBridgeRequest(request) {
 }
 
 function renderAdminSections() {
-  document.querySelectorAll("[data-admin-section]").forEach((button) => {
-    button.classList.toggle("active", button.dataset.adminSection === adminActiveSection);
-  });
+  filterAdminSectionsByRole();
 
   document.querySelectorAll("[data-admin-panel]").forEach((panel) => {
-    panel.hidden = panel.dataset.adminPanel !== adminActiveSection;
+    panel.hidden = panel.dataset.adminPanel !== adminActiveSection || !canAccessAdminSection(panel.dataset.adminPanel);
+  });
+}
+
+function filterAdminSectionsByRole() {
+  const buttons = [...document.querySelectorAll("[data-admin-section]")];
+  const allowedButtons = buttons.filter((button) => canAccessAdminSection(button.dataset.adminSection));
+
+  if (!canAccessAdminSection(adminActiveSection)) {
+    adminActiveSection = allowedButtons[0]?.dataset.adminSection || "";
+  }
+
+  buttons.forEach((button) => {
+    const allowed = canAccessAdminSection(button.dataset.adminSection);
+    button.hidden = !allowed;
+    button.disabled = !allowed;
+    button.classList.toggle("active", allowed && button.dataset.adminSection === adminActiveSection);
   });
 }
 
@@ -4730,7 +4882,7 @@ function getAdminAccountRoleLabel(role) {
 }
 
 function renderAdminAccountRoleOptions(role) {
-  const activeRole = ADMIN_ACCOUNT_ROLES.some((item) => item.value === role) ? role : "viewer";
+  const activeRole = normalizeAccountRole(role, "production");
   return ADMIN_ACCOUNT_ROLES
     .map((item) => `<option value="${escapeHtml(item.value)}"${item.value === activeRole ? " selected" : ""}>${escapeHtml(item.label)}</option>`)
     .join("");
@@ -4746,14 +4898,14 @@ function resetAdminAccountListState() {
 }
 
 function ensureAdminUsersLoaded(options = {}) {
-  if (!adminAccountList || !isAdminLoggedIn || adminActiveSection !== "accounts") return;
+  if (!adminAccountList || !isAdminLoggedIn || adminActiveSection !== "accounts" || !canAccessAdminSection("accounts")) return;
   if (adminUsersLoading) return;
   if (adminUsersLoaded && !options.force) return;
   void fetchAdminUsers({ force: Boolean(options.force) });
 }
 
 function activateAdminAccountsTab(options = {}) {
-  adminActiveSection = "accounts";
+  adminActiveSection = canAccessAdminSection("accounts") ? "accounts" : (ROLE_ADMIN_SECTION_PERMISSIONS[currentAdminRole] || [])[0] || "";
   if (options.reset) {
     resetAdminAccountListState();
   }
@@ -4770,9 +4922,7 @@ async function getAdminAccessToken() {
 function normalizeAdminUser(user) {
   const userMetadata = user.user_metadata || user.userMetadata || user.raw_user_meta_data || {};
   const appMetadata = user.app_metadata || user.appMetadata || user.raw_app_meta_data || {};
-  const role = ADMIN_ACCOUNT_ROLES.some((item) => item.value === appMetadata.jhint_role)
-    ? appMetadata.jhint_role
-    : "viewer";
+  const role = normalizeAccountRole(appMetadata.jhint_role, "production");
   return {
     id: user.id || "",
     email: user.email || "",
@@ -4812,7 +4962,7 @@ async function requestAdminUsersApi(method, body = null, query = "") {
 }
 
 async function fetchAdminUsers(options = {}) {
-  if (!adminAccountList || !isAdminLoggedIn) return;
+  if (!adminAccountList || !isAdminLoggedIn || !canAccessAdminSection("accounts")) return;
   if (adminUsersLoading) return;
   if (adminUsersLoaded && !options.force) {
     renderAdminAccounts();
@@ -4841,7 +4991,7 @@ async function fetchAdminUsers(options = {}) {
 }
 
 async function createAdminUser(formElement) {
-  if (!isAdminLoggedIn) {
+  if (!isAdminLoggedIn || !canAccessAdminSection("accounts")) {
     showAppAlert("관리자 로그인 후 계정을 생성할 수 있습니다.");
     return;
   }
@@ -4861,7 +5011,7 @@ async function createAdminUser(formElement) {
   }
 
   try {
-    await requestAdminUsersApi("POST", { email, password, role: "viewer" });
+    await requestAdminUsersApi("POST", { email, password, role: "production" });
     state.activities.unshift({
       id: crypto.randomUUID(),
       type: "accountCreate",
@@ -4882,7 +5032,7 @@ async function createAdminUser(formElement) {
 }
 
 async function updateAdminUserProfile(userId, userEmail, displayName, role) {
-  if (!isAdminLoggedIn) {
+  if (!isAdminLoggedIn || !canAccessAdminSection("accounts")) {
     showAppAlert("관리자 로그인 후 계정 정보를 수정할 수 있습니다.");
     return;
   }
@@ -4892,7 +5042,7 @@ async function updateAdminUserProfile(userId, userEmail, displayName, role) {
     return;
   }
 
-  const selectedRole = ADMIN_ACCOUNT_ROLES.some((item) => item.value === role) ? role : "viewer";
+  const selectedRole = normalizeAccountRole(role, "production");
   const cleanName = String(displayName || "").trim();
 
   try {
@@ -4920,7 +5070,7 @@ async function updateAdminUserProfile(userId, userEmail, displayName, role) {
 }
 
 async function deleteAdminUser(userId, userEmail) {
-  if (!isAdminLoggedIn) {
+  if (!isAdminLoggedIn || !canAccessAdminSection("accounts")) {
     showAppAlert("관리자 로그인 후 계정을 삭제할 수 있습니다.");
     return;
   }
@@ -5893,6 +6043,11 @@ function renderShippingPageCardOverride() {
   });
 
   const saveShipmentFromRow = (order, shipQty, shipDate, replaceExisting = false) => {
+    if (!canAccessView("shippingView")) {
+      showPermissionDenied("shippingView");
+      return;
+    }
+
     if (!shipQty || shipQty <= 0) {
       showAppAlert("출하 수량을 입력해 주세요.");
       return;
@@ -5963,6 +6118,11 @@ function renderShippingPageCardOverride() {
 
   shippingTableBody.querySelectorAll(".shipping-note-save-btn").forEach((button) => {
     button.addEventListener("click", () => {
+      if (!canAccessView("shippingView")) {
+        showPermissionDenied("shippingView");
+        return;
+      }
+
       const order = state.orders.find((item) => item.id === button.dataset.orderId);
       if (!order) return;
       const noteInput = shippingTableBody.querySelector(`input[data-note-order-id="${order.id}"]`);
@@ -9393,6 +9553,11 @@ function showAppAlert(message) {
 }
 
 function confirmWorkStart() {
+  if (!canAccessView("workerView")) {
+    showPermissionDenied("workerView");
+    return;
+  }
+
   const formData = new FormData(workerForm);
   const workerName = String(formData.get("workerName") || "").trim();
   const machineName = String(formData.get("machineName") || "").trim();
@@ -9542,18 +9707,20 @@ async function handleAdminLogin(formElement) {
 
   const sessionUser = data?.user || data?.session?.user || {};
   const sessionEmail = sessionUser.email || adminEmail;
-  const sessionRole = sessionUser.app_metadata?.jhint_role || sessionUser.appMetadata?.jhint_role || "";
-  if (!isAllowedAdminEmail(sessionEmail) && sessionRole !== "admin") {
+  const sessionRole = getSessionRole(sessionUser, sessionEmail);
+  if (!sessionRole) {
     await supabaseAuthClient.auth.signOut({ scope: "local" });
-    showAppAlert("이 계정은 관리자 권한이 없습니다.");
+    showAppAlert("이 계정은 생산일정관리 권한이 없습니다.");
     return;
   }
 
-  setAdminSession(sessionEmail);
+  setAdminSession(sessionEmail, sessionRole);
   adminLoginForm.reset();
   adminPageLoginForm.reset();
   renderAdminSession();
-  activateAdminAccountsTab({ reset: true });
+  if (canAccessView("adminView")) {
+    activateAdminAccountsTab({ reset: true });
+  }
   renderSopPage();
 }
 
@@ -10155,8 +10322,8 @@ function renderOrdersTable() {
 
   ordersTableBody.querySelectorAll(".edit-order-btn").forEach((button) => {
     button.addEventListener("click", () => {
-      if (!isAdminLoggedIn) {
-        showAppAlert("관리자 로그인 후 발주를 수정할 수 있습니다.");
+      if (!isAdminLoggedIn || !canAccessView("ordersView")) {
+        showPermissionDenied("ordersView");
         return;
       }
       openOrderEditPanel(button.dataset.orderId || "");
@@ -10649,8 +10816,8 @@ function clearRequisitionLinkForDeletedOrder(appState, order) {
 }
 
 async function deleteOrder(orderId) {
-  if (!isAdminLoggedIn) {
-    showAppAlert("관리자 로그인 후 발주를 삭제할 수 있습니다.");
+  if (!isAdminLoggedIn || !canAccessView("ordersView")) {
+    showPermissionDenied("ordersView");
     return;
   }
 
@@ -10690,8 +10857,8 @@ async function deleteOrder(orderId) {
 }
 
 async function toggleOrderHold(orderId, shouldHold) {
-  if (!isAdminLoggedIn) {
-    showAppAlert("관리자 로그인 후 발주 보류 상태를 변경할 수 있습니다.");
+  if (!isAdminLoggedIn || !canAccessView("ordersView")) {
+    showPermissionDenied("ordersView");
     return;
   }
 
@@ -11107,6 +11274,11 @@ function renderActivities() {
 }
 
 function openWorkerHistoryEdit(orderId) {
+  if (!canAccessView("workerView")) {
+    showPermissionDenied("workerView");
+    return;
+  }
+
   const order = state.orders.find((item) => item.id === orderId);
   if (!order) {
     showAppAlert("수정할 작업 이력을 찾을 수 없습니다.");
@@ -11187,6 +11359,11 @@ function openWorkerHistoryEdit(orderId) {
 }
 
 function saveWorkerHistoryEdit(formData) {
+  if (!canAccessView("workerView")) {
+    showPermissionDenied("workerView");
+    return;
+  }
+
   const orderId = String(formData.get("orderId") || "");
   const order = state.orders.find((item) => item.id === orderId);
   if (!order) return;
