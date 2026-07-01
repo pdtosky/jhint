@@ -34,6 +34,10 @@ assert(appJs.includes("currentAdminRole"), "app.js should track the current logi
 assert(appJs.includes("getSessionRole"), "app.js should read jhint_role from Supabase session metadata");
 assert(appJs.includes("normalizeAccountRole"), "app.js should normalize legacy and new account roles");
 assert(appJs.includes("showPermissionDenied"), "app.js should show a clear message when a user opens a blocked page");
+assert(appJs.includes("function renderRolePermissionGuide"), "app.js should render a role permission guide in account management");
+assert(appJs.includes("admin-role-permission-guide"), "account management should include a visible role permission guide");
+assert(appJs.includes("getRolePermissionSummary"), "permission guide should be generated from the same role rules");
+assert(appJs.includes("계정관리"), "permission guide should explain account-management access separately");
 
 assert(apiSource.includes('"production"'), "account API should accept production role");
 assert(apiSource.includes('"office"'), "account API should accept office role");

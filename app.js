@@ -34,6 +34,23 @@ const ROLE_ADMIN_SECTION_PERMISSIONS = {
 const ADMIN_ONLY_SECTIONS = {
   accounts: ["admin"]
 };
+const ROLE_VIEW_LABELS = {
+  dashboardView: "대시보드",
+  ordersView: "발주입력",
+  requisitionView: "발주의뢰",
+  workerView: "작업자입력",
+  shippingView: "출하",
+  sopView: "작업표준서",
+  adminView: "관리자페이지"
+};
+const ROLE_ADMIN_SECTION_LABELS = {
+  equipment: "장비",
+  mold: "금형",
+  journal: "생산일지",
+  worker: "작업자효율",
+  logs: "로그",
+  accounts: "계정관리"
+};
 const APP_CONFIG = window.APP_CONFIG || {};
 const POLL_INTERVAL_MS = Number(APP_CONFIG.pollIntervalMs || 60000);
 const HOLIDAY_POLL_INTERVAL_MS = Number(
@@ -4776,6 +4793,57 @@ function renderAdminLogs() {
     .join("");
 }
 
+function getRolePermissionSummary(role) {
+  const pages = (ROLE_VIEW_PERMISSIONS[role] || [])
+    .map((viewId) => ROLE_VIEW_LABELS[viewId] || viewId)
+    .join(", ");
+  const adminSections = (ROLE_ADMIN_SECTION_PERMISSIONS[role] || [])
+    .filter((section) => section !== "accounts")
+    .map((section) => ROLE_ADMIN_SECTION_LABELS[section] || section)
+    .join(", ");
+  const canManageAccounts = canRoleManageAccounts(role);
+
+  return {
+    pages: pages || "-",
+    adminSections: adminSections || "-",
+    accountManagement: canManageAccounts ? "가능" : "불가"
+  };
+}
+
+function canRoleManageAccounts(role) {
+  return (ADMIN_ONLY_SECTIONS.accounts || []).includes(role);
+}
+
+function renderRolePermissionGuide() {
+  const rows = ADMIN_ACCOUNT_ROLES.map((role) => {
+    const summary = getRolePermissionSummary(role.value);
+    return `
+      <article class="admin-role-permission-row">
+        <strong>${escapeHtml(role.label)}</strong>
+        <span>${escapeHtml(summary.pages)}</span>
+        <span>${escapeHtml(summary.adminSections)}</span>
+        <em class="${summary.accountManagement === "가능" ? "allowed" : "blocked"}">계정관리 ${summary.accountManagement}</em>
+      </article>
+    `;
+  }).join("");
+
+  return `
+    <section class="admin-role-permission-guide" aria-label="역할별 권한표">
+      <div class="admin-role-permission-title">
+        <strong>역할별 권한표</strong>
+        <span>계정 권한 설정 기준</span>
+      </div>
+      <div class="admin-role-permission-head" aria-hidden="true">
+        <span>권한</span>
+        <span>사용 가능 페이지</span>
+        <span>관리자 메뉴</span>
+        <span>계정관리</span>
+      </div>
+      ${rows}
+    </section>
+  `;
+}
+
 function isAdminAccountEditorFocused() {
   if (!adminAccountList) return false;
   const activeElement = document.activeElement;
@@ -4788,28 +4856,29 @@ function isAdminAccountEditorFocused() {
 
 function renderAdminAccounts(options = {}) {
   if (!adminAccountList) return;
+  const permissionGuide = renderRolePermissionGuide();
 
   if (!options.force && adminUsersLoaded && !adminUsersLoading && !adminUsersErrorMessage && isAdminAccountEditorFocused()) {
     return;
   }
 
   if (adminUsersLoading) {
-    adminAccountList.innerHTML = `<div class="empty-state">계정 목록을 불러오는 중입니다.</div>`;
+    adminAccountList.innerHTML = `${permissionGuide}<div class="empty-state">계정 목록을 불러오는 중입니다.</div>`;
     return;
   }
 
   if (adminUsersErrorMessage) {
-    adminAccountList.innerHTML = `<div class="empty-state">${escapeHtml(adminUsersErrorMessage)}</div>`;
+    adminAccountList.innerHTML = `${permissionGuide}<div class="empty-state">${escapeHtml(adminUsersErrorMessage)}</div>`;
     return;
   }
 
   if (!adminUsersLoaded) {
-    adminAccountList.innerHTML = `<div class="empty-state">계정 관리 탭을 열면 목록을 불러옵니다.</div>`;
+    adminAccountList.innerHTML = `${permissionGuide}<div class="empty-state">계정 관리 탭을 열면 목록을 불러옵니다.</div>`;
     return;
   }
 
   if (!adminUsersCache.length) {
-    adminAccountList.innerHTML = `<div class="empty-state">등록된 계정이 없습니다.</div>`;
+    adminAccountList.innerHTML = `${permissionGuide}<div class="empty-state">등록된 계정이 없습니다.</div>`;
     return;
   }
 
@@ -4856,6 +4925,7 @@ function renderAdminAccounts(options = {}) {
     .join("");
 
   adminAccountList.innerHTML = `
+    ${permissionGuide}
     <section class="admin-account-table" aria-label="계정 목록">
       <div class="admin-account-head" aria-hidden="true">
         <span>아이디</span>

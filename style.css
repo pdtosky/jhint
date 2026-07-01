@@ -4684,6 +4684,93 @@ html {
   gap: 0;
 }
 
+.admin-role-permission-guide {
+  margin-bottom: 14px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.admin-role-permission-title,
+.admin-role-permission-head,
+.admin-role-permission-row {
+  display: grid;
+  grid-template-columns: minmax(86px, 0.55fr) minmax(260px, 1.7fr) minmax(210px, 1.25fr) minmax(120px, 0.6fr);
+  align-items: center;
+  gap: 0;
+}
+
+.admin-role-permission-title {
+  grid-template-columns: 1fr auto;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.admin-role-permission-title strong {
+  color: var(--ink);
+  font-size: 1rem;
+}
+
+.admin-role-permission-title span {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.admin-role-permission-head {
+  background: rgba(225, 239, 255, 0.82);
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.admin-role-permission-head span,
+.admin-role-permission-row > * {
+  min-width: 0;
+  padding: 10px 12px;
+  border-right: 1px solid var(--line);
+}
+
+.admin-role-permission-head span:last-child,
+.admin-role-permission-row > *:last-child {
+  border-right: 0;
+}
+
+.admin-role-permission-row {
+  border-top: 1px solid var(--line);
+  color: #203651;
+  font-size: 0.9rem;
+  line-height: 1.35;
+}
+
+.admin-role-permission-row strong {
+  color: #00695f;
+  font-size: 0.96rem;
+}
+
+.admin-role-permission-row span {
+  overflow-wrap: anywhere;
+  word-break: keep-all;
+}
+
+.admin-role-permission-row em {
+  justify-self: stretch;
+  border-radius: 999px;
+  font-style: normal;
+  font-weight: 900;
+  text-align: center;
+}
+
+.admin-role-permission-row em.allowed {
+  color: #00695f;
+  background: rgba(211, 243, 234, 0.9);
+}
+
+.admin-role-permission-row em.blocked {
+  color: #a13b2f;
+  background: rgba(255, 229, 226, 0.9);
+}
+
 .admin-account-table {
   overflow: hidden;
   border: 1px solid var(--line);
@@ -5091,6 +5178,37 @@ html {
 
   .admin-overview-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .admin-role-permission-title {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+
+  .admin-role-permission-head {
+    display: none;
+  }
+
+  .admin-role-permission-row {
+    grid-template-columns: 1fr;
+    gap: 4px;
+    padding: 10px 12px;
+  }
+
+  .admin-role-permission-row > * {
+    padding: 0;
+    border-right: 0;
+  }
+
+  .admin-role-permission-row span {
+    font-size: 0.82rem;
+    line-height: 1.35;
+  }
+
+  .admin-role-permission-row em {
+    justify-self: start;
+    padding: 5px 10px;
+    font-size: 0.78rem;
   }
 
   .journal-worker-group summary {
