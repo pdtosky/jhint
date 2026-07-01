@@ -681,16 +681,33 @@ function renderWorkerTable(rows, columns, className = "") {
 function renderWorkerChecklistForm(sop) {
   const rows = sop.productionChecklist && sop.productionChecklist.length ? sop.productionChecklist : [];
   if (!rows.length) return `<p class="worker-empty">체크할 생산체크시트 항목이 없습니다.</p>`;
-  return `<p class="auto-note">참고: 초물/중물/종물 칸은 1번 누르면 ✓, 2번 누르면 X, 3번 누르면 빈칸으로 돌아갑니다.</p><div class="worker-table-wrap"><table class="worker-table worker-checklist-form"><thead><tr><th>No.</th><th>체크항목</th><th>판정기준</th><th>확인방법</th><th>초물</th><th>중물</th><th>종물</th><th>참고</th></tr></thead><tbody>${rows.map((row, index) => `<tr>
-    <td data-label="No.">${escapeHtml(row.no || String(index + 1))}</td>
-    <td data-label="체크항목">${escapeHtml(row.item || "")}</td>
-    <td data-label="판정기준">${escapeHtml(row.standard || "")}</td>
-    <td data-label="확인방법">${escapeHtml(row.checkMethod || "")}</td>
-    <td data-label="초물">${renderCycleCheck(`checklist.${index}.checks.first`)}</td>
-    <td data-label="중물">${renderCycleCheck(`checklist.${index}.checks.middle`)}</td>
-    <td data-label="종물">${renderCycleCheck(`checklist.${index}.checks.final`)}</td>
-    <td data-label="참고"><input data-record-path="checklist.${index}.note" placeholder="참고 입력"></td>
-  </tr>`).join("")}</tbody></table></div>`;
+  return `<p class="auto-note">참고: 초물/중물/종물은 누를 때마다 ✓, X, 빈칸 순서로 바뀝니다.</p>
+  <div class="worker-checklist-form worker-checklist-cards">
+    ${rows.map((row, index) => {
+      const no = row.no || String(index + 1);
+      return `<article class="worker-checklist-card"
+        data-checklist-index="${index}"
+        data-checklist-no="${escapeHtml(no)}"
+        data-checklist-item="${escapeHtml(row.item || "")}"
+        data-checklist-standard="${escapeHtml(row.standard || "")}"
+        data-checklist-method="${escapeHtml(row.checkMethod || "")}">
+        <div class="worker-checklist-head">
+          <span class="worker-checklist-no">No. ${escapeHtml(no)}</span>
+          <strong>${escapeHtml(row.item || "체크항목")}</strong>
+        </div>
+        <div class="worker-checklist-meta">
+          <p><b>판정</b><span>${escapeHtml(row.standard || "-")}</span></p>
+          <p><b>방법</b><span>${escapeHtml(row.checkMethod || "-")}</span></p>
+        </div>
+        <div class="worker-check-status-row">
+          <label><span>초물</span>${renderCycleCheck(`checklist.${index}.checks.first`)}</label>
+          <label><span>중물</span>${renderCycleCheck(`checklist.${index}.checks.middle`)}</label>
+          <label><span>종물</span>${renderCycleCheck(`checklist.${index}.checks.final`)}</label>
+        </div>
+        <label class="worker-check-note"><span>참고</span><input data-record-path="checklist.${index}.note" placeholder="참고 입력"></label>
+      </article>`;
+    }).join("")}
+  </div>`;
 }
 
 function renderCycleCheck(path) {
@@ -786,16 +803,16 @@ async function saveWorkerRecord(button) {
   const card = button.closest(".worker-card");
   const form = button.closest(".worker-record-form");
   const sopId = form.dataset.sopId;
-  const checklistRows = Array.from(form.querySelectorAll(".worker-checklist-form tbody tr"));
+  const checklistRows = Array.from(form.querySelectorAll(".worker-checklist-card"));
   const record = { sopId, checklist: [], moldUse: {} };
   form.querySelectorAll("[data-record-path]").forEach((input) => setNestedValue(record, input.dataset.recordPath, input.value));
   checklistRows.forEach((row, index) => {
     record.checklist[index] = {
       ...(record.checklist[index] || {}),
-      no: row.children[0].textContent.trim(),
-      item: row.children[1].textContent.trim(),
-      standard: row.children[2].textContent.trim(),
-      checkMethod: row.children[3].textContent.trim()
+      no: row.dataset.checklistNo || String(index + 1),
+      item: row.dataset.checklistItem || "",
+      standard: row.dataset.checklistStandard || "",
+      checkMethod: row.dataset.checklistMethod || ""
     };
   });
   if (record.moldUse) delete record.moldUse.totalShotsPreview;

@@ -56,7 +56,22 @@ textarea { min-height: 64px; resize: vertical; }
 .record-grid label { display: grid; gap: 5px; font-size: 13px; font-weight: 700; color: #455260; }
 .record-wide { grid-column: 1 / -1; }
 .worker-checklist-form input { min-width: 92px; }
-.cycle-check { width: 42px; height: 42px; padding: 0; border: 2px solid #8fa1b2; border-radius: 4px; background: #fff; color: #111827; font-size: 24px; font-weight: 800; line-height: 1; }
+.worker-checklist-cards { display: grid; gap: 8px; }
+.worker-checklist-card { display: grid; gap: 7px; padding: 10px; border: 1px solid #d8e0e7; border-radius: 12px; background: #fff; }
+.worker-checklist-head { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 8px; }
+.worker-checklist-head strong { min-width: 0; font-size: 14px; line-height: 1.3; color: #142235; overflow-wrap: anywhere; }
+.worker-checklist-no { padding: 4px 8px; border-radius: 999px; background: #e9f4ff; color: #315273; font-size: 12px; font-weight: 800; white-space: nowrap; }
+.worker-checklist-meta { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; }
+.worker-checklist-meta p { display: grid; grid-template-columns: 38px minmax(0, 1fr); align-items: start; gap: 5px; margin: 0; padding: 6px 7px; border-radius: 9px; background: #f5f9fd; font-size: 12px; line-height: 1.28; }
+.worker-checklist-meta b,
+.worker-check-note span,
+.worker-check-status-row span { color: #34465a; font-weight: 800; }
+.worker-checklist-meta span { min-width: 0; overflow-wrap: anywhere; }
+.worker-check-status-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.worker-check-status-row label { display: flex; align-items: center; justify-content: space-between; gap: 5px; padding: 5px 6px; border-radius: 9px; background: #f5f9fd; font-size: 12px; font-weight: 800; }
+.worker-check-note { display: grid; grid-template-columns: 42px minmax(0, 1fr); align-items: center; gap: 6px; font-size: 12px; font-weight: 800; }
+.worker-check-note input { min-width: 0; height: 34px; padding: 7px 9px; }
+.cycle-check { width: 30px; height: 30px; padding: 0; border: 2px solid #8fa1b2; border-radius: 7px; background: #fff; color: #111827; font-size: 18px; font-weight: 800; line-height: 1; }
 .cycle-check.is-check { border-color: #116329; background: #f0fff4; color: #116329; }
 .cycle-check.is-x { border-color: #b42318; background: #fff5f5; color: #b42318; }
 .worker-save-result { margin: 10px; padding: 10px; border: 1px solid #97d4a8; border-radius: 6px; background: #f0fff4; color: #116329; font-weight: 700; text-align: center; }
@@ -271,9 +286,16 @@ body.print-preview-open .print-document { width: min(980px, 100%); margin: 0 aut
   .worker-checklist-table td,
   .worker-mold-table td { width: 100% !important; }
   .worker-checklist-form { min-width: 0; }
-  .worker-checklist-form td { grid-template-columns: 58px minmax(0, 1fr); }
   .worker-checklist-form input { min-width: 0; }
-  .cycle-check { width: 42px; height: 42px; justify-self: start; font-size: 24px; }
+  .worker-checklist-card { gap: 6px; padding: 8px; border-radius: 10px; }
+  .worker-checklist-head { gap: 6px; }
+  .worker-checklist-head strong { font-size: 13px; }
+  .worker-checklist-meta { gap: 4px; }
+  .worker-checklist-meta p { grid-template-columns: 34px minmax(0, 1fr); gap: 4px; padding: 5px 6px; font-size: 11.5px; }
+  .worker-check-status-row { gap: 4px; }
+  .worker-check-status-row label { padding: 4px 5px; font-size: 11.5px; }
+  .worker-check-note { grid-template-columns: 38px minmax(0, 1fr); }
+  .cycle-check { width: 28px; height: 28px; justify-self: end; font-size: 16px; }
   .worker-mold-record { margin-top: 8px; }
   .image-modal { padding: 8px; }
   .image-modal-content { width: 100%; max-height: 96vh; padding: 8px; }
