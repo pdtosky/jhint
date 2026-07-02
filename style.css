@@ -1587,6 +1587,12 @@ tbody tr:last-child td {
   border-color: rgba(217, 119, 6, 0.28);
 }
 
+.journal-status-pill.journal-status-break {
+  color: #92400e;
+  background: rgba(254, 243, 199, 0.96);
+  border-color: rgba(245, 158, 11, 0.26);
+}
+
 .journal-status-pill.journal-status-working {
   color: #047857;
   background: rgba(209, 250, 229, 0.96);

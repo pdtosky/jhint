@@ -415,7 +415,7 @@ function bindEvents() {
 
   if (adminJournalTodayBtn) {
     adminJournalTodayBtn.addEventListener("click", () => {
-      setAdminJournalDateFilter(toDateKey(new Date()));
+      setAdminJournalDateFilter(toKoreanDateKey(new Date()));
     });
   }
 
@@ -7833,6 +7833,20 @@ function getValidTimestamp(value) {
   return Number.isNaN(date.getTime()) ? "" : date.toISOString();
 }
 
+function toKoreanDateKey(value) {
+  const timestamp = getValidTimestamp(value);
+  if (!timestamp) return "";
+
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).formatToParts(new Date(timestamp));
+  const partMap = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${partMap.year}-${partMap.month}-${partMap.day}`;
+}
+
 function getOrderActivityTimestamps(order, activityTypes) {
   const orderId = String(order?.id || "");
   if (!orderId || !Array.isArray(state.activities)) return [];
@@ -7867,7 +7881,7 @@ function getOrderLastWorkEndAt(order) {
 }
 
 function getOrderLastPauseAt(order) {
-  const candidates = getOrderActivityTimestamps(order, ["pause"]);
+  const candidates = getOrderActivityTimestamps(order, ["pause", "temporaryPause"]);
   if (!candidates.length) return "";
   const lastTime = Math.max(...candidates.map((timestamp) => new Date(timestamp).getTime()));
   return new Date(lastTime).toISOString();
@@ -9238,7 +9252,7 @@ function renderEquipmentDetailRows(item) {
 
 function getJournalDateKey(order) {
   const baseDate = order.endTime || getOrderLastPauseAt(order) || order.startTime || order.orderDate || order.dueDate || "";
-  return baseDate ? String(baseDate).slice(0, 10) : "";
+  return toKoreanDateKey(baseDate);
 }
 
 function getPauseReasonFromActivity(activity) {
@@ -9295,14 +9309,15 @@ function buildPauseJournalRows(order) {
   if (!orderId || !Array.isArray(state.activities)) return [];
 
   return state.activities
-    .filter((activity) => String(activity?.orderId || "") === orderId && activity.type === "pause" && getValidTimestamp(activity.timestamp))
+    .filter((activity) => String(activity?.orderId || "") === orderId && ["pause", "temporaryPause"].includes(activity.type) && getValidTimestamp(activity.timestamp))
     .map((activity) => {
       const timestamp = getValidTimestamp(activity.timestamp);
-      const reason = getPauseReasonFromActivity(activity) || order.pauseReason || "사유 미입력";
-      const qty = getWorkNumberFromActivity(activity, "작업수량");
-      const hitQty = getWorkNumberFromActivity(activity, "작업타수");
+      const isTemporaryPause = activity.type === "temporaryPause";
+      const reason = isTemporaryPause ? "쉬는시간 또는 점심시간" : getPauseReasonFromActivity(activity) || order.pauseReason || "사유 미입력";
+      const qty = isTemporaryPause ? 0 : getWorkNumberFromActivity(activity, "작업수량");
+      const hitQty = isTemporaryPause ? 0 : getWorkNumberFromActivity(activity, "작업타수");
       return {
-        date: timestamp.slice(0, 10),
+        date: toKoreanDateKey(timestamp),
         company: order.company || "-",
         product: order.product || "-",
         dueDate: order.dueDate || "",
@@ -9311,15 +9326,15 @@ function buildPauseJournalRows(order) {
         qty,
         hitQty,
         elapsedMs: 0,
-        statusKey: "paused",
-        statusText: "작업 중지",
+        statusKey: isTemporaryPause ? "break" : "paused",
+        statusText: isTemporaryPause ? "일시정지" : "작업 중지",
         pauseReason: reason,
-        countInTotals: order.status === "paused",
+        countInTotals: !isTemporaryPause && order.status === "paused",
         sortTime: timestamp,
         startText: "-",
-        endText: `중지 ${formatDateTime(timestamp)}`,
+        endText: `${isTemporaryPause ? "일시정지" : "중지"} ${formatDateTime(timestamp)}`,
         orderText: `${order.company || "-"} / ${order.product || "-"}`,
-        note: `중지 사유: ${reason}`
+        note: `${isTemporaryPause ? "일시정지" : "중지 사유"}: ${reason}`
       };
     });
 }
@@ -9520,6 +9535,8 @@ function renderJournalList() {
               .map((item) => {
                 const statusClass = item.statusKey === "paused"
                   ? "journal-status-paused"
+                  : item.statusKey === "break"
+                    ? "journal-status-break"
                   : item.statusKey === "working"
                     ? "journal-status-working"
                     : item.statusKey === "complete"

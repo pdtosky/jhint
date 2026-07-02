@@ -18,8 +18,12 @@ assert(appJs.includes("function getFilteredProductionJournalRows"), "journal row
 assert(appJs.includes("function renderJournalSummary"), "journal should render a capture-friendly daily worker summary");
 assert(appJs.includes("function setAdminJournalDateFilter"), "journal day selection should keep month and day filters in sync");
 assert(appJs.includes("function buildPauseJournalRows"), "journal should build rows from saved pause history");
+assert(appJs.includes("function toKoreanDateKey"), "journal should use a Korean local date key instead of raw UTC slices");
+assert(appJs.includes("setAdminJournalDateFilter(toKoreanDateKey(new Date()))"), "journal today shortcut should use the same Korean date key as journal rows");
 assert(appJs.includes('String(activity?.orderId || "") === orderId'), "journal activity matching should tolerate numeric/string order ids");
-assert(appJs.includes('statusText: "작업 중지"'), "pause history rows should be labeled as work paused");
+assert(appJs.includes('"작업 중지"'), "pause history rows should be labeled as work paused");
+assert(appJs.includes('statusText: isTemporaryPause ? "일시정지" : "작업 중지"'), "temporary pauses should appear in the production journal");
+assert(appJs.includes('["pause", "temporaryPause"].includes(activity.type)'), "journal pause rows should include temporary pauses");
 assert(appJs.includes("countInTotals"), "pause history rows should avoid double-counting completed order totals");
 assert(appJs.includes("hasJournalOrderRow"), "journal should keep pause-only rows visible even if current order fields were cleared");
 assert(appJs.includes("pauseMatchesSearch"), "journal search should not hide pause rows whose pause reason matches the search");
@@ -43,6 +47,7 @@ assert(styleCss.includes(".journal-summary-grid"), "daily worker summary should 
 assert(styleCss.includes(".journal-day-group"), "daily journal details should have grouped capture styles");
 assert(styleCss.includes(".journal-report-table"), "journal report table should have dedicated styles");
 assert(styleCss.includes(".journal-report-row"), "journal report rows should have dedicated styles");
+assert(styleCss.includes(".journal-status-pill.journal-status-break"), "temporary pause rows should have a dedicated status style");
 assert(styleCss.includes("gap: 0;"), "journal report grid should not use gaps that misalign header and body columns");
 assert(styleCss.includes("border-left: 1px solid rgba(211, 224, 236, 0.9);"), "journal report cells should have vertical dividers");
 assert(styleCss.includes("justify-content: center;"), "journal report cells should center their values inside each column");
