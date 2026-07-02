@@ -57,6 +57,15 @@ const HOLIDAY_POLL_INTERVAL_MS = Number(
   APP_CONFIG.holidayPollIntervalMs || APP_CONFIG.weekendPollIntervalMs || 300000
 );
 const BACKEND_MODE = APP_CONFIG.backend || "api";
+const CODEX_RELEASE_NOTES = [
+  {
+    version: "2026-07-02-12",
+    timestamp: "2026-07-02T12:00:00+09:00",
+    title: "작업일지 표시 기준 정리",
+    summary: "생산일지에서 작업 시작 기록은 제외하고 작업 중지와 작업 완료 기록만 남도록 정리했습니다.",
+    files: ["app.js", "sw.js", "tests/admin-journal.test.js"]
+  }
+];
 
 const TEXT = {
   admin: "\uAD00\uB9AC\uC790",
@@ -1198,9 +1207,10 @@ function applyIncomingState(nextState) {
   const repairResult = repairConvertedRequisitionOrders(normalizeAppState(nextState));
   const normalized = repairResult.state;
   assignNormalizedState(normalized);
-  lastStateSnapshot = JSON.stringify(normalized);
+  const codexLogChanged = syncCodexReleaseLogs();
+  lastStateSnapshot = JSON.stringify(normalizeAppState(state));
 
-  if (repairResult.changed) {
+  if (repairResult.changed || codexLogChanged) {
     persist().catch(handlePersistError);
   }
 }
@@ -1212,6 +1222,35 @@ function assignNormalizedState(normalized) {
   state.sopWorkRecords = normalized.sopWorkRecords;
   state.sopDeletedIds = normalized.sopDeletedIds;
   state.activities = normalized.activities;
+}
+
+function syncCodexReleaseLogs() {
+  if (!Array.isArray(state.activities)) {
+    state.activities = [];
+  }
+
+  let changed = false;
+  CODEX_RELEASE_NOTES.forEach((note) => {
+    const logId = `codex-update-${note.version}`;
+    const alreadyLogged = state.activities.some(
+      (activity) => activity.id === logId || activity.releaseVersion === note.version
+    );
+    if (alreadyLogged) return;
+
+    state.activities.unshift({
+      id: logId,
+      type: "codexUpdate",
+      actor: "Codex",
+      target: note.title,
+      releaseVersion: note.version,
+      timestamp: note.timestamp,
+      message: note.summary,
+      files: note.files || []
+    });
+    changed = true;
+  });
+
+  return changed;
 }
 
 function normalizeAppState(appState) {
@@ -4830,7 +4869,8 @@ function getAdminActivityLabel(type) {
     requisition: "발주의뢰 등록",
     requisitionEdit: "발주의뢰 수정",
     accountCreate: "계정 생성",
-    accountDelete: "계정 삭제"
+    accountDelete: "계정 삭제",
+    codexUpdate: "시스템 수정"
   };
   return labels[type] || "기타 이력";
 }
@@ -4850,7 +4890,7 @@ function buildAdminLogEntries() {
       const targetEmail = activity.targetEmail || activity.email || "";
       const targetText = order
         ? `${order.company || "-"} / ${order.product || "-"}`
-        : targetEmail || activity.requestId || activity.message || "-";
+        : targetEmail || activity.requestId || activity.target || activity.message || "-";
       const actorText = activity.workerName || activity.adminEmail || activity.actor || currentAdminEmail || "-";
       const detailParts = [
         activity.message,
@@ -4858,7 +4898,8 @@ function buildAdminLogEntries() {
         order?.deliveryType ? `구분 ${order.deliveryType}` : "",
         order?.dueDate ? `납기 ${formatDate(order.dueDate)}` : "",
         activity.reason ? `사유 ${activity.reason}` : "",
-        targetEmail ? `대상 ${targetEmail}` : ""
+        targetEmail ? `대상 ${targetEmail}` : "",
+        Array.isArray(activity.files) && activity.files.length ? `파일 ${activity.files.join(", ")}` : ""
       ].filter(Boolean);
 
       return {
@@ -4869,7 +4910,17 @@ function buildAdminLogEntries() {
         actor: actorText,
         target: targetText,
         detail: detailParts.join(" · ") || getAdminActivityLabel(activity.type),
-        searchText: [activity.type, actorText, targetText, detailParts.join(" "), order?.company, order?.product, order?.workerName, order?.machineName]
+        searchText: [
+          activity.type,
+          activity.releaseVersion,
+          actorText,
+          targetText,
+          detailParts.join(" "),
+          order?.company,
+          order?.product,
+          order?.workerName,
+          order?.machineName
+        ]
           .map((value) => String(value || "").toLowerCase())
           .join(" ")
       };
