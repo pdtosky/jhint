@@ -25,11 +25,10 @@ assert(appJs.includes('["pause", "temporaryPause"].includes(activity.type)'), "j
 assert(appJs.includes("countInTotals"), "pause history rows should avoid double-counting completed order totals");
 assert(appJs.includes("hasJournalOrderRow"), "journal should keep pause-only rows visible even if current order fields were cleared");
 assert(appJs.includes("eventMatchesSearch"), "journal search should not hide activity rows whose event text matches the search");
-assert(appJs.includes("const startRows = buildStartJournalRows(order).filter"), "journal should keep start rows only when that day has no completion or pause row");
-assert(appJs.includes("const hasSameDayPause = pauseRows.some"), "journal should hide start rows when the same day already has a pause row");
-assert(appJs.includes("const hasSameDayOrderRow = orderRow && orderRow.date === row.date"), "journal should hide start rows when the same day already has an order summary row");
-assert(appJs.includes("rows.push(...startRows)"), "journal should show start-only days so work does not look lost");
-assert(!appJs.includes("const eventRows = [...startRows, ...pauseRows];"), "journal should keep pause rows first and only add filtered start rows");
+assert(appJs.includes("const eventRows = pauseRows;"), "journal should keep pause records without showing start-only rows");
+assert(!appJs.includes("rows.push(...startRows)"), "journal should not show work start rows in the production journal");
+assert(!appJs.includes("const startRows = buildStartJournalRows(order).filter"), "journal should not prepare start rows for the production journal");
+assert(!appJs.includes("const eventRows = [...startRows, ...pauseRows];"), "journal should not mix start events into report rows");
 assert(!appJs.includes("adminJournalDateInput.min"), "journal date picker should not block past months with a min date");
 assert(!appJs.includes("adminJournalDateInput.max"), "journal date picker should not block future/past month navigation with a max date");
 

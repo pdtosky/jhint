@@ -9478,12 +9478,7 @@ function buildProductionJournal() {
       const pauseRows = buildPauseJournalRows(order);
       const hasJournalOrderRow = order.workerName || order.productionQty || order.totalHitQty || order.workQty || order.workHitQty || order.pauseReason;
       const orderRow = hasJournalOrderRow ? buildJournalOrderRow(order) : null;
-      const startRows = buildStartJournalRows(order).filter((row) => {
-        const hasSameDayPause = pauseRows.some((pauseRow) => pauseRow.date === row.date);
-        const hasSameDayOrderRow = orderRow && orderRow.date === row.date;
-        return !hasSameDayPause && !hasSameDayOrderRow;
-      });
-      const eventRows = [...pauseRows, ...startRows];
+      const eventRows = pauseRows;
       const eventMatchesSearch = !keyword || eventRows.some((row) => [
         row.company,
         row.product,
@@ -9497,7 +9492,6 @@ function buildProductionJournal() {
       if (!hasJournalOrderRow && !eventRows.length) return;
 
       rows.push(...pauseRows);
-      rows.push(...startRows);
 
       if (orderRow && (order.status !== "paused" || !pauseRows.length)) {
         rows.push(orderRow);
