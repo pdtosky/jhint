@@ -17,6 +17,12 @@ assert(appJs.includes("const adminJournalDateInput"), "app.js should bind the jo
 assert(appJs.includes("function getFilteredProductionJournalRows"), "journal rows should be filtered by selected month and day");
 assert(appJs.includes("function renderJournalSummary"), "journal should render a capture-friendly daily worker summary");
 assert(appJs.includes("function setAdminJournalDateFilter"), "journal day selection should keep month and day filters in sync");
+assert(appJs.includes("function buildPauseJournalRows"), "journal should build rows from saved pause history");
+assert(appJs.includes('String(activity?.orderId || "") === orderId'), "journal activity matching should tolerate numeric/string order ids");
+assert(appJs.includes('statusText: "작업 중지"'), "pause history rows should be labeled as work paused");
+assert(appJs.includes("countInTotals"), "pause history rows should avoid double-counting completed order totals");
+assert(appJs.includes("hasJournalOrderRow"), "journal should keep pause-only rows visible even if current order fields were cleared");
+assert(appJs.includes("pauseMatchesSearch"), "journal search should not hide pause rows whose pause reason matches the search");
 assert(!appJs.includes("adminJournalDateInput.min"), "journal date picker should not block past months with a min date");
 assert(!appJs.includes("adminJournalDateInput.max"), "journal date picker should not block future/past month navigation with a max date");
 

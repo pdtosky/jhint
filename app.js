@@ -7839,7 +7839,7 @@ function getOrderActivityTimestamps(order, activityTypes) {
   const allowedTypes = new Set(activityTypes);
 
   return state.activities
-    .filter((activity) => activity?.orderId === orderId && allowedTypes.has(activity.type))
+    .filter((activity) => String(activity?.orderId || "") === orderId && allowedTypes.has(activity.type))
     .map((activity) => getValidTimestamp(activity.timestamp))
     .filter(Boolean);
 }
@@ -9295,7 +9295,7 @@ function buildPauseJournalRows(order) {
   if (!orderId || !Array.isArray(state.activities)) return [];
 
   return state.activities
-    .filter((activity) => activity?.orderId === orderId && activity.type === "pause" && getValidTimestamp(activity.timestamp))
+    .filter((activity) => String(activity?.orderId || "") === orderId && activity.type === "pause" && getValidTimestamp(activity.timestamp))
     .map((activity) => {
       const timestamp = getValidTimestamp(activity.timestamp);
       const reason = getPauseReasonFromActivity(activity) || order.pauseReason || "사유 미입력";
@@ -9326,14 +9326,27 @@ function buildPauseJournalRows(order) {
 
 function buildProductionJournal() {
   const rows = [];
+  const keyword = adminSearchKeyword.trim().toLowerCase();
 
-  getSortedOrders(state.orders.filter(adminMatchesSearch))
-    .filter((order) => order.workerName || order.productionQty || order.totalHitQty || order.workQty || order.workHitQty || order.pauseReason)
+  getSortedOrders(state.orders)
     .forEach((order) => {
       const pauseRows = buildPauseJournalRows(order);
+      const pauseMatchesSearch = !keyword || pauseRows.some((row) => [
+        row.company,
+        row.product,
+        row.workerName,
+        row.machineName,
+        row.pauseReason,
+        row.note
+      ].map((value) => String(value || "").toLowerCase()).some((value) => value.includes(keyword)));
+      if (!adminMatchesSearch(order) && !pauseMatchesSearch) return;
+
+      const hasJournalOrderRow = order.workerName || order.productionQty || order.totalHitQty || order.workQty || order.workHitQty || order.pauseReason;
+      if (!hasJournalOrderRow && !pauseRows.length) return;
+
       rows.push(...pauseRows);
 
-      if (order.status !== "paused" || !pauseRows.length) {
+      if (hasJournalOrderRow && (order.status !== "paused" || !pauseRows.length)) {
         rows.push(buildJournalOrderRow(order));
       }
     });
