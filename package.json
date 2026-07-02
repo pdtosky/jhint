@@ -6,7 +6,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node tests/requisition-delete-link.test.js && node tests/calendar-work-datetime.test.js && node tests/sop-module-embed.test.js && node tests/admin-tools.test.js && node tests/admin-permissions.test.js && node tests/admin-journal.test.js && node tests/admin-equipment-redesign.test.js && node tests/sop-mobile-checklist.test.js"
+    "test": "node tests/requisition-delete-link.test.js && node tests/calendar-work-datetime.test.js && node tests/sop-module-embed.test.js && node tests/admin-tools.test.js && node tests/admin-permissions.test.js && node tests/admin-journal.test.js && node tests/admin-journal-event-dates.test.js && node tests/admin-equipment-redesign.test.js && node tests/sop-mobile-checklist.test.js"
   },
   "engines": {
     "node": ">=20"

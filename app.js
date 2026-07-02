@@ -9339,14 +9339,47 @@ function buildPauseJournalRows(order) {
     });
 }
 
+function buildStartJournalRows(order) {
+  const orderId = String(order?.id || "");
+  if (!orderId || !Array.isArray(state.activities)) return [];
+
+  return state.activities
+    .filter((activity) => String(activity?.orderId || "") === orderId && activity.type === "start" && getValidTimestamp(activity.timestamp))
+    .map((activity) => {
+      const timestamp = getValidTimestamp(activity.timestamp);
+      return {
+        date: toKoreanDateKey(timestamp),
+        company: order.company || "-",
+        product: order.product || "-",
+        dueDate: order.dueDate || "",
+        workerName: activity.workerName || order.workerName || "작업자 미지정",
+        machineName: order.machineName || "",
+        qty: 0,
+        hitQty: 0,
+        elapsedMs: 0,
+        statusKey: "started",
+        statusText: "작업 시작",
+        pauseReason: "",
+        countInTotals: false,
+        sortTime: timestamp,
+        startText: formatDateTime(timestamp),
+        endText: `시작 ${formatDateTime(timestamp)}`,
+        orderText: `${order.company || "-"} / ${order.product || "-"}`,
+        note: "작업을 시작했습니다."
+      };
+    });
+}
+
 function buildProductionJournal() {
   const rows = [];
   const keyword = adminSearchKeyword.trim().toLowerCase();
 
   getSortedOrders(state.orders)
     .forEach((order) => {
+      const startRows = buildStartJournalRows(order);
       const pauseRows = buildPauseJournalRows(order);
-      const pauseMatchesSearch = !keyword || pauseRows.some((row) => [
+      const eventRows = [...startRows, ...pauseRows];
+      const eventMatchesSearch = !keyword || eventRows.some((row) => [
         row.company,
         row.product,
         row.workerName,
@@ -9354,11 +9387,12 @@ function buildProductionJournal() {
         row.pauseReason,
         row.note
       ].map((value) => String(value || "").toLowerCase()).some((value) => value.includes(keyword)));
-      if (!adminMatchesSearch(order) && !pauseMatchesSearch) return;
+      if (!adminMatchesSearch(order) && !eventMatchesSearch) return;
 
       const hasJournalOrderRow = order.workerName || order.productionQty || order.totalHitQty || order.workQty || order.workHitQty || order.pauseReason;
-      if (!hasJournalOrderRow && !pauseRows.length) return;
+      if (!hasJournalOrderRow && !eventRows.length) return;
 
+      rows.push(...startRows);
       rows.push(...pauseRows);
 
       if (hasJournalOrderRow && (order.status !== "paused" || !pauseRows.length)) {
@@ -9537,6 +9571,8 @@ function renderJournalList() {
                   ? "journal-status-paused"
                   : item.statusKey === "break"
                     ? "journal-status-break"
+                  : item.statusKey === "started"
+                    ? "journal-status-started"
                   : item.statusKey === "working"
                     ? "journal-status-working"
                     : item.statusKey === "complete"
