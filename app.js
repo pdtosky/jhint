@@ -9497,9 +9497,8 @@ function buildProductionJournal() {
 
   getSortedOrders(state.orders)
     .forEach((order) => {
-      const startRows = buildStartJournalRows(order);
       const pauseRows = buildPauseJournalRows(order);
-      const eventRows = [...startRows, ...pauseRows];
+      const eventRows = pauseRows;
       const eventMatchesSearch = !keyword || eventRows.some((row) => [
         row.company,
         row.product,
@@ -9513,7 +9512,6 @@ function buildProductionJournal() {
       const hasJournalOrderRow = order.workerName || order.productionQty || order.totalHitQty || order.workQty || order.workHitQty || order.pauseReason;
       if (!hasJournalOrderRow && !eventRows.length) return;
 
-      rows.push(...startRows);
       rows.push(...pauseRows);
 
       if (hasJournalOrderRow && (order.status !== "paused" || !pauseRows.length)) {

@@ -18,17 +18,16 @@ assert(appJs.includes("function getFilteredProductionJournalRows"), "journal row
 assert(appJs.includes("function renderJournalSummary"), "journal should render a capture-friendly daily worker summary");
 assert(appJs.includes("function setAdminJournalDateFilter"), "journal day selection should keep month and day filters in sync");
 assert(appJs.includes("function buildPauseJournalRows"), "journal should build rows from saved pause history");
-assert(appJs.includes("function buildStartJournalRows"), "journal should build rows from saved start history");
 assert(appJs.includes("function toKoreanDateKey"), "journal should use a Korean local date key instead of raw UTC slices");
 assert(appJs.includes("setAdminJournalDateFilter(toKoreanDateKey(new Date()))"), "journal today shortcut should use the same Korean date key as journal rows");
 assert(appJs.includes('String(activity?.orderId || "") === orderId'), "journal activity matching should tolerate numeric/string order ids");
-assert(appJs.includes('"작업 중지"'), "pause history rows should be labeled as work paused");
-assert(appJs.includes('statusText: "작업 시작"'), "start history rows should keep the original work date visible");
-assert(appJs.includes('statusText: isTemporaryPause ? "일시정지" : "작업 중지"'), "temporary pauses should appear in the production journal");
 assert(appJs.includes('["pause", "temporaryPause"].includes(activity.type)'), "journal pause rows should include temporary pauses");
 assert(appJs.includes("countInTotals"), "pause history rows should avoid double-counting completed order totals");
 assert(appJs.includes("hasJournalOrderRow"), "journal should keep pause-only rows visible even if current order fields were cleared");
 assert(appJs.includes("eventMatchesSearch"), "journal search should not hide activity rows whose event text matches the search");
+assert(appJs.includes("const eventRows = pauseRows;"), "journal event rows should focus on pause history instead of start history");
+assert(!appJs.includes("rows.push(...startRows)"), "journal should not list every start/restart event in the executive report");
+assert(!appJs.includes("const eventRows = [...startRows, ...pauseRows];"), "journal should not mix start events into the main report rows");
 assert(!appJs.includes("adminJournalDateInput.min"), "journal date picker should not block past months with a min date");
 assert(!appJs.includes("adminJournalDateInput.max"), "journal date picker should not block future/past month navigation with a max date");
 
@@ -50,11 +49,11 @@ assert(styleCss.includes(".journal-day-group"), "daily journal details should ha
 assert(styleCss.includes(".journal-report-table"), "journal report table should have dedicated styles");
 assert(styleCss.includes(".journal-report-row"), "journal report rows should have dedicated styles");
 assert(styleCss.includes(".journal-status-pill.journal-status-break"), "temporary pause rows should have a dedicated status style");
-assert(styleCss.includes(".journal-status-pill.journal-status-started"), "start rows should have a dedicated status style");
 assert(styleCss.includes("gap: 0;"), "journal report grid should not use gaps that misalign header and body columns");
 assert(styleCss.includes("border-left: 1px solid rgba(211, 224, 236, 0.9);"), "journal report cells should have vertical dividers");
 assert(styleCss.includes("justify-content: center;"), "journal report cells should center their values inside each column");
 assert(styleCss.includes("text-align: center;"), "journal report values should align with their column headers");
+
 const productCellStyleStart = styleCss.indexOf(".journal-product-cell {");
 const productCellStyleEnd = styleCss.indexOf(".journal-product-cell strong", productCellStyleStart);
 const productCellStyle = styleCss.slice(productCellStyleStart, productCellStyleEnd);
