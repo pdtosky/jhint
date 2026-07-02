@@ -9241,44 +9241,110 @@ function getJournalDateKey(order) {
   return baseDate ? String(baseDate).slice(0, 10) : "";
 }
 
-function buildProductionJournal() {
-  return getSortedOrders(state.orders.filter(adminMatchesSearch))
-    .filter((order) => order.workerName || order.productionQty || order.totalHitQty || order.workQty || order.workHitQty || order.pauseReason)
-    .map((order) => {
-      const pauseAt = getOrderLastPauseAt(order);
-      const journalDate = getJournalDateKey(order);
+function getPauseReasonFromActivity(activity) {
+  const message = String(activity?.message || "");
+  const match = message.match(/사유\s+(.+?)(?:\s*\/\s*작업수량|\s*\/\s*작업타수|$)/);
+  return match ? match[1].trim() : "";
+}
+
+function getWorkNumberFromActivity(activity, label) {
+  const message = String(activity?.message || "");
+  const match = message.match(new RegExp(`${label}\\s*([\\d,]+)`));
+  return match ? Number(match[1].replaceAll(",", "")) || 0 : 0;
+}
+
+function buildJournalOrderRow(order) {
+  const pauseAt = getOrderLastPauseAt(order);
+  const journalDate = getJournalDateKey(order);
+  return {
+    date: journalDate,
+    company: order.company || "-",
+    product: order.product || "-",
+    dueDate: order.dueDate || "",
+    workerName: order.workerName || "작업자 미지정",
+    machineName: order.machineName || "",
+    qty: Number(order.productionQty || order.workQty || 0),
+    hitQty: Number(order.totalHitQty || order.hitQty || order.workHitQty || 0),
+    elapsedMs: Number(order.elapsedMs || 0),
+    statusKey: order.status || "",
+    statusText: getOrderStatusTextClean(order),
+    pauseReason: order.pauseReason || "",
+    countInTotals: true,
+    sortTime: order.endTime || pauseAt || order.startTime || order.orderDate || "",
+    startText: getOrderFirstWorkStartAt(order) ? formatDateTime(getOrderFirstWorkStartAt(order)) : "-",
+    endText: order.endTime
+      ? formatDateTime(order.endTime)
+      : order.status === "paused" && pauseAt
+        ? `중지 ${formatDateTime(pauseAt)}`
+        : order.status === "working"
+          ? "진행 중"
+          : "-",
+    orderText: `${order.company || "-"} / ${order.product || "-"}`,
+    note: order.pauseReason
+      ? `중지 사유: ${order.pauseReason}`
+      : order.status === "complete"
+        ? "작업이 완료되었습니다."
+        : order.status === "working"
+          ? "작업 진행 중입니다."
+          : "작업 대기 상태입니다."
+  };
+}
+
+function buildPauseJournalRows(order) {
+  const orderId = String(order?.id || "");
+  if (!orderId || !Array.isArray(state.activities)) return [];
+
+  return state.activities
+    .filter((activity) => activity?.orderId === orderId && activity.type === "pause" && getValidTimestamp(activity.timestamp))
+    .map((activity) => {
+      const timestamp = getValidTimestamp(activity.timestamp);
+      const reason = getPauseReasonFromActivity(activity) || order.pauseReason || "사유 미입력";
+      const qty = getWorkNumberFromActivity(activity, "작업수량");
+      const hitQty = getWorkNumberFromActivity(activity, "작업타수");
       return {
-        date: journalDate,
+        date: timestamp.slice(0, 10),
         company: order.company || "-",
         product: order.product || "-",
         dueDate: order.dueDate || "",
-        workerName: order.workerName || "작업자 미지정",
+        workerName: activity.workerName || order.workerName || "작업자 미지정",
         machineName: order.machineName || "",
-        qty: Number(order.productionQty || order.workQty || 0),
-        hitQty: Number(order.totalHitQty || order.hitQty || order.workHitQty || 0),
-        elapsedMs: Number(order.elapsedMs || 0),
-        statusKey: order.status || "",
-        statusText: getOrderStatusTextClean(order),
-        pauseReason: order.pauseReason || "",
-        startText: getOrderFirstWorkStartAt(order) ? formatDateTime(getOrderFirstWorkStartAt(order)) : "-",
-        endText: order.endTime
-          ? formatDateTime(order.endTime)
-          : order.status === "paused" && pauseAt
-            ? `중지 ${formatDateTime(pauseAt)}`
-            : order.status === "working"
-              ? "진행 중"
-              : "-",
+        qty,
+        hitQty,
+        elapsedMs: 0,
+        statusKey: "paused",
+        statusText: "작업 중지",
+        pauseReason: reason,
+        countInTotals: order.status === "paused",
+        sortTime: timestamp,
+        startText: "-",
+        endText: `중지 ${formatDateTime(timestamp)}`,
         orderText: `${order.company || "-"} / ${order.product || "-"}`,
-        note: order.pauseReason
-          ? `중지 사유: ${order.pauseReason}`
-          : order.status === "complete"
-            ? "작업이 완료되었습니다."
-            : order.status === "working"
-              ? "작업 진행 중입니다."
-              : "작업 대기 상태입니다."
+        note: `중지 사유: ${reason}`
       };
-    })
-    .filter((item) => adminMonthFilter === "all" || toMonthKey(item.date) === adminMonthFilter);
+    });
+}
+
+function buildProductionJournal() {
+  const rows = [];
+
+  getSortedOrders(state.orders.filter(adminMatchesSearch))
+    .filter((order) => order.workerName || order.productionQty || order.totalHitQty || order.workQty || order.workHitQty || order.pauseReason)
+    .forEach((order) => {
+      const pauseRows = buildPauseJournalRows(order);
+      rows.push(...pauseRows);
+
+      if (order.status !== "paused" || !pauseRows.length) {
+        rows.push(buildJournalOrderRow(order));
+      }
+    });
+
+  return rows
+    .filter((item) => item.date && (adminMonthFilter === "all" || toMonthKey(item.date) === adminMonthFilter))
+    .sort((a, b) => {
+      const timeCompare = new Date(b.sortTime || b.date || 0).getTime() - new Date(a.sortTime || a.date || 0).getTime();
+      if (timeCompare) return timeCompare;
+      return a.workerName.localeCompare(b.workerName, "ko-KR") || a.product.localeCompare(b.product, "ko-KR");
+    });
 }
 
 function renderEquipmentList() {
@@ -9362,9 +9428,10 @@ function renderJournalSummary(rows) {
   }
 
   const workerCount = new Set(rows.map((item) => item.workerName).filter(Boolean)).size;
-  const totalQty = rows.reduce((sum, item) => sum + Number(item.qty || 0), 0);
-  const totalHitQty = rows.reduce((sum, item) => sum + Number(item.hitQty || 0), 0);
-  const totalMs = rows.reduce((sum, item) => sum + Number(item.elapsedMs || 0), 0);
+  const totalRows = rows.filter((item) => item.countInTotals !== false);
+  const totalQty = totalRows.reduce((sum, item) => sum + Number(item.qty || 0), 0);
+  const totalHitQty = totalRows.reduce((sum, item) => sum + Number(item.hitQty || 0), 0);
+  const totalMs = totalRows.reduce((sum, item) => sum + Number(item.elapsedMs || 0), 0);
   const title = adminJournalDateFilter
     ? `${formatDate(adminJournalDateFilter)} ${getKoreanWeekday(adminJournalDateFilter)}`
     : adminMonthFilter === "all"
@@ -9410,9 +9477,10 @@ function renderJournalList() {
     .sort(([leftDate], [rightDate]) => new Date(rightDate || 0).getTime() - new Date(leftDate || 0).getTime())
     .map(([dateKey, items]) => {
       const workerCount = new Set(items.map((item) => item.workerName).filter(Boolean)).size;
-      const totalQty = items.reduce((sum, item) => sum + Number(item.qty || 0), 0);
-      const totalHitQty = items.reduce((sum, item) => sum + Number(item.hitQty || 0), 0);
-      const totalMs = items.reduce((sum, item) => sum + Number(item.elapsedMs || 0), 0);
+      const totalItems = items.filter((item) => item.countInTotals !== false);
+      const totalQty = totalItems.reduce((sum, item) => sum + Number(item.qty || 0), 0);
+      const totalHitQty = totalItems.reduce((sum, item) => sum + Number(item.hitQty || 0), 0);
+      const totalMs = totalItems.reduce((sum, item) => sum + Number(item.elapsedMs || 0), 0);
 
       return `
         <section class="journal-day-group">
