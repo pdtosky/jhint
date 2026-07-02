@@ -1197,15 +1197,21 @@ async function loadRemoteState() {
 function applyIncomingState(nextState) {
   const repairResult = repairConvertedRequisitionOrders(normalizeAppState(nextState));
   const normalized = repairResult.state;
-  state.orders = normalized.orders;
-  state.requisitions = normalized.requisitions;
-  state.sops = normalized.sops;
-  state.activities = normalized.activities;
+  assignNormalizedState(normalized);
   lastStateSnapshot = JSON.stringify(normalized);
 
   if (repairResult.changed) {
     persist().catch(handlePersistError);
   }
+}
+
+function assignNormalizedState(normalized) {
+  state.orders = normalized.orders;
+  state.requisitions = normalized.requisitions;
+  state.sops = normalized.sops;
+  state.sopWorkRecords = normalized.sopWorkRecords;
+  state.sopDeletedIds = normalized.sopDeletedIds;
+  state.activities = normalized.activities;
 }
 
 function normalizeAppState(appState) {
@@ -1404,11 +1410,119 @@ async function fetchSupabaseState() {
   return rows[0].payload;
 }
 
+function getStateRecordId(record) {
+  return String(record?.id || "").trim();
+}
+
+function stringifyStateRecord(record) {
+  try {
+    return JSON.stringify(record || {});
+  } catch {
+    return "";
+  }
+}
+
+function mapStateRecordsById(items = []) {
+  const map = new Map();
+  (items || []).forEach((item) => {
+    const id = getStateRecordId(item);
+    if (id) map.set(id, item);
+  });
+  return map;
+}
+
+function mergeStateArrayByLocalChanges(previousItems = [], nextItems = [], remoteItems = []) {
+  const previousById = mapStateRecordsById(previousItems);
+  const nextById = mapStateRecordsById(nextItems);
+  const remoteById = mapStateRecordsById(remoteItems);
+  const changedIds = new Set();
+  const deletedIds = new Set();
+
+  nextById.forEach((item, id) => {
+    const previousItem = previousById.get(id);
+    if (!previousItem || stringifyStateRecord(previousItem) !== stringifyStateRecord(item)) {
+      changedIds.add(id);
+    }
+  });
+
+  previousById.forEach((_, id) => {
+    if (!nextById.has(id)) {
+      deletedIds.add(id);
+    }
+  });
+
+  changedIds.forEach((id) => {
+    remoteById.set(id, nextById.get(id));
+  });
+  deletedIds.forEach((id) => {
+    remoteById.delete(id);
+  });
+
+  const ordered = [];
+  const pushedIds = new Set();
+  const pushById = (id) => {
+    if (!id || pushedIds.has(id) || !remoteById.has(id)) return;
+    ordered.push(remoteById.get(id));
+    pushedIds.add(id);
+  };
+
+  (nextItems || []).forEach((item) => {
+    const id = getStateRecordId(item);
+    if (changedIds.has(id)) pushById(id);
+  });
+  (remoteItems || []).forEach((item) => {
+    const id = getStateRecordId(item);
+    if (!deletedIds.has(id)) pushById(id);
+  });
+
+  return ordered;
+}
+
+function parseLastStateSnapshot() {
+  if (!lastStateSnapshot) return null;
+  try {
+    return normalizeAppState(JSON.parse(lastStateSnapshot));
+  } catch {
+    return null;
+  }
+}
+
+function mergeStateByLocalChanges(previousState, nextState, remoteState) {
+  if (!previousState || !remoteState) return nextState;
+
+  const previous = normalizeAppState(previousState);
+  const next = normalizeAppState(nextState);
+  const remote = normalizeAppState(remoteState);
+  const merged = {
+    ...remote,
+    orders: mergeStateArrayByLocalChanges(previous.orders, next.orders, remote.orders),
+    requisitions: mergeStateArrayByLocalChanges(previous.requisitions, next.requisitions, remote.requisitions),
+    sops: mergeStateArrayByLocalChanges(previous.sops, next.sops, remote.sops),
+    sopWorkRecords: mergeStateArrayByLocalChanges(previous.sopWorkRecords, next.sopWorkRecords, remote.sopWorkRecords),
+    activities: mergeStateArrayByLocalChanges(previous.activities, next.activities, remote.activities)
+  };
+
+  merged.sopDeletedIds = Array.from(
+    new Set([...(remote.sopDeletedIds || []), ...(next.sopDeletedIds || [])].filter(Boolean))
+  );
+
+  return normalizeAppState(merged);
+}
+
+async function prepareSupabaseStateForSave(nextState) {
+  const previousState = parseLastStateSnapshot();
+  if (!previousState) return nextState;
+
+  const remoteState = await fetchSupabaseState();
+  return mergeStateByLocalChanges(previousState, nextState, remoteState);
+}
+
 async function saveSupabaseState(nextState) {
   if (!hasSupabaseConfig()) {
     return Promise.reject(new Error("missing supabase config"));
   }
 
+  const stateToSave = await prepareSupabaseStateForSave(nextState).catch(() => nextState);
   const response = await fetch(getSupabaseTableUrl(), {
     method: "POST",
     headers: getSupabaseHeaders({
@@ -1417,7 +1531,7 @@ async function saveSupabaseState(nextState) {
     body: JSON.stringify([
       {
         id: APP_CONFIG.supabaseRowId || "main",
-        payload: nextState
+        payload: stateToSave
       }
     ])
   });
@@ -1426,7 +1540,8 @@ async function saveSupabaseState(nextState) {
     throw new Error(`supabase save failed (${response.status}) ${await response.text()}`);
   }
 
-  return response.json();
+  await response.json();
+  return stateToSave;
 }
 
 function normalizeOrderRecord(order) {
@@ -2811,7 +2926,13 @@ function persist(options = {}) {
   const request = isSupabaseBackend() ? saveSupabaseState(normalizedState) : saveApiState(payload);
   return request
     .then((result) => {
-      lastStateSnapshot = payload;
+      const savedState = isSupabaseBackend() && result ? normalizeAppState(result) : normalizedState;
+      const savedPayload = JSON.stringify(savedState);
+      lastStateSnapshot = savedPayload;
+      if (savedPayload !== payload) {
+        assignNormalizedState(savedState);
+        render();
+      }
       return result;
     })
     .catch((error) => {
