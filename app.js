@@ -7665,28 +7665,6 @@ function buildMoldSummary() {
   });
 }
 
-function buildProductionJournal() {
-  return getSortedOrders(getFilteredAdminMonthOrders())
-    .filter((order) => order.workerName || order.productionQty || order.totalHitQty || order.workQty || order.workHitQty || order.pauseReason)
-    .map((order) => ({
-      date: (order.endTime || order.startTime || order.orderDate || "").slice(0, 10),
-      workerName: order.workerName || TEXT.admin,
-      machineName: order.machineName || "",
-      qty: Number(order.productionQty || 0),
-      hitQty: Number(order.totalHitQty || 0),
-      elapsedMs: Number(order.elapsedMs || 0),
-      statusText: order.status === "complete" ? TEXT.complete : order.status === "paused" ? TEXT.paused : order.status === "working" ? TEXT.working : TEXT.waiting,
-      orderText: `${order.company} / ${order.product}`,
-      note: order.pauseReason
-        ? `以묒??ъ쑀: ${order.pauseReason}`
-        : order.status === "complete"
-          ? "?묒뾽???꾨즺?섏뿀?듬땲??"
-          : order.status === "working"
-            ? "?묒뾽 吏꾪뻾 以묒엯?덈떎."
-            : "?묒뾽 ?湲??곹깭?낅땲??"
-    }));
-}
-
 function openOrderEditPanel(orderId) {
   const order = state.orders.find((item) => item.id === orderId);
   if (!order) return;
@@ -9498,7 +9476,14 @@ function buildProductionJournal() {
   getSortedOrders(state.orders)
     .forEach((order) => {
       const pauseRows = buildPauseJournalRows(order);
-      const eventRows = pauseRows;
+      const hasJournalOrderRow = order.workerName || order.productionQty || order.totalHitQty || order.workQty || order.workHitQty || order.pauseReason;
+      const orderRow = hasJournalOrderRow ? buildJournalOrderRow(order) : null;
+      const startRows = buildStartJournalRows(order).filter((row) => {
+        const hasSameDayPause = pauseRows.some((pauseRow) => pauseRow.date === row.date);
+        const hasSameDayOrderRow = orderRow && orderRow.date === row.date;
+        return !hasSameDayPause && !hasSameDayOrderRow;
+      });
+      const eventRows = [...pauseRows, ...startRows];
       const eventMatchesSearch = !keyword || eventRows.some((row) => [
         row.company,
         row.product,
@@ -9509,13 +9494,13 @@ function buildProductionJournal() {
       ].map((value) => String(value || "").toLowerCase()).some((value) => value.includes(keyword)));
       if (!adminMatchesSearch(order) && !eventMatchesSearch) return;
 
-      const hasJournalOrderRow = order.workerName || order.productionQty || order.totalHitQty || order.workQty || order.workHitQty || order.pauseReason;
       if (!hasJournalOrderRow && !eventRows.length) return;
 
       rows.push(...pauseRows);
+      rows.push(...startRows);
 
-      if (hasJournalOrderRow && (order.status !== "paused" || !pauseRows.length)) {
-        rows.push(buildJournalOrderRow(order));
+      if (orderRow && (order.status !== "paused" || !pauseRows.length)) {
+        rows.push(orderRow);
       }
     });
 
