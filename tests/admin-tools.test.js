@@ -29,7 +29,11 @@ assert(
   "Codex update logs should use the actual sync time when no explicit timestamp is provided"
 );
 assert(appJs.includes("function buildAdminLogEntries"), "app.js should build admin log entries");
+assert(appJs.includes("function getAdminActivityTone"), "app.js should map admin log types to color tones");
+assert(appJs.includes('tone: getAdminActivityTone(activity.type)'), "admin log entries should carry a tone for color grouping");
 assert(appJs.includes("function renderAdminLogs"), "app.js should render admin logs");
+assert(appJs.includes('admin-log-card admin-log-${escapeHtml(item.tone)}'), "admin log cards should render tone classes");
+assert(appJs.includes('admin-log-badge admin-log-badge-${escapeHtml(item.tone)}'), "admin log badges should render tone classes");
 assert(appJs.includes("function renderAdminAccounts"), "app.js should render admin account management");
 assert(appJs.includes("function isAdminAccountEditorFocused"), "account management should preserve in-progress name and role edits during background renders");
 assert(appJs.includes("function shouldRenderAdminAccountsInPageRender"), "admin page renders should not redraw account lists during normal polling");
@@ -108,6 +112,15 @@ assert(
   "account rows should use compact table columns for identity, name, role, status, dates, and actions"
 );
 assert(styleCss.includes(".admin-account-cell + .admin-account-cell"), "account cells should have vertical dividers like a table");
+assert(styleCss.includes(".admin-log-register"), "admin logs should include a visible register color");
+assert(styleCss.includes(".admin-log-work"), "admin logs should include a visible worker/action color");
+assert(styleCss.includes(".admin-log-shipping"), "admin logs should include a visible shipping color");
+assert(styleCss.includes(".admin-log-system"), "admin logs should include a visible system update color");
+assert(styleCss.includes(".admin-log-account"), "admin logs should include a visible account/security color");
+assert(
+  indexHtml.includes("로그 종류, 작업자, 업체, 제품, 장비, 내용 검색"),
+  "admin log search placeholder should explain that log type search is supported"
+);
 
 const apiPath = path.join(root, "api", "admin-users.js");
 assert(fs.existsSync(apiPath), "api/admin-users.js should exist for safe server-side account management");

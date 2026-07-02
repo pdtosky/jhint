@@ -4884,6 +4884,27 @@ function getAdminActivityLabel(type) {
   return labels[type] || "기타 이력";
 }
 
+function getAdminActivityTone(type) {
+  const toneMap = {
+    register: "register",
+    edit: "register",
+    hold: "register",
+    resumeHold: "register",
+    start: "work",
+    temporaryPause: "work",
+    pause: "work",
+    end: "work",
+    ship: "shipping",
+    shipping: "shipping",
+    requisition: "request",
+    requisitionEdit: "request",
+    accountCreate: "account",
+    accountDelete: "account",
+    codexUpdate: "system"
+  };
+  return toneMap[type] || "default";
+}
+
 function getAdminLogTimestamp(entry) {
   const timestamp = getValidTimestamp(entry?.timestamp || entry?.createdAt || entry?.updatedAt || "");
   return timestamp || "";
@@ -4916,11 +4937,14 @@ function buildAdminLogEntries() {
         timestamp,
         type: activity.type || "log",
         label: getAdminActivityLabel(activity.type),
+        tone: getAdminActivityTone(activity.type),
         actor: actorText,
         target: targetText,
         detail: detailParts.join(" · ") || getAdminActivityLabel(activity.type),
         searchText: [
           activity.type,
+          getAdminActivityLabel(activity.type),
+          getAdminActivityTone(activity.type),
           activity.releaseVersion,
           actorText,
           targetText,
@@ -4959,9 +4983,9 @@ function renderAdminLogs() {
   adminLogList.innerHTML = rows
     .slice(0, 300)
     .map((item) => `
-      <article class="admin-log-card">
+      <article class="admin-log-card admin-log-${escapeHtml(item.tone)}">
         <div class="admin-log-main">
-          <span class="status-badge status-ready">${escapeHtml(item.label)}</span>
+          <span class="admin-log-badge admin-log-badge-${escapeHtml(item.tone)}">${escapeHtml(item.label)}</span>
           <strong>${escapeHtml(item.target)}</strong>
           <p>${escapeHtml(item.detail)}</p>
         </div>

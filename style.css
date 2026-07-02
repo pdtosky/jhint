@@ -4676,8 +4676,96 @@ html {
   align-items: center;
   padding: 12px 14px;
   border: 1px solid var(--line);
+  border-left: 6px solid rgba(93, 111, 135, 0.38);
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.86);
+}
+
+.admin-log-register {
+  border-color: rgba(28, 130, 94, 0.24);
+  border-left-color: #159168;
+  background: linear-gradient(90deg, rgba(222, 247, 235, 0.92), rgba(255, 255, 255, 0.9));
+}
+
+.admin-log-work {
+  border-color: rgba(196, 132, 31, 0.26);
+  border-left-color: #c7831f;
+  background: linear-gradient(90deg, rgba(255, 244, 210, 0.95), rgba(255, 255, 255, 0.9));
+}
+
+.admin-log-shipping {
+  border-color: rgba(50, 113, 196, 0.24);
+  border-left-color: #3271c4;
+  background: linear-gradient(90deg, rgba(226, 239, 255, 0.94), rgba(255, 255, 255, 0.9));
+}
+
+.admin-log-request {
+  border-color: rgba(118, 91, 191, 0.24);
+  border-left-color: #765bbf;
+  background: linear-gradient(90deg, rgba(239, 233, 255, 0.94), rgba(255, 255, 255, 0.9));
+}
+
+.admin-log-account {
+  border-color: rgba(212, 76, 66, 0.24);
+  border-left-color: #d44c42;
+  background: linear-gradient(90deg, rgba(255, 232, 229, 0.94), rgba(255, 255, 255, 0.9));
+}
+
+.admin-log-system {
+  border-color: rgba(47, 63, 86, 0.26);
+  border-left-color: #2f3f56;
+  background: linear-gradient(90deg, rgba(231, 236, 244, 0.96), rgba(255, 255, 255, 0.9));
+}
+
+.admin-log-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: fit-content;
+  max-width: 100%;
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(93, 111, 135, 0.24);
+  background: rgba(241, 245, 249, 0.92);
+  color: #31415a;
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.admin-log-badge-register {
+  border-color: rgba(21, 145, 104, 0.24);
+  background: rgba(209, 244, 226, 0.95);
+  color: #066142;
+}
+
+.admin-log-badge-work {
+  border-color: rgba(199, 131, 31, 0.28);
+  background: rgba(255, 234, 181, 0.96);
+  color: #83500b;
+}
+
+.admin-log-badge-shipping {
+  border-color: rgba(50, 113, 196, 0.24);
+  background: rgba(213, 231, 255, 0.96);
+  color: #164f9e;
+}
+
+.admin-log-badge-request {
+  border-color: rgba(118, 91, 191, 0.24);
+  background: rgba(230, 221, 255, 0.96);
+  color: #4e3a95;
+}
+
+.admin-log-badge-account {
+  border-color: rgba(212, 76, 66, 0.24);
+  background: rgba(255, 218, 214, 0.96);
+  color: #a1261f;
+}
+
+.admin-log-badge-system {
+  border-color: rgba(47, 63, 86, 0.22);
+  background: rgba(221, 228, 238, 0.96);
+  color: #23334a;
 }
 
 .admin-log-main,
