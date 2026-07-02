@@ -54,6 +54,16 @@ assert(
 assert(appJs.includes('let adminActiveSection = "accounts"'), "admin page should open to account management by default");
 assert(appJs.includes("function resetAdminAccountListState"), "admin logout/login should reset account list state");
 assert(appJs.includes("activateAdminAccountsTab({ reset: true })"), "admin login should immediately show and refresh account management");
+const applyIncomingStateStart = appJs.indexOf("function applyIncomingState");
+const assignNormalizedStateStart = appJs.indexOf("function assignNormalizedState", applyIncomingStateStart);
+const applyIncomingStateBody = appJs.slice(applyIncomingStateStart, assignNormalizedStateStart);
+assert(
+  applyIncomingStateBody.includes("const incomingState = normalizeAppState(nextState)") &&
+    applyIncomingStateBody.includes("lastStateSnapshot = JSON.stringify(incomingState)") &&
+    applyIncomingStateBody.indexOf("lastStateSnapshot = JSON.stringify(incomingState)") <
+      applyIncomingStateBody.indexOf("syncCodexReleaseLogs()"),
+  "Codex release logs should be merged against the original remote snapshot before syncing local system logs"
+);
 const lastAdminLoginStart = appJs.lastIndexOf("async function handleAdminLogin");
 assert(lastAdminLoginStart >= 0, "app.js should define handleAdminLogin");
 const nextCalendarAfterAdminLogin = appJs.indexOf("function renderCalendar", lastAdminLoginStart);

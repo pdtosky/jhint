@@ -1204,14 +1204,17 @@ async function loadRemoteState() {
 }
 
 function applyIncomingState(nextState) {
-  const repairResult = repairConvertedRequisitionOrders(normalizeAppState(nextState));
+  const incomingState = normalizeAppState(nextState);
+  const repairResult = repairConvertedRequisitionOrders(incomingState);
   const normalized = repairResult.state;
   assignNormalizedState(normalized);
+  lastStateSnapshot = JSON.stringify(incomingState);
   const codexLogChanged = syncCodexReleaseLogs();
-  lastStateSnapshot = JSON.stringify(normalizeAppState(state));
 
   if (repairResult.changed || codexLogChanged) {
     persist().catch(handlePersistError);
+  } else {
+    lastStateSnapshot = JSON.stringify(normalized);
   }
 }
 
