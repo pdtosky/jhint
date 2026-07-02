@@ -64,6 +64,12 @@ const CODEX_RELEASE_NOTES = [
     title: "작업일지 표시 기준 정리",
     summary: "생산일지에서 작업 시작 기록은 제외하고 작업 중지와 작업 완료 기록만 남도록 정리했습니다.",
     files: ["app.js", "sw.js", "tests/admin-journal.test.js"]
+  },
+  {
+    version: "2026-07-02-13",
+    title: "Codex 시스템 수정 로그 표시 개선",
+    summary: "Codex 수정 이력이 관리자 로그 상단에서 바로 확인되도록 실제 기록 시점으로 저장되게 개선했습니다.",
+    files: ["app.js", "sw.js", "tests/admin-tools.test.js"]
   }
 ];
 
@@ -1246,7 +1252,7 @@ function syncCodexReleaseLogs() {
       actor: "Codex",
       target: note.title,
       releaseVersion: note.version,
-      timestamp: note.timestamp,
+      timestamp: note.timestamp || new Date().toISOString(),
       message: note.summary,
       files: note.files || []
     });

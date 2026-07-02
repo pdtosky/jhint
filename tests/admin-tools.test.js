@@ -24,6 +24,10 @@ assert(appJs.includes("CODEX_RELEASE_NOTES"), "app.js should define Codex releas
 assert(appJs.includes("function syncCodexReleaseLogs"), "app.js should sync Codex release notes into admin logs");
 assert(appJs.includes('type: "codexUpdate"'), "Codex release notes should be stored as codexUpdate activities");
 assert(appJs.includes('actor: "Codex"'), "Codex release notes should show Codex as the log actor");
+assert(
+  appJs.includes("timestamp: note.timestamp || new Date().toISOString()"),
+  "Codex update logs should use the actual sync time when no explicit timestamp is provided"
+);
 assert(appJs.includes("function buildAdminLogEntries"), "app.js should build admin log entries");
 assert(appJs.includes("function renderAdminLogs"), "app.js should render admin logs");
 assert(appJs.includes("function renderAdminAccounts"), "app.js should render admin account management");
