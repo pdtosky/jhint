@@ -59,6 +59,13 @@ const HOLIDAY_POLL_INTERVAL_MS = Number(
 const BACKEND_MODE = APP_CONFIG.backend || "api";
 const CODEX_RELEASE_NOTES = [
   {
+    version: "2026-07-03-01",
+    timestamp: "2026-07-03T10:27:16+09:00",
+    title: "발주의뢰서 인쇄 반페이지 고정",
+    summary: "발주의뢰서 출력이 너무 작아지지 않도록 전체 축소를 제거하고 A4 위쪽 반페이지 크기로 고정했습니다.",
+    files: ["app.js", "style.css", "sw.js", "tests/requisition-print-scale.test.js"]
+  },
+  {
     version: "2026-07-02-12",
     timestamp: "2026-07-02T12:00:00+09:00",
     title: "작업일지 표시 기준 정리",

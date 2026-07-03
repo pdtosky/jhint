@@ -29,11 +29,12 @@ const packageJson = fs.readFileSync("package.json", "utf8");
 
 const context = {};
 vm.runInNewContext(
-  `${extractFunction(source, "getRequisitionPrintFit")}\nresult = getRequisitionPrintFit;`,
+  `${extractFunction(source, "getRequisitionPrintFit")}\n${extractFunction(source, "getRequisitionPrintStyles")}\nresult = { getRequisitionPrintFit, getRequisitionPrintStyles };`,
   context
 );
 
-const getRequisitionPrintFit = context.result;
+const { getRequisitionPrintFit, getRequisitionPrintStyles } = context.result;
+const popupPrintCss = getRequisitionPrintStyles();
 
 const normalFit = getRequisitionPrintFit({ items: [{ name: "A" }], note: "short" });
 assert.equal(normalFit.className, "print-density-normal");
@@ -55,6 +56,8 @@ assert.equal(denseFit.scale, "1");
 
 assert(source.includes("${escapeHtml(printFit.className)}"), "print document should include the computed density class");
 assert(source.includes("--print-scale: ${escapeHtml(printFit.scale)}"), "print document should set a computed scale variable");
+assert(popupPrintCss.includes("height: 138mm;"), "popup print CSS should keep the A4 half-page height");
+assert(!popupPrintCss.includes("transform: scale(var(--print-scale, 1));"), "popup print CSS should not shrink the document below half-page size");
 assert(styleCss.includes("height: 138mm;"), "print document should keep the A4 half-page height");
 assert(!styleCss.includes("transform: scale(var(--print-scale, 1));"), "print CSS should not shrink the document below half-page size");
 assert(styleCss.includes(".print-density-compact"), "print CSS should include compact density rules");

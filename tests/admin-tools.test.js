@@ -21,6 +21,8 @@ assert(indexHtml.includes('id="adminCreateUserForm"'), "accounts panel should in
 
 assert(appJs.includes("const adminLogList"), "app.js should bind adminLogList");
 assert(appJs.includes("CODEX_RELEASE_NOTES"), "app.js should define Codex release notes for system update logs");
+assert(appJs.includes('version: "2026-07-03-01"'), "Codex release notes should include today's print layout update");
+assert(appJs.includes("발주의뢰서 인쇄 반페이지 고정"), "Codex release notes should describe the latest print layout update");
 assert(appJs.includes("function syncCodexReleaseLogs"), "app.js should sync Codex release notes into admin logs");
 assert(appJs.includes('type: "codexUpdate"'), "Codex release notes should be stored as codexUpdate activities");
 assert(appJs.includes('actor: "Codex"'), "Codex release notes should show Codex as the log actor");
