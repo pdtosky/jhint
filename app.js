@@ -59,6 +59,13 @@ const HOLIDAY_POLL_INTERVAL_MS = Number(
 const BACKEND_MODE = APP_CONFIG.backend || "api";
 const CODEX_RELEASE_NOTES = [
   {
+    version: "2026-07-03-05",
+    timestamp: "2026-07-03T11:35:00+09:00",
+    title: "작업표준서 입력 화면 간격 축소",
+    summary: "작업표준서 관리자 입력 화면의 표 높이, 입력칸, 버튼 여백을 줄여 한 화면에 더 많은 항목이 보이도록 조정했습니다.",
+    files: ["app.js", "sop/styles.css", "package.json", "sw.js", "tests/sop-admin-compact-layout.test.js"]
+  },
+  {
     version: "2026-07-03-04",
     timestamp: "2026-07-03T11:10:00+09:00",
     title: "작업표준서 관리번호 자동 생성",
