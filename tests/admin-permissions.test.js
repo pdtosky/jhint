@@ -38,6 +38,13 @@ assert(appJs.includes("function renderRolePermissionGuide"), "app.js should rend
 assert(appJs.includes("admin-role-permission-guide"), "account management should include a visible role permission guide");
 assert(appJs.includes("getRolePermissionSummary"), "permission guide should be generated from the same role rules");
 assert(appJs.includes("계정관리"), "permission guide should explain account-management access separately");
+assert(appJs.includes('class="admin-role-permission-table"'), "permission guide should render as a structured table");
+assert(appJs.includes("계정 권한 설정 기준"), "permission guide should show a clear permission-setting standard label");
+assert(appJs.includes("계정관리 가능"), "permission guide should clearly mark roles that can manage accounts");
+assert(appJs.includes("계정관리 불가"), "permission guide should clearly mark roles that cannot manage accounts");
+assert(appJs.includes("총무"), "permission guide should include office/general affairs role text");
+assert(appJs.includes("품질"), "permission guide should include quality role text");
+assert(appJs.includes("출하"), "permission guide should include shipping role text");
 
 assert(apiSource.includes('"production"'), "account API should accept production role");
 assert(apiSource.includes('"office"'), "account API should accept office role");

@@ -5011,7 +5011,8 @@ function getRolePermissionSummary(role) {
   return {
     pages: pages || "-",
     adminSections: adminSections || "-",
-    accountManagement: canManageAccounts ? "가능" : "불가"
+    accountManagement: canManageAccounts ? "가능" : "불가",
+    accountManagementLabel: canManageAccounts ? "계정관리 가능" : "계정관리 불가"
   };
 }
 
@@ -5024,10 +5025,10 @@ function renderRolePermissionGuide() {
     const summary = getRolePermissionSummary(role.value);
     return `
       <article class="admin-role-permission-row">
-        <strong>${escapeHtml(role.label)}</strong>
-        <span>${escapeHtml(summary.pages)}</span>
-        <span>${escapeHtml(summary.adminSections)}</span>
-        <em class="${summary.accountManagement === "가능" ? "allowed" : "blocked"}">계정관리 ${summary.accountManagement}</em>
+        <strong data-permission-label="권한">${escapeHtml(role.label)}</strong>
+        <span data-permission-label="사용 가능 페이지">${escapeHtml(summary.pages)}</span>
+        <span data-permission-label="관리자 메뉴">${escapeHtml(summary.adminSections)}</span>
+        <em data-permission-label="계정관리" class="${summary.accountManagement === "가능" ? "allowed" : "blocked"}">${escapeHtml(summary.accountManagementLabel)}</em>
       </article>
     `;
   }).join("");
@@ -5038,13 +5039,15 @@ function renderRolePermissionGuide() {
         <strong>역할별 권한표</strong>
         <span>계정 권한 설정 기준</span>
       </div>
-      <div class="admin-role-permission-head" aria-hidden="true">
-        <span>권한</span>
-        <span>사용 가능 페이지</span>
-        <span>관리자 메뉴</span>
-        <span>계정관리</span>
+      <div class="admin-role-permission-table">
+        <div class="admin-role-permission-head" aria-hidden="true">
+          <span>권한</span>
+          <span>사용 가능 페이지</span>
+          <span>관리자 메뉴</span>
+          <span>계정관리</span>
+        </div>
+        ${rows}
       </div>
-      ${rows}
     </section>
   `;
 }

@@ -4828,18 +4828,22 @@ html {
   background: rgba(255, 255, 255, 0.82);
 }
 
+.admin-role-permission-table {
+  overflow: hidden;
+}
+
 .admin-role-permission-title,
 .admin-role-permission-head,
 .admin-role-permission-row {
   display: grid;
-  grid-template-columns: minmax(86px, 0.55fr) minmax(260px, 1.7fr) minmax(210px, 1.25fr) minmax(120px, 0.6fr);
+  grid-template-columns: minmax(92px, 0.58fr) minmax(320px, 2.1fr) minmax(220px, 1.35fr) minmax(150px, 0.72fr);
   align-items: center;
   gap: 0;
 }
 
 .admin-role-permission-title {
   grid-template-columns: 1fr auto;
-  padding: 14px 18px;
+  padding: 12px 18px;
   border-bottom: 1px solid var(--line);
 }
 
@@ -4863,7 +4867,7 @@ html {
 .admin-role-permission-head span,
 .admin-role-permission-row > * {
   min-width: 0;
-  padding: 10px 12px;
+  padding: 9px 12px;
   border-right: 1px solid var(--line);
 }
 
@@ -4875,13 +4879,14 @@ html {
 .admin-role-permission-row {
   border-top: 1px solid var(--line);
   color: #203651;
-  font-size: 0.9rem;
-  line-height: 1.35;
+  font-size: 0.88rem;
+  line-height: 1.32;
 }
 
 .admin-role-permission-row strong {
   color: #00695f;
   font-size: 0.96rem;
+  white-space: nowrap;
 }
 
 .admin-role-permission-row span {
@@ -4891,10 +4896,12 @@ html {
 
 .admin-role-permission-row em {
   justify-self: stretch;
+  align-self: center;
   border-radius: 999px;
   font-style: normal;
   font-weight: 900;
   text-align: center;
+  white-space: nowrap;
 }
 
 .admin-role-permission-row em.allowed {
@@ -5327,13 +5334,24 @@ html {
 
   .admin-role-permission-row {
     grid-template-columns: 1fr;
-    gap: 4px;
+    gap: 6px;
     padding: 10px 12px;
   }
 
   .admin-role-permission-row > * {
+    display: grid;
+    grid-template-columns: 92px minmax(0, 1fr);
+    align-items: center;
+    gap: 8px;
     padding: 0;
     border-right: 0;
+  }
+
+  .admin-role-permission-row > *::before {
+    content: attr(data-permission-label);
+    color: var(--muted);
+    font-size: 0.76rem;
+    font-weight: 900;
   }
 
   .admin-role-permission-row span {
@@ -5342,7 +5360,7 @@ html {
   }
 
   .admin-role-permission-row em {
-    justify-self: start;
+    justify-self: stretch;
     padding: 5px 10px;
     font-size: 0.78rem;
   }
