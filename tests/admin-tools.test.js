@@ -21,6 +21,10 @@ assert(indexHtml.includes('id="adminCreateUserForm"'), "accounts panel should in
 
 assert(appJs.includes("const adminLogList"), "app.js should bind adminLogList");
 assert(appJs.includes("CODEX_RELEASE_NOTES"), "app.js should define Codex release notes for system update logs");
+assert(appJs.includes('version: "2026-07-03-02"'), "Codex release notes should include today's permission guide update");
+assert(appJs.includes("관리자 권한표 표시 개편"), "Codex release notes should describe the permission guide update");
+assert(appJs.includes('version: "2026-07-03-03"'), "Codex release notes should include today's log coverage update");
+assert(appJs.includes("Codex 수정 로그 오늘 항목 보강"), "Codex release notes should describe the log coverage update");
 assert(appJs.includes('version: "2026-07-03-01"'), "Codex release notes should include today's print layout update");
 assert(appJs.includes("발주의뢰서 인쇄 반페이지 고정"), "Codex release notes should describe the latest print layout update");
 assert(appJs.includes("function syncCodexReleaseLogs"), "app.js should sync Codex release notes into admin logs");

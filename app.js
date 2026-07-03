@@ -59,6 +59,20 @@ const HOLIDAY_POLL_INTERVAL_MS = Number(
 const BACKEND_MODE = APP_CONFIG.backend || "api";
 const CODEX_RELEASE_NOTES = [
   {
+    version: "2026-07-03-03",
+    timestamp: "2026-07-03T10:31:00+09:00",
+    title: "Codex 수정 로그 오늘 항목 보강",
+    summary: "오늘 작업한 Codex 수정 내용이 운영 로그에 빠지지 않도록 로그 항목과 검증 테스트를 보강했습니다.",
+    files: ["app.js", "sw.js", "tests/admin-tools.test.js"]
+  },
+  {
+    version: "2026-07-03-02",
+    timestamp: "2026-07-03T09:45:00+09:00",
+    title: "관리자 권한표 표시 개편",
+    summary: "관리자 페이지의 역할별 권한표를 표 형태로 정리하고 계정관리 가능 여부를 한눈에 확인할 수 있게 개선했습니다.",
+    files: ["app.js", "index.html", "style.css", "sw.js", "tests/admin-permissions.test.js"]
+  },
+  {
     version: "2026-07-03-01",
     timestamp: "2026-07-03T10:27:16+09:00",
     title: "발주의뢰서 인쇄 반페이지 고정",
