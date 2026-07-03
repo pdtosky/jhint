@@ -59,6 +59,13 @@ const HOLIDAY_POLL_INTERVAL_MS = Number(
 const BACKEND_MODE = APP_CONFIG.backend || "api";
 const CODEX_RELEASE_NOTES = [
   {
+    version: "2026-07-03-06",
+    timestamp: "2026-07-03T11:55:00+09:00",
+    title: "작업표준서 관리번호 자동입력 버튼 겹침 수정",
+    summary: "작업표준서 문서 관리정보에서 관리번호 자동입력 버튼이 Rev 칸과 겹치지 않도록 관리번호 셀 내부 배치를 안정화했습니다.",
+    files: ["app.js", "sop/styles.css", "sw.js", "tests/sop-admin-compact-layout.test.js"]
+  },
+  {
     version: "2026-07-03-05",
     timestamp: "2026-07-03T11:35:00+09:00",
     title: "작업표준서 입력 화면 간격 축소",

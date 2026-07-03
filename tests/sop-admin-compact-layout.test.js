@@ -33,4 +33,10 @@ assert(
   "SOP admin action and auto-number buttons should match the compact input sizing."
 );
 
+assert(
+  /#adminView\s+\.management-no-field\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/s.test(css) &&
+    /#adminView\s+\.management-no-field\s+button\s*\{[^}]*width:\s*100%/s.test(css),
+  "SOP admin management-number field should stack safely inside its own table cell without overlapping the Rev column."
+);
+
 console.log("sop admin compact layout test passed");

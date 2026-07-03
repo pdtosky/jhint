@@ -29,7 +29,8 @@ textarea { min-height: 64px; resize: vertical; }
 #adminView .actions { gap: 6px; margin-top: 6px; }
 #adminView .actions button,
 #adminView .management-no-field button { min-height: 34px; padding: 6px 9px; }
-#adminView .management-no-field { gap: 6px; }
+#adminView .management-no-field { grid-template-columns: minmax(0, 1fr); gap: 5px; }
+#adminView .management-no-field button { width: 100%; }
 .attachment-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .image-slot { border: 1px dashed #9fb0c0; border-radius: 6px; min-height: 110px; padding: 10px; display: grid; place-items: center; background: #fbfcfd; text-align: center; }
 .attachment-toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
