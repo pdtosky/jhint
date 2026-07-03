@@ -2314,8 +2314,29 @@ function renderRequisitionCard(request) {
   `;
 }
 
+function getRequisitionPrintFit(request = {}) {
+  const items = Array.isArray(request.items) ? request.items : [];
+  const noteLength = String(request.note || "").trim().length;
+  const loadScore = items.length + Math.ceil(noteLength / 90);
+
+  if (items.length >= 16 || loadScore > 20) {
+    return { className: "print-density-dense", scale: "0.62" };
+  }
+  if (loadScore > 14) {
+    return { className: "print-density-dense", scale: "0.7" };
+  }
+  if (loadScore > 9) {
+    return { className: "print-density-compact", scale: "0.78" };
+  }
+  if (loadScore > 6) {
+    return { className: "print-density-compact", scale: "0.88" };
+  }
+  return { className: "print-density-normal", scale: "1" };
+}
+
 function renderRequisitionPrintSheet(request) {
   const items = Array.isArray(request.items) ? request.items : [];
+  const printFit = getRequisitionPrintFit(request);
   const totalQty = items.reduce((sum, item) => sum + parseMoneyValue(item.quantity), 0);
   const totalSampleFee = items.reduce((sum, item) => sum + parseMoneyValue(item.sampleFee), 0);
   const totalAmount = items.reduce((sum, item) => sum + getRequisitionItemAmount(item), 0);
@@ -2339,7 +2360,7 @@ function renderRequisitionPrintSheet(request) {
     : `<tr><td colspan="8" class="print-center">등록된 품목이 없습니다.</td></tr>`;
 
   return `
-    <section class="print-document">
+    <section class="print-document ${escapeHtml(printFit.className)}" style="--print-scale: ${escapeHtml(printFit.scale)};">
       <header class="print-doc-header">
         <div>
           <p class="print-doc-kicker">JIN HEUNG INTERNATIONAL CO., LTD.</p>
@@ -2450,10 +2471,12 @@ function getRequisitionPrintStyles() {
     }
 
     .print-document {
-      width: 100%;
-      height: 138mm;
+      width: calc(100% / var(--print-scale, 1));
+      height: calc(138mm / var(--print-scale, 1));
       min-height: 0;
       overflow: hidden;
+      transform: scale(var(--print-scale, 1));
+      transform-origin: top left;
       color: #111827;
     }
 
@@ -2628,6 +2651,111 @@ function getRequisitionPrintStyles() {
     .print-doc-footer strong {
       color: #111827;
       font-size: 8.6pt;
+    }
+
+    .print-density-compact {
+      font-size: 7.2pt;
+      line-height: 1.18;
+    }
+
+    .print-density-compact .print-doc-header {
+      grid-template-columns: minmax(0, 1fr) 38mm;
+      gap: 3mm;
+      padding-bottom: 2mm;
+    }
+
+    .print-density-compact .print-doc-header h1 {
+      font-size: 15pt;
+    }
+
+    .print-density-compact .print-doc-subtitle,
+    .print-density-compact .print-doc-kicker {
+      font-size: 6.2pt;
+    }
+
+    .print-density-compact .print-approval-grid span,
+    .print-density-compact .print-approval-grid i {
+      min-height: 5mm;
+      font-size: 6pt;
+    }
+
+    .print-density-compact .print-info-table,
+    .print-density-compact .print-item-table,
+    .print-density-compact .print-note-area,
+    .print-density-compact .print-doc-footer {
+      margin-top: 2mm;
+    }
+
+    .print-density-compact .print-info-table th,
+    .print-density-compact .print-info-table td,
+    .print-density-compact .print-item-table th,
+    .print-density-compact .print-item-table td {
+      padding: 1mm 1.1mm;
+      line-height: 1.18;
+    }
+
+    .print-density-compact .print-note-area {
+      min-height: 9mm;
+    }
+
+    .print-density-compact .print-note-area strong,
+    .print-density-compact .print-note-area p {
+      padding: 1mm 1.3mm;
+      line-height: 1.2;
+    }
+
+    .print-density-dense {
+      font-size: 6.2pt;
+      line-height: 1.08;
+    }
+
+    .print-density-dense .print-doc-header {
+      grid-template-columns: minmax(0, 1fr) 34mm;
+      gap: 2mm;
+      padding-bottom: 1.4mm;
+    }
+
+    .print-density-dense .print-doc-header h1 {
+      font-size: 13pt;
+      letter-spacing: 0.12em;
+    }
+
+    .print-density-dense .print-doc-subtitle,
+    .print-density-dense .print-doc-kicker {
+      margin-top: 0.8mm;
+      font-size: 5.6pt;
+      letter-spacing: 0.08em;
+    }
+
+    .print-density-dense .print-approval-grid span,
+    .print-density-dense .print-approval-grid i {
+      min-height: 4.2mm;
+      font-size: 5.4pt;
+    }
+
+    .print-density-dense .print-info-table,
+    .print-density-dense .print-item-table,
+    .print-density-dense .print-note-area,
+    .print-density-dense .print-doc-footer {
+      margin-top: 1.4mm;
+    }
+
+    .print-density-dense .print-info-table th,
+    .print-density-dense .print-info-table td,
+    .print-density-dense .print-item-table th,
+    .print-density-dense .print-item-table td {
+      padding: 0.55mm 0.75mm;
+      line-height: 1.08;
+    }
+
+    .print-density-dense .print-note-area {
+      min-height: 7mm;
+    }
+
+    .print-density-dense .print-note-area strong,
+    .print-density-dense .print-note-area p {
+      padding: 0.8mm 1mm;
+      line-height: 1.12;
     }
   `;
 }
