@@ -14,6 +14,8 @@ th, td { border: 1px solid #d8e0e7; height: 46px; padding: 8px; text-align: cent
 th { background: #f7f9fb; font-weight: 700; }
 input, textarea, select { width: 100%; border: 1px solid #c7d1db; border-radius: 4px; padding: 8px; font: inherit; }
 textarea { min-height: 64px; resize: vertical; }
+.management-no-field { display: grid; grid-template-columns: minmax(180px, 1fr) auto; gap: 8px; align-items: center; }
+.management-no-field button { white-space: nowrap; }
 .actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; margin-top: 8px; }
 .attachment-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .image-slot { border: 1px dashed #9fb0c0; border-radius: 6px; min-height: 110px; padding: 10px; display: grid; place-items: center; background: #fbfcfd; text-align: center; }
@@ -232,6 +234,7 @@ body.print-preview-open .print-document { width: min(980px, 100%); margin: 0 aut
   .admin-heading { display: grid; gap: 10px; }
   .admin-heading button { width: 100%; }
   .grid-2, .attachment-grid, .search-controls { grid-template-columns: 1fr; }
+  .management-no-field { grid-template-columns: 1fr; }
   button, input, textarea, select { min-height: 40px; font-size: 15px; }
   table { min-width: 0; }
   .info-table,

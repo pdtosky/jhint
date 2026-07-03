@@ -59,6 +59,13 @@ const HOLIDAY_POLL_INTERVAL_MS = Number(
 const BACKEND_MODE = APP_CONFIG.backend || "api";
 const CODEX_RELEASE_NOTES = [
   {
+    version: "2026-07-03-04",
+    timestamp: "2026-07-03T11:10:00+09:00",
+    title: "작업표준서 관리번호 자동 생성",
+    summary: "작업표준서 관리번호를 JH-PRD-WS-001 형식으로 다음 번호 자동입력하고 중복 저장을 막도록 개선했습니다.",
+    files: ["sop/app.js", "sop/styles.css", "package.json", "sw.js", "tests/sop-management-number.test.js"]
+  },
+  {
     version: "2026-07-03-03",
     timestamp: "2026-07-03T10:31:00+09:00",
     title: "Codex 수정 로그 오늘 항목 보강",

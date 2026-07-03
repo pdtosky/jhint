@@ -39,6 +39,7 @@ let pendingConfirm = null;
 let isAdminLoggedIn = Boolean(window.SOP_BRIDGE?.isAdminLoggedIn?.());
 const ADMIN_ID = "tape@jhint.net";
 const ADMIN_PASSWORD = "jhint2233!!";
+const SOP_MANAGEMENT_PREFIX = "JH-PRD-WS";
 
 document.getElementById("adminTab").addEventListener("click", openAdminView);
 document.getElementById("workerTab").addEventListener("click", () => showView("worker"));
@@ -69,8 +70,8 @@ function escapeHtml(value) {
   }[char]));
 }
 
-function cellInput(path, value = "") {
-  return `<input data-path="${path}" value="${escapeHtml(value)}">`;
+function cellInput(path, value = "", placeholder = "") {
+  return `<input data-path="${path}" value="${escapeHtml(value)}" placeholder="${escapeHtml(placeholder)}">`;
 }
 
 function formatDateTime(value) {
@@ -92,6 +93,35 @@ function todayInputValue() {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${date.getFullYear()}-${month}-${day}`;
+}
+
+function parseManagementNoSequence(value) {
+  const match = String(value || "").trim().match(new RegExp(`^${SOP_MANAGEMENT_PREFIX}-(\\d+)$`, "i"));
+  return match ? Number(match[1]) : 0;
+}
+
+function getNextManagementNo(sops = []) {
+  const maxSequence = sops.reduce((max, sop) => {
+    const sequence = parseManagementNoSequence(sop?.document?.managementNo);
+    return sequence > max ? sequence : max;
+  }, 0);
+  return `${SOP_MANAGEMENT_PREFIX}-${String(maxSequence + 1).padStart(3, "0")}`;
+}
+
+function isDuplicateManagementNo(managementNo, currentId = "", sops = []) {
+  const target = String(managementNo || "").trim().toUpperCase();
+  if (!target) return false;
+  return sops.some((sop) => (
+    String(sop?.id || "") !== String(currentId || "") &&
+    String(sop?.document?.managementNo || "").trim().toUpperCase() === target
+  ));
+}
+
+async function fetchSopsForManagementNo() {
+  const res = await fetch("/api/sops?q=");
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "작업표준서 목록을 불러오지 못했습니다.");
+  return data.sops || [];
 }
 
 function showToast(message, type = "success") {
@@ -191,7 +221,7 @@ function renderDocumentSection() {
     ? `<button data-action="start-edit">수정중으로 변경</button>`
     : "";
   return `<section class="panel"><h3>문서 관리정보</h3><table class="form-table info-table"><tbody>
-    <tr><th>관리번호</th><td>${cellInput("document.managementNo", currentSop.document.managementNo)}</td><th>Rev</th><td>${cellInput("document.rev", currentSop.document.rev)}</td></tr>
+    <tr><th>관리번호</th><td><div class="management-no-field">${cellInput("document.managementNo", currentSop.document.managementNo, "JH-PRD-WS-001")}<button type="button" data-action="auto-management-no">다음 번호 자동입력</button></div></td><th>Rev</th><td>${cellInput("document.rev", currentSop.document.rev)}</td></tr>
     <tr><th>등록일자</th><td>${cellInput("document.registeredDate", currentSop.document.registeredDate)}</td><th>작성자</th><td>${cellInput("document.author", currentSop.document.author)}</td></tr>
     <tr><th>배포상태</th><td><select data-path="document.status">${["임시저장", "수정중", "배포완료"].map((status) => `<option ${currentSop.document.status === status ? "selected" : ""}>${status}</option>`).join("")}</select></td><th>최종수정일</th><td>${escapeHtml(formatDateTime(currentSop.document.updatedAt))}</td></tr>
   </tbody></table><div class="actions">${editButton}<button data-action="save-all">문서 관리정보 임시저장</button></div></section>`;
@@ -538,6 +568,17 @@ adminView.addEventListener("click", async (event) => {
     showToast("수정중 상태로 변경했습니다. 수정 후 저장하거나 다시 배포하세요.");
     return;
   }
+  if (button.dataset.action === "auto-management-no") {
+    try {
+      const sops = await fetchSopsForManagementNo();
+      currentSop.document.managementNo = getNextManagementNo(sops);
+      renderAdmin();
+      showToast(`관리번호 ${currentSop.document.managementNo}로 입력했습니다.`);
+    } catch (error) {
+      showToast(error.message || "관리번호 자동입력에 실패했습니다.", "error");
+    }
+    return;
+  }
   if (button.dataset.action === "add-row") getByPath(button.dataset.list).push(blankRow(button.dataset.list));
   if (button.dataset.action === "remove-row") {
     const list = getByPath(button.dataset.list);
@@ -559,6 +600,16 @@ adminView.addEventListener("click", async (event) => {
   }
   if (button.dataset.action === "save-all" || button.dataset.action === "publish") {
     syncRelatedRecordsFromProcessConditions();
+    try {
+      const sops = await fetchSopsForManagementNo();
+      if (isDuplicateManagementNo(currentSop.document.managementNo, currentSop.id, sops)) {
+        showToast("이미 사용 중인 관리번호입니다. 다음 번호 자동입력을 눌러 새 번호를 사용해 주세요.", "error");
+        return;
+      }
+    } catch (error) {
+      showToast(error.message || "관리번호 중복 확인에 실패했습니다.", "error");
+      return;
+    }
     const res = await fetch("/api/sops", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(currentSop) });
     const data = await res.json();
     if (!res.ok) return showToast(data.error, "error");
