@@ -2320,16 +2320,16 @@ function getRequisitionPrintFit(request = {}) {
   const loadScore = items.length + Math.ceil(noteLength / 90);
 
   if (items.length >= 16 || loadScore > 20) {
-    return { className: "print-density-dense", scale: "0.62" };
+    return { className: "print-density-dense", scale: "1" };
   }
   if (loadScore > 14) {
-    return { className: "print-density-dense", scale: "0.7" };
+    return { className: "print-density-dense", scale: "1" };
   }
   if (loadScore > 9) {
-    return { className: "print-density-compact", scale: "0.78" };
+    return { className: "print-density-compact", scale: "1" };
   }
   if (loadScore > 6) {
-    return { className: "print-density-compact", scale: "0.88" };
+    return { className: "print-density-compact", scale: "1" };
   }
   return { className: "print-density-normal", scale: "1" };
 }
@@ -2471,12 +2471,10 @@ function getRequisitionPrintStyles() {
     }
 
     .print-document {
-      width: calc(100% / var(--print-scale, 1));
-      height: calc(138mm / var(--print-scale, 1));
+      width: 100%;
+      height: 138mm;
       min-height: 0;
       overflow: hidden;
-      transform: scale(var(--print-scale, 1));
-      transform-origin: top left;
       color: #111827;
     }
 

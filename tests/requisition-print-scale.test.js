@@ -44,18 +44,19 @@ const compactFit = getRequisitionPrintFit({
   note: "short"
 });
 assert.equal(compactFit.className, "print-density-compact");
-assert.equal(compactFit.scale, "0.78");
+assert.equal(compactFit.scale, "1");
 
 const denseFit = getRequisitionPrintFit({
   items: Array.from({ length: 16 }, (_, index) => ({ name: `item-${index}` })),
   note: "긴 특이사항 ".repeat(30)
 });
 assert.equal(denseFit.className, "print-density-dense");
-assert.equal(denseFit.scale, "0.62");
+assert.equal(denseFit.scale, "1");
 
 assert(source.includes("${escapeHtml(printFit.className)}"), "print document should include the computed density class");
 assert(source.includes("--print-scale: ${escapeHtml(printFit.scale)}"), "print document should set a computed scale variable");
-assert(styleCss.includes("transform: scale(var(--print-scale, 1));"), "print CSS should shrink the document by scale");
+assert(styleCss.includes("height: 138mm;"), "print document should keep the A4 half-page height");
+assert(!styleCss.includes("transform: scale(var(--print-scale, 1));"), "print CSS should not shrink the document below half-page size");
 assert(styleCss.includes(".print-density-compact"), "print CSS should include compact density rules");
 assert(styleCss.includes(".print-density-dense"), "print CSS should include dense density rules");
 assert(
