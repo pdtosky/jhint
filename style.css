@@ -1031,6 +1031,58 @@ input[disabled] {
   gap: 10px;
 }
 
+.worker-help-guide,
+.worker-quantity-guide {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: 8px;
+}
+
+.worker-help-guide {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.worker-guide-card,
+.worker-quantity-guide {
+  padding: 12px 14px;
+  border: 1px solid rgba(75, 104, 146, 0.16);
+  border-radius: 16px;
+  background: rgba(237, 245, 255, 0.82);
+  color: var(--ink);
+}
+
+.worker-guide-card strong,
+.worker-quantity-guide strong {
+  color: var(--brand);
+  font-weight: 950;
+}
+
+.worker-guide-card p,
+.worker-guide-card span,
+.worker-quantity-guide p {
+  margin: 4px 0 0;
+  color: var(--sub);
+  font-size: 0.84rem;
+  line-height: 1.45;
+  font-weight: 700;
+}
+
+.worker-guide-card span,
+.worker-guide-example {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.stop-guide {
+  border-color: rgba(216, 58, 52, 0.2);
+  background: linear-gradient(180deg, rgba(255, 244, 242, 0.9), rgba(255, 250, 248, 0.9));
+}
+
+.break-guide {
+  border-color: rgba(183, 121, 31, 0.24);
+  background: linear-gradient(180deg, rgba(255, 247, 226, 0.9), rgba(255, 252, 244, 0.9));
+}
+
 .table-wrap {
   overflow: auto;
   border-radius: 20px;
@@ -2848,6 +2900,24 @@ tbody tr:last-child td {
   .worker-actions {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 7px;
+  }
+
+  .worker-help-guide {
+    grid-template-columns: 1fr;
+    gap: 7px;
+  }
+
+  .worker-guide-card,
+  .worker-quantity-guide {
+    padding: 9px 10px;
+    border-radius: 14px;
+  }
+
+  .worker-guide-card p,
+  .worker-guide-card span,
+  .worker-quantity-guide p {
+    font-size: 0.76rem;
+    line-height: 1.38;
   }
 
   .worker-actions button {

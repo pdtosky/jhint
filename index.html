@@ -428,6 +428,22 @@
               <button type="button" class="end-btn" id="pauseWorkBtn">&#51089;&#50629; &#51473;&#51648;</button>
               <button type="button" class="end-btn" id="endWorkBtn">&#51089;&#50629; &#51333;&#47308;</button>
             </div>
+            <div class="worker-help-guide" id="workerHelpGuide" aria-label="작업 버튼 사용 안내">
+              <article class="worker-guide-card stop-guide">
+                <strong>작업중지</strong>
+                <p>작업중지는 하루 작업량을 다 채우지 못하고 다음날로 넘길 때, 또는 특수한 상황으로 작업을 중단할 때 사용합니다.</p>
+                <span>중지 사유와 작업수량, 작업타수를 함께 입력해 주세요.</span>
+              </article>
+              <article class="worker-guide-card break-guide">
+                <strong>일시정지</strong>
+                <p>일시정지는 쉬는시간, 점심시간, 잠시 자리를 비울 때 누릅니다.</p>
+                <span>작업시간만 멈추고 수량 기록은 남기지 않습니다.</span>
+              </article>
+            </div>
+            <div class="worker-quantity-guide" id="workerQuantityGuide" aria-label="작업수량과 작업타수 안내">
+              <p><strong>작업수량</strong>은 작업타수와 캐빗수를 반영한 수량입니다.</p>
+              <p><strong>작업타수</strong>는 타발수입니다. <span class="worker-guide-example">예: 프레스가 1번 치면 1타, 100번 치면 100타</span></p>
+            </div>
             <label>
               &#51089;&#50629;&#49688;&#47049;
               <input type="number" name="workQty" id="workQty" min="0" placeholder="&#50696;: 80" disabled />

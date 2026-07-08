@@ -59,6 +59,13 @@ const HOLIDAY_POLL_INTERVAL_MS = Number(
 const BACKEND_MODE = APP_CONFIG.backend || "api";
 const CODEX_RELEASE_NOTES = [
   {
+    version: "2026-07-08-01",
+    timestamp: "2026-07-08T09:00:00+09:00",
+    title: "작업자 입력 안내문 추가",
+    summary: "신규 작업자가 작업중지, 일시정지, 작업수량, 작업타수의 의미를 바로 이해할 수 있도록 작업자 입력 화면에 설명 카드를 추가했습니다.",
+    files: ["index.html", "style.css", "app.js", "package.json", "sw.js", "tests/worker-guidance.test.js"]
+  },
+  {
     version: "2026-07-03-06",
     timestamp: "2026-07-03T11:55:00+09:00",
     title: "작업표준서 관리번호 자동입력 버튼 겹침 수정",
