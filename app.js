@@ -1253,8 +1253,11 @@ async function loadRemoteState() {
   try {
     const remoteState = isSupabaseBackend() ? await fetchSupabaseState() : await fetchApiState();
     applyIncomingState(remoteState);
-  } catch {
-    applyIncomingState(createEmptyState());
+  } catch (error) {
+    console.error("Remote state load failed. Keeping the current screen state without saving.", error);
+    if (typeof showAppAlert === "function") {
+      showAppAlert("서버 데이터를 불러오지 못했습니다.\n데이터 보호를 위해 빈 화면을 서버에 저장하지 않습니다.");
+    }
   }
 }
 
@@ -1606,12 +1609,63 @@ function mergeStateByLocalChanges(previousState, nextState, remoteState) {
   return normalizeAppState(merged);
 }
 
+function getStateCountSummary(appState = {}) {
+  const normalized = normalizeAppState(appState || {});
+  return {
+    orders: normalized.orders.length,
+    requisitions: normalized.requisitions.length,
+    activities: normalized.activities.length,
+    sops: normalized.sops.length,
+    sopWorkRecords: normalized.sopWorkRecords.length
+  };
+}
+
+function getUnexpectedStateShrinkDetail(nextState, remoteState) {
+  const nextCounts = getStateCountSummary(nextState);
+  const remoteCounts = getStateCountSummary(remoteState);
+  const protectedKeys = ["orders", "requisitions", "activities", "sops", "sopWorkRecords"];
+
+  return protectedKeys.find((key) => {
+    const remoteCount = remoteCounts[key] || 0;
+    const nextCount = nextCounts[key] || 0;
+    if (remoteCount < 20) return false;
+    const absoluteDrop = remoteCount - nextCount;
+    const ratioDrop = nextCount / remoteCount;
+    return absoluteDrop >= 10 && ratioDrop < 0.75;
+  });
+}
+
+function createStateShrinkBlockedError(key, nextState, remoteState) {
+  const nextCounts = getStateCountSummary(nextState);
+  const remoteCounts = getStateCountSummary(remoteState);
+  const error = new Error(
+    `STATE_SHRINK_BLOCKED: ${key} ${remoteCounts[key]} -> ${nextCounts[key]} 저장 차단`
+  );
+  error.code = "STATE_SHRINK_BLOCKED";
+  error.remoteCounts = remoteCounts;
+  error.nextCounts = nextCounts;
+  return error;
+}
+
+function assertSafeStateToSave(nextState, remoteState) {
+  const shrinkKey = getUnexpectedStateShrinkDetail(nextState, remoteState);
+  if (shrinkKey) {
+    throw createStateShrinkBlockedError(shrinkKey, nextState, remoteState);
+  }
+  return nextState;
+}
+
 async function prepareSupabaseStateForSave(nextState) {
   const previousState = parseLastStateSnapshot();
-  if (!previousState) return nextState;
-
   const remoteState = await fetchSupabaseState();
-  return mergeStateByLocalChanges(previousState, nextState, remoteState);
+  if (!previousState) {
+    return assertSafeStateToSave(nextState, remoteState);
+  }
+
+  return assertSafeStateToSave(
+    mergeStateByLocalChanges(previousState, nextState, remoteState),
+    remoteState
+  );
 }
 
 async function saveSupabaseState(nextState) {
@@ -1619,7 +1673,7 @@ async function saveSupabaseState(nextState) {
     return Promise.reject(new Error("missing supabase config"));
   }
 
-  const stateToSave = await prepareSupabaseStateForSave(nextState).catch(() => nextState);
+  const stateToSave = await prepareSupabaseStateForSave(nextState);
   const response = await fetch(getSupabaseTableUrl(), {
     method: "POST",
     headers: getSupabaseHeaders({
@@ -3131,6 +3185,10 @@ function addNumericStrings(currentValue, addedValue) {
 
 function getPersistErrorMessage(error) {
   const detail = String(error?.message || error || "");
+
+  if (error?.code === "STATE_SHRINK_BLOCKED" || /STATE_SHRINK_BLOCKED/i.test(detail)) {
+    return "서버 저장을 차단했습니다.\n현재 화면 데이터가 서버 데이터보다 크게 적어 데이터 손실 위험이 있습니다. 새로고침 후 다시 시도해 주세요.";
+  }
 
   if (/permission denied|42501|401/i.test(detail)) {
     return "서버 저장 권한이 막혀 있습니다.\nSupabase app_state 쓰기 정책을 확인해 주세요.";
