@@ -59,6 +59,13 @@ const HOLIDAY_POLL_INTERVAL_MS = Number(
 const BACKEND_MODE = APP_CONFIG.backend || "api";
 const CODEX_RELEASE_NOTES = [
   {
+    version: "2026-07-09-01",
+    timestamp: "2026-07-09T09:00:00+09:00",
+    title: "Supabase 전체 덮어쓰기 방지 강화",
+    summary: "서버 최신 데이터를 확인하지 못한 화면에서는 저장을 차단하고, 발주의뢰와 운영로그가 브라우저 저장 과정에서 줄어들지 않도록 데이터 손실 방지 규칙을 강화했습니다.",
+    files: ["app.js", "sw.js", "tests/state-persistence-safety.test.js"]
+  },
+  {
     version: "2026-07-08-01",
     timestamp: "2026-07-08T09:00:00+09:00",
     title: "작업자 입력 안내문 추가",
@@ -251,6 +258,7 @@ let shippingFilter = "all";
 let isShippingListOpen = false;
 let shippingSearchKeyword = "";
 let lastStateSnapshot = "";
+let remoteStateLoadedSuccessfully = BACKEND_MODE !== "supabase";
 let syncTimerId = null;
 let isStateSyncing = false;
 let isVisibilitySyncBound = false;
@@ -1252,8 +1260,14 @@ async function initializeApp() {
 async function loadRemoteState() {
   try {
     const remoteState = isSupabaseBackend() ? await fetchSupabaseState() : await fetchApiState();
+    if (isSupabaseBackend()) {
+      remoteStateLoadedSuccessfully = true;
+    }
     applyIncomingState(remoteState);
   } catch (error) {
+    if (isSupabaseBackend()) {
+      remoteStateLoadedSuccessfully = false;
+    }
     console.error("Remote state load failed. Keeping the current screen state without saving.", error);
     if (typeof showAppAlert === "function") {
       showAppAlert("서버 데이터를 불러오지 못했습니다.\n데이터 보호를 위해 빈 화면을 서버에 저장하지 않습니다.");
@@ -1620,19 +1634,62 @@ function getStateCountSummary(appState = {}) {
   };
 }
 
+const STATE_SHRINK_RULES = {
+  orders: {
+    maxAllowedDrop: 2,
+    minAllowedRatio: 0.9,
+    ratioCheckMinRemote: 10,
+    blockFullWipe: true
+  },
+  requisitions: {
+    maxAllowedDrop: 0,
+    minAllowedRatio: 1,
+    ratioCheckMinRemote: 1,
+    blockFullWipe: true
+  },
+  activities: {
+    maxAllowedDrop: 0,
+    minAllowedRatio: 1,
+    ratioCheckMinRemote: 1,
+    blockFullWipe: true
+  },
+  sops: {
+    maxAllowedDrop: 2,
+    minAllowedRatio: 0.9,
+    ratioCheckMinRemote: 5,
+    blockFullWipe: true
+  },
+  sopWorkRecords: {
+    maxAllowedDrop: 2,
+    minAllowedRatio: 0.9,
+    ratioCheckMinRemote: 5,
+    blockFullWipe: true
+  }
+};
+
 function getUnexpectedStateShrinkDetail(nextState, remoteState) {
   const nextCounts = getStateCountSummary(nextState);
   const remoteCounts = getStateCountSummary(remoteState);
-  const protectedKeys = ["orders", "requisitions", "activities", "sops", "sopWorkRecords"];
+  const droppedKeys = [];
 
-  return protectedKeys.find((key) => {
+  Object.entries(STATE_SHRINK_RULES).forEach(([key, rule]) => {
     const remoteCount = remoteCounts[key] || 0;
     const nextCount = nextCounts[key] || 0;
-    if (remoteCount < 20) return false;
+    if (remoteCount <= 0 || nextCount >= remoteCount) return;
+
     const absoluteDrop = remoteCount - nextCount;
-    const ratioDrop = nextCount / remoteCount;
-    return absoluteDrop >= 10 && ratioDrop < 0.75;
+    const ratioAfterDrop = nextCount / remoteCount;
+    const isFullWipe = rule.blockFullWipe && nextCount === 0;
+    const isOverAllowedDrop = absoluteDrop > rule.maxAllowedDrop;
+    const isOverAllowedRatio =
+      remoteCount >= rule.ratioCheckMinRemote && ratioAfterDrop < rule.minAllowedRatio;
+
+    if (isFullWipe || isOverAllowedDrop || isOverAllowedRatio) {
+      droppedKeys.push(key);
+    }
   });
+
+  return droppedKeys[0] || "";
 }
 
 function createStateShrinkBlockedError(key, nextState, remoteState) {
@@ -1647,6 +1704,12 @@ function createStateShrinkBlockedError(key, nextState, remoteState) {
   return error;
 }
 
+function createRemoteStateNotReadyError() {
+  const error = new Error("REMOTE_STATE_NOT_READY: 서버 최신 데이터 확인 전 저장 차단");
+  error.code = "REMOTE_STATE_NOT_READY";
+  return error;
+}
+
 function assertSafeStateToSave(nextState, remoteState) {
   const shrinkKey = getUnexpectedStateShrinkDetail(nextState, remoteState);
   if (shrinkKey) {
@@ -1656,6 +1719,10 @@ function assertSafeStateToSave(nextState, remoteState) {
 }
 
 async function prepareSupabaseStateForSave(nextState) {
+  if (!remoteStateLoadedSuccessfully) {
+    throw createRemoteStateNotReadyError();
+  }
+
   const previousState = parseLastStateSnapshot();
   const remoteState = await fetchSupabaseState();
   if (!previousState) {
@@ -3186,6 +3253,10 @@ function addNumericStrings(currentValue, addedValue) {
 function getPersistErrorMessage(error) {
   const detail = String(error?.message || error || "");
 
+  if (error?.code === "REMOTE_STATE_NOT_READY" || /REMOTE_STATE_NOT_READY/i.test(detail)) {
+    return "서버 저장을 차단했습니다.\n서버 최신 데이터를 아직 확인하지 못했습니다. 새로고침 후 다시 시도해 주세요.";
+  }
+
   if (error?.code === "STATE_SHRINK_BLOCKED" || /STATE_SHRINK_BLOCKED/i.test(detail)) {
     return "서버 저장을 차단했습니다.\n현재 화면 데이터가 서버 데이터보다 크게 적어 데이터 손실 위험이 있습니다. 새로고침 후 다시 시도해 주세요.";
   }
@@ -3234,6 +3305,9 @@ async function syncStateFromRemote(options = {}) {
     const remoteState = normalizeAppState(isSupabaseBackend() ? await fetchSupabaseState() : await fetchApiState());
     const snapshot = JSON.stringify(remoteState);
     if (snapshot === lastStateSnapshot) return;
+    if (isSupabaseBackend()) {
+      remoteStateLoadedSuccessfully = true;
+    }
     applyIncomingState(remoteState);
     render();
   } catch {

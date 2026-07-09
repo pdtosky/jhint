@@ -18,4 +18,24 @@ assert.ok(
   "Saving should include a guard against unexpectedly shrinking remote state."
 );
 
+assert.ok(
+  source.includes("REMOTE_STATE_NOT_READY"),
+  "Saving should be blocked until the latest remote state has been loaded successfully."
+);
+
+assert.ok(
+  source.includes("STATE_SHRINK_RULES"),
+  "State shrink protection should use explicit per-collection safety rules."
+);
+
+assert.ok(
+  /requisitions:\s*\{[^}]*maxAllowedDrop:\s*0/s.test(source),
+  "Requisition records should not be allowed to disappear during normal browser saves."
+);
+
+assert.ok(
+  /activities:\s*\{[^}]*maxAllowedDrop:\s*0/s.test(source),
+  "Activity logs should not be allowed to shrink during normal browser saves."
+);
+
 console.log("state persistence safety test passed");
