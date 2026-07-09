@@ -52,12 +52,27 @@ const ROLE_ADMIN_SECTION_LABELS = {
   accounts: "계정관리"
 };
 const APP_CONFIG = window.APP_CONFIG || {};
+const REQUIRE_GLOBAL_LOGIN = APP_CONFIG.requireGlobalLogin === true;
 const POLL_INTERVAL_MS = Number(APP_CONFIG.pollIntervalMs || 60000);
 const HOLIDAY_POLL_INTERVAL_MS = Number(
   APP_CONFIG.holidayPollIntervalMs || APP_CONFIG.weekendPollIntervalMs || 300000
 );
 const BACKEND_MODE = APP_CONFIG.backend || "api";
 const CODEX_RELEASE_NOTES = [
+  {
+    version: "2026-07-09-03",
+    timestamp: "2026-07-09T17:00:00+09:00",
+    title: "전역 로그인 전환 준비 보강",
+    summary: "내일 전역 로그인 스위치를 켤 때 바로 적용할 수 있도록 이메일 인증 리다이렉트 주소, 승인대기 계정 표시, 회원가입 오류 안내, 계정관리 API 한글 문구, 전환 체크리스트를 보강했습니다.",
+    files: ["config.js", "app.js", "api/admin-users.js", "sw.js", "docs/global-login-rollout-checklist.md", "tests/global-auth-rollout-ready.test.js"]
+  },
+  {
+    version: "2026-07-09-02",
+    timestamp: "2026-07-09T15:30:00+09:00",
+    title: "전역 로그인 보안 기능 준비",
+    summary: "전체 접속 로그인, 이메일 인증 회원가입, 비밀번호 찾기 화면을 비활성화 설정 상태로 준비했습니다. 오늘은 requireGlobalLogin 값이 false라 운영 화면에는 적용되지 않습니다.",
+    files: ["index.html", "app.js", "style.css", "config.js", "sw.js", "tests/global-auth-gate.test.js"]
+  },
   {
     version: "2026-07-09-01",
     timestamp: "2026-07-09T09:00:00+09:00",
@@ -262,11 +277,20 @@ let remoteStateLoadedSuccessfully = BACKEND_MODE !== "supabase";
 let syncTimerId = null;
 let isStateSyncing = false;
 let isVisibilitySyncBound = false;
+let isAdminAuthListenerBound = false;
+let isAppDataInitialized = false;
 let currentAdminEmail = "";
 let currentAdminRole = "";
 let currentRequisitionEmail = "";
 let pendingRequisitionOrderSource = null;
 
+const securityLoginGate = document.getElementById("securityLoginGate");
+const globalLoginForm = document.getElementById("globalLoginForm");
+const globalSignupForm = document.getElementById("globalSignupForm");
+const globalPasswordResetForm = document.getElementById("globalPasswordResetForm");
+const securityAuthMessage = document.getElementById("securityAuthMessage");
+const securityAuthTabs = document.querySelectorAll("[data-security-auth-tab]");
+const securityAuthPanels = document.querySelectorAll("[data-security-auth-panel]");
 const adminLoginForm = document.getElementById("adminLoginForm");
 const adminPageLoginForm = document.getElementById("adminPageLoginForm");
 const adminLoginPanel = document.getElementById("adminLoginPanel");
@@ -394,6 +418,8 @@ startDashboardClock();
 startDueAlarmClock();
 
 function bindEvents() {
+  bindSecurityAuthEvents();
+
   tabButtons.forEach((button) => {
     button.addEventListener("click", () => {
       switchView(button.dataset.viewTarget || "dashboardView");
@@ -1249,12 +1275,110 @@ function createEmptyState() {
   };
 }
 
-async function initializeApp() {
-  await restoreAdminSession();
-  await loadRemoteState();
+function bindSecurityAuthEvents() {
+  securityAuthTabs.forEach((button) => {
+    button.addEventListener("click", () => {
+      switchSecurityAuthMode(button.dataset.securityAuthTab || "login");
+    });
+  });
+
+  globalLoginForm?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    handleGlobalLogin();
+  });
+
+  globalSignupForm?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    handleGlobalSignup();
+  });
+
+  globalPasswordResetForm?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    handleGlobalPasswordReset();
+  });
+}
+
+function switchSecurityAuthMode(mode = "login") {
+  const activeMode = ["login", "signup", "reset"].includes(mode) ? mode : "login";
+  securityAuthTabs.forEach((button) => {
+    button.classList.toggle("active", button.dataset.securityAuthTab === activeMode);
+  });
+  securityAuthPanels.forEach((panel) => {
+    panel.hidden = panel.dataset.securityAuthPanel !== activeMode;
+  });
+  setSecurityAuthMessage("");
+}
+
+function setSecurityAuthMessage(message = "", tone = "info") {
+  if (!securityAuthMessage) return;
+  const text = String(message || "").trim();
+  securityAuthMessage.hidden = !text;
+  securityAuthMessage.textContent = text;
+  securityAuthMessage.dataset.tone = tone;
+}
+
+function getAuthRedirectUrl() {
+  const configuredUrl = String(APP_CONFIG.authRedirectUrl || "").trim();
+  if (configuredUrl) return configuredUrl;
+  return `${window.location.origin}${window.location.pathname}`;
+}
+
+function getSecurityAuthErrorMessage(error, fallback = "회원가입 요청에 실패했습니다. 이메일 형식이나 이미 가입된 계정인지 확인해 주세요.") {
+  const rawMessage = String(error?.message || error?.msg || error?.error_description || error?.error || "").trim();
+  const normalizedMessage = rawMessage.toLowerCase();
+  if (normalizedMessage.includes("only invited emails can create an account")) {
+    return "현재 Supabase가 초대받은 이메일만 가입 가능하도록 설정되어 있습니다. 내일 Supabase에서 일반 회원가입 허용 후 다시 시도해 주세요.";
+  }
+  if (
+    normalizedMessage.includes("already registered") ||
+    normalizedMessage.includes("already exists") ||
+    normalizedMessage.includes("user already")
+  ) {
+    return "이미 가입된 이메일입니다. 로그인하거나 비밀번호 찾기를 이용해 주세요.";
+  }
+  if (normalizedMessage.includes("password")) {
+    return "비밀번호 조건을 확인해 주세요. 비밀번호는 8자 이상으로 입력해야 합니다.";
+  }
+  return fallback;
+}
+
+function renderSecurityLoginGate(message = "") {
+  if (!securityLoginGate) return;
+
+  if (!REQUIRE_GLOBAL_LOGIN) {
+    securityLoginGate.hidden = true;
+    document.body.classList.remove("security-auth-required");
+    return;
+  }
+
+  const isApprovedSession = Boolean(currentAdminEmail && currentAdminRole);
+  securityLoginGate.hidden = isApprovedSession;
+  document.body.classList.toggle("security-auth-required", !isApprovedSession);
+
+  if (message) {
+    setSecurityAuthMessage(message, "info");
+  }
+}
+
+async function initializeAppData(options = {}) {
+  if (!isAppDataInitialized || options.force) {
+    await loadRemoteState();
+    isAppDataInitialized = true;
+  }
   render();
   startStatePolling();
+}
+
+async function initializeApp() {
+  await restoreAdminSession();
   bindAdminAuthListener();
+
+  renderSecurityLoginGate();
+  if (REQUIRE_GLOBAL_LOGIN && !currentAdminEmail) {
+    return;
+  }
+
+  await initializeAppData();
 }
 
 async function loadRemoteState() {
@@ -1447,11 +1571,17 @@ async function restoreAdminSession() {
 }
 
 function bindAdminAuthListener() {
-  if (!supabaseAuthClient) return;
-  supabaseAuthClient.auth.onAuthStateChange((_event, session) => {
+  if (!supabaseAuthClient || isAdminAuthListenerBound) return;
+  isAdminAuthListenerBound = true;
+  supabaseAuthClient.auth.onAuthStateChange(async (_event, session) => {
     const sessionUser = session?.user || {};
     const sessionEmail = sessionUser.email || "";
     setAdminSession(sessionEmail, getSessionRole(sessionUser, sessionEmail));
+    renderSecurityLoginGate();
+    if (REQUIRE_GLOBAL_LOGIN && currentAdminEmail) {
+      await initializeAppData();
+      return;
+    }
     renderAdminSession();
     renderSopPage();
   });
@@ -3920,12 +4050,123 @@ function renderCalendar() {
   });
 }
 
+async function handleGlobalLogin() {
+  if (!supabaseAuthClient) {
+    setSecurityAuthMessage("로그인 서버 설정이 아직 연결되지 않았습니다.", "error");
+    return;
+  }
+
+  const formData = new FormData(globalLoginForm);
+  const email = String(formData.get("globalLoginEmail") || "").trim().toLowerCase();
+  const password = String(formData.get("globalLoginPassword") || "").trim();
+
+  if (!email || !password) {
+    setSecurityAuthMessage("이메일과 비밀번호를 입력해 주세요.", "error");
+    return;
+  }
+
+  const { data, error } = await supabaseAuthClient.auth.signInWithPassword({ email, password });
+  if (error) {
+    setSecurityAuthMessage("로그인에 실패했습니다. 이메일 인증 여부와 비밀번호를 확인해 주세요.", "error");
+    return;
+  }
+
+  const sessionUser = data?.user || data?.session?.user || {};
+  const sessionEmail = sessionUser.email || email;
+  const sessionRole = getSessionRole(sessionUser, sessionEmail);
+  if (!sessionRole) {
+    await supabaseAuthClient.auth.signOut({ scope: "local" });
+    setAdminSession("");
+    renderSecurityLoginGate("이메일 인증은 되었지만 관리자 승인이 아직 없습니다. 관리자 승인 후 다시 로그인해 주세요.");
+    return;
+  }
+
+  setAdminSession(sessionEmail, sessionRole);
+  globalLoginForm.reset();
+  renderSecurityLoginGate();
+  await initializeAppData();
+}
+
+async function handleGlobalSignup() {
+  if (!supabaseAuthClient) {
+    setSecurityAuthMessage("회원가입 서버 설정이 아직 연결되지 않았습니다.", "error");
+    return;
+  }
+
+  const formData = new FormData(globalSignupForm);
+  const displayName = String(formData.get("signupName") || "").trim();
+  const phone = String(formData.get("signupPhone") || "").trim();
+  const email = String(formData.get("signupEmail") || "").trim().toLowerCase();
+  const password = String(formData.get("signupPassword") || "").trim();
+
+  if (!displayName || !email || !password) {
+    setSecurityAuthMessage("이름, 이메일, 비밀번호를 입력해 주세요.", "error");
+    return;
+  }
+
+  if (password.length < 8) {
+    setSecurityAuthMessage("비밀번호는 8자 이상으로 입력해 주세요.", "error");
+    return;
+  }
+
+  const { error } = await supabaseAuthClient.auth.signUp({
+    email,
+    password,
+    options: {
+      emailRedirectTo: getAuthRedirectUrl(),
+      // This is only a signup request profile. Authorization must stay in app_metadata.
+      data: {
+        display_name: displayName,
+        phone,
+        approval_status: "pending"
+      }
+    }
+  });
+
+  if (error) {
+    setSecurityAuthMessage(getSecurityAuthErrorMessage(error), "error");
+    return;
+  }
+
+  globalSignupForm.reset();
+  switchSecurityAuthMode("login");
+  setSecurityAuthMessage("인증 메일을 보냈습니다. 메일 인증 후 관리자 승인을 기다려 주세요.", "success");
+}
+
+async function handleGlobalPasswordReset() {
+  if (!supabaseAuthClient) {
+    setSecurityAuthMessage("비밀번호 찾기 서버 설정이 아직 연결되지 않았습니다.", "error");
+    return;
+  }
+
+  const formData = new FormData(globalPasswordResetForm);
+  const email = String(formData.get("resetEmail") || "").trim().toLowerCase();
+  if (!email) {
+    setSecurityAuthMessage("가입한 이메일을 입력해 주세요.", "error");
+    return;
+  }
+
+  const { error } = await supabaseAuthClient.auth.resetPasswordForEmail(email, {
+    redirectTo: getAuthRedirectUrl()
+  });
+
+  if (error) {
+    setSecurityAuthMessage("비밀번호 재설정 메일 발송에 실패했습니다. 이메일을 확인해 주세요.", "error");
+    return;
+  }
+
+  globalPasswordResetForm.reset();
+  switchSecurityAuthMode("login");
+  setSecurityAuthMessage("비밀번호 재설정 메일을 보냈습니다. 메일의 안내 링크를 확인해 주세요.", "success");
+}
+
 async function handleAdminLogout() {
   if (supabaseAuthClient) {
     await supabaseAuthClient.auth.signOut({ scope: "local" });
   }
   setAdminSession("");
   resetAdminAccountListState();
+  renderSecurityLoginGate();
   renderAdminSession();
   renderSopPage();
 }
@@ -3979,11 +4220,15 @@ async function handleRequisitionLogout() {
     await supabaseAuthClient.auth.signOut({ scope: "local" });
   }
   setAdminSession("");
+  renderSecurityLoginGate();
   renderAdminSession();
   renderSopPage();
 }
 
 function render() {
+  renderSecurityLoginGate();
+  if (REQUIRE_GLOBAL_LOGIN && !currentAdminEmail) return;
+
   renderAdminSession();
   todayChip.textContent = `${formatDate(new Date().toISOString().slice(0, 10))} ${TEXT.baseDate}`;
   renderStats();
@@ -5401,7 +5646,11 @@ function renderAdminAccounts(options = {}) {
     .map((user) => {
       const email = user.email || "-";
       const displayName = user.displayName || "";
-      const roleLabel = getAdminAccountRoleLabel(user.role);
+      const isConfirmed = Boolean(user.confirmedAt);
+      const isApproved = Boolean(user.role);
+      const roleLabel = isApproved ? getAdminAccountRoleLabel(user.role) : "승인 필요";
+      const statusClass = !isConfirmed ? "status-warning" : isApproved ? "status-working" : "status-break";
+      const statusLabel = !isConfirmed ? "메일 확인 대기" : isApproved ? "사용 가능" : "승인 대기";
       const isCurrentUser = String(email).toLowerCase() === String(currentAdminEmail).toLowerCase();
       return `
         <article class="admin-account-row" data-admin-user-row data-user-id="${escapeHtml(user.id || "")}" data-user-email="${escapeHtml(email)}">
@@ -5419,7 +5668,7 @@ function renderAdminAccounts(options = {}) {
             </select>
           </div>
           <div class="admin-account-cell admin-account-status-cell" data-account-label="상태">
-            <span class="status-badge ${user.confirmedAt ? "status-working" : "status-warning"}">${user.confirmedAt ? "사용 가능" : "확인 대기"}</span>
+            <span class="status-badge ${statusClass}">${statusLabel}</span>
           </div>
           <div class="admin-account-cell admin-account-date-cell" data-account-label="생성일">
             <span>${user.createdAt ? formatDateTime(user.createdAt) : "-"}</span>
@@ -5467,8 +5716,9 @@ function getAdminAccountRoleLabel(role) {
 }
 
 function renderAdminAccountRoleOptions(role) {
-  const activeRole = normalizeAccountRole(role, "production");
-  return ADMIN_ACCOUNT_ROLES
+  const activeRole = normalizeAccountRole(role, "");
+  const pendingOption = `<option value="" disabled${activeRole ? "" : " selected"}>권한 선택</option>`;
+  return pendingOption + ADMIN_ACCOUNT_ROLES
     .map((item) => `<option value="${escapeHtml(item.value)}"${item.value === activeRole ? " selected" : ""}>${escapeHtml(item.label)}</option>`)
     .join("");
 }
@@ -5507,7 +5757,7 @@ async function getAdminAccessToken() {
 function normalizeAdminUser(user) {
   const userMetadata = user.user_metadata || user.userMetadata || user.raw_user_meta_data || {};
   const appMetadata = user.app_metadata || user.appMetadata || user.raw_app_meta_data || {};
-  const role = normalizeAccountRole(appMetadata.jhint_role, "production");
+  const role = normalizeAccountRole(appMetadata.jhint_role, "");
   return {
     id: user.id || "",
     email: user.email || "",

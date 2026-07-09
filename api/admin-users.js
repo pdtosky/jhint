@@ -244,7 +244,7 @@ module.exports = async function adminUsersHandler(request, response) {
   const serviceRoleKey = getServiceRoleKey();
   if (!serviceRoleKey) {
     sendJson(response, 500, {
-      message: "SUPABASE_SERVICE_ROLE_KEY 또는 SUPABASE_SECRET_KEY 환경변수가 설정되지 않았습니다. Vercel 환경변수에 Supabase Secret key를 추가한 뒤 다시 배포해 주세요."
+      message: "SUPABASE_SERVICE_ROLE_KEY 또는 SUPABASE_SECRET_KEY 환경변수가 설정되지 않았습니다. Vercel 환경변수에 Supabase Secret key를 추가하고 다시 배포해 주세요."
     });
     return;
   }

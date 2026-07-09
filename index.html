@@ -18,6 +18,68 @@
 <link rel="stylesheet" href="style.css?v=20260701-09" />
 </head>
 <body>
+  <section id="securityLoginGate" class="security-login-gate" hidden aria-live="polite">
+    <div class="security-login-card">
+      <div class="security-login-head">
+        <p class="panel-kicker">SECURITY LOGIN</p>
+        <h1>생산일정 관리</h1>
+        <p>로그인 후 권한에 맞는 메뉴만 사용할 수 있도록 준비된 보안 화면입니다.</p>
+      </div>
+
+      <div class="security-auth-tabs" role="tablist" aria-label="로그인 메뉴">
+        <button type="button" class="security-auth-tab active" data-security-auth-tab="login">로그인</button>
+        <button type="button" class="security-auth-tab" data-security-auth-tab="signup">계정생성</button>
+        <button type="button" class="security-auth-tab" data-security-auth-tab="reset">비밀번호 찾기</button>
+      </div>
+
+      <form id="globalLoginForm" class="security-auth-form" data-security-auth-panel="login">
+        <label>
+          이메일
+          <input type="email" name="globalLoginEmail" autocomplete="email" placeholder="user@jhint.net" />
+        </label>
+        <label>
+          비밀번호
+          <input type="password" name="globalLoginPassword" autocomplete="current-password" placeholder="비밀번호 입력" />
+        </label>
+        <button type="submit" class="primary-action">로그인</button>
+      </form>
+
+      <form id="globalSignupForm" class="security-auth-form" data-security-auth-panel="signup" hidden>
+        <div class="security-form-grid">
+          <label>
+            이름
+            <input type="text" name="signupName" autocomplete="name" placeholder="홍길동" />
+          </label>
+          <label>
+            연락처
+            <input type="tel" name="signupPhone" autocomplete="tel" placeholder="010-0000-0000" />
+          </label>
+        </div>
+        <label>
+          이메일
+          <input type="email" name="signupEmail" autocomplete="email" placeholder="user@jhint.net" />
+        </label>
+        <label>
+          비밀번호
+          <input type="password" name="signupPassword" autocomplete="new-password" placeholder="8자 이상 입력" />
+        </label>
+        <button type="submit" class="primary-action">인증 메일 보내기</button>
+        <p class="security-helper-text">메일 인증 후에도 관리자가 승인해야 접속할 수 있습니다.</p>
+      </form>
+
+      <form id="globalPasswordResetForm" class="security-auth-form" data-security-auth-panel="reset" hidden>
+        <label>
+          이메일
+          <input type="email" name="resetEmail" autocomplete="email" placeholder="가입한 이메일 입력" />
+        </label>
+        <button type="submit" class="primary-action">비밀번호 재설정 메일 보내기</button>
+        <p class="security-helper-text">메일의 안내 링크에서 새 비밀번호를 설정합니다.</p>
+      </form>
+
+      <div id="securityAuthMessage" class="security-auth-message" hidden></div>
+    </div>
+  </section>
+
   <div class="page-shell">
     <header class="hero">
       <div class="hero-brand">
