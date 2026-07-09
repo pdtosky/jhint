@@ -1,6 +1,6 @@
 # 전역 로그인 전환 체크리스트
 
-이 문서는 내일 아침 `스위치 켜줘` 요청이 들어왔을 때 바로 적용하기 위한 확인표입니다. 오늘 운영 화면은 `requireGlobalLogin: false` 상태라 기존처럼 열립니다.
+이 문서는 전역 로그인 적용 상태와 긴급 롤백 방법을 확인하기 위한 운영 체크리스트입니다. 2026년 7월 10일 현재 `requireGlobalLogin: true`로 적용되었습니다.
 
 ## 1. Supabase Auth 설정 확인
 
@@ -14,9 +14,9 @@
 - `SUPABASE_SERVICE_ROLE_KEY` 또는 `SUPABASE_SECRET_KEY`가 Production 환경에 있어야 합니다.
 - 이 키는 서버 API에서만 사용하고 브라우저 코드에는 절대 넣지 않습니다.
 
-## 3. 내일 켜는 스위치
+## 3. 운영 스위치
 
-`config.js`에서 아래 값만 바꿉니다.
+현재 `config.js`에는 아래 값이 적용되어 있습니다.
 
 ```js
 requireGlobalLogin: true

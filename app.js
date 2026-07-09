@@ -60,6 +60,13 @@ const HOLIDAY_POLL_INTERVAL_MS = Number(
 const BACKEND_MODE = APP_CONFIG.backend || "api";
 const CODEX_RELEASE_NOTES = [
   {
+    version: "2026-07-10-01",
+    timestamp: "2026-07-10T08:12:00+09:00",
+    title: "전체 접속 로그인 보안 적용",
+    summary: "생산일정 관리 앱을 실행하면 로그인 화면이 먼저 나오도록 전역 로그인 스위치를 켰습니다. 신규 계정은 이메일 인증과 관리자 권한 승인을 모두 완료해야 운영 화면에 접속할 수 있습니다.",
+    files: ["config.js", "app.js", "sw.js", "docs/global-login-rollout-checklist.md", "tests/global-auth-gate.test.js", "tests/global-auth-rollout-ready.test.js"]
+  },
+  {
     version: "2026-07-09-03",
     timestamp: "2026-07-09T17:00:00+09:00",
     title: "전역 로그인 전환 준비 보강",

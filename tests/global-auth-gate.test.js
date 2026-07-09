@@ -15,7 +15,7 @@ assert(indexHtml.includes('id="globalPasswordResetForm"'), "password reset form 
 assert(indexHtml.includes('data-security-auth-tab="signup"'), "signup tab should be available");
 assert(indexHtml.includes('data-security-auth-tab="reset"'), "password reset tab should be available");
 
-assert(configJs.includes("requireGlobalLogin: false"), "global login should be explicitly disabled until rollout day");
+assert(configJs.includes("requireGlobalLogin: true"), "global login should be enabled for the production rollout");
 assert(appJs.includes("const REQUIRE_GLOBAL_LOGIN = APP_CONFIG.requireGlobalLogin === true"), "app should only enforce global login when the flag is true");
 assert(appJs.includes("function renderSecurityLoginGate"), "app should render the prepared global login gate");
 assert(appJs.includes("function handleGlobalSignup"), "app should handle email-verification signup");

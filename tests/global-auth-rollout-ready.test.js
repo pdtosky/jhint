@@ -9,7 +9,7 @@ const apiSource = fs.readFileSync(path.join(root, "api", "admin-users.js"), "utf
 const swJs = fs.readFileSync(path.join(root, "sw.js"), "utf8");
 const checklistPath = path.join(root, "docs", "global-login-rollout-checklist.md");
 
-assert(configJs.includes("requireGlobalLogin: false"), "global login switch should remain off until rollout morning");
+assert(configJs.includes("requireGlobalLogin: true"), "global login switch should be enabled on rollout morning");
 assert(
   configJs.includes('authRedirectUrl: "https://jhint.vercel.app/"'),
   "email verification and password reset should have an explicit production redirect URL"
@@ -55,6 +55,6 @@ const checklist = fs.readFileSync(checklistPath, "utf8");
 assert(checklist.includes("requireGlobalLogin: true"), "checklist should show the exact switch to turn on");
 assert(checklist.includes("일반 회원가입 허용"), "checklist should include Supabase signup setting");
 assert(checklist.includes("관리자 승인"), "checklist should include admin approval verification");
-assert(swJs.includes("v20260709-03"), "service worker cache should be bumped for rollout hardening");
+assert(swJs.includes("v20260710-01"), "service worker cache should be bumped when global login is enabled");
 
 console.log("global auth rollout readiness test passed");
