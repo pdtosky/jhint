@@ -61,6 +61,13 @@ const HOLIDAY_POLL_INTERVAL_MS = Number(
 const BACKEND_MODE = APP_CONFIG.backend || "api";
 const CODEX_RELEASE_NOTES = [
   {
+    version: "2026-07-10-07",
+    timestamp: "2026-07-10T14:35:00+09:00",
+    title: "로그인 성공 운영 로그 추가",
+    summary: "이메일과 비밀번호로 실제 로그인에 성공한 순간을 운영 로그에 기록합니다. 계정, 권한, 로그인 유지 사용 여부만 저장하며 비밀번호와 자동 세션 복원은 기록하지 않습니다.",
+    files: ["app.js", "sw.js", "package.json", "tests/global-auth-login-log.test.js"]
+  },
+  {
     version: "2026-07-10-06",
     timestamp: "2026-07-10T14:05:00+09:00",
     title: "기기별 로그인 유지 선택 추가",
@@ -4170,6 +4177,33 @@ async function handleGlobalLogin() {
   globalLoginForm.reset();
   renderSecurityLoginGate();
   await initializeAppData();
+  await recordSuccessfulLogin({
+    email: sessionEmail,
+    role: sessionRole,
+    rememberLogin
+  });
+}
+
+async function recordSuccessfulLogin({ email = "", role = "", rememberLogin = false } = {}) {
+  const normalizedEmail = String(email || "").trim().toLowerCase();
+  const normalizedRole = normalizeAccountRole(role, "");
+  if (!normalizedEmail || !normalizedRole) return;
+
+  if (!Array.isArray(state.activities)) {
+    state.activities = [];
+  }
+
+  state.activities.unshift({
+    id: crypto.randomUUID(),
+    type: "login",
+    adminEmail: normalizedEmail,
+    target: "생산일정관리",
+    role: normalizedRole,
+    timestamp: new Date().toISOString(),
+    message: `로그인했습니다. / 권한 ${getAdminAccountRoleLabel(normalizedRole)} / 로그인 유지 ${rememberLogin ? "사용" : "미사용"}`
+  });
+
+  await persist();
 }
 
 async function handleGlobalSignup() {
@@ -5512,6 +5546,7 @@ function filterAdminSectionsByRole() {
 
 function getAdminActivityLabel(type) {
   const labels = {
+    login: "로그인",
     register: "발주 등록",
     edit: "발주 수정",
     start: "작업 시작",
@@ -5533,6 +5568,7 @@ function getAdminActivityLabel(type) {
 
 function getAdminActivityTone(type) {
   const toneMap = {
+    login: "account",
     register: "register",
     edit: "register",
     hold: "register",
