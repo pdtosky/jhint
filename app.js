@@ -60,6 +60,13 @@ const HOLIDAY_POLL_INTERVAL_MS = Number(
 const BACKEND_MODE = APP_CONFIG.backend || "api";
 const CODEX_RELEASE_NOTES = [
   {
+    version: "2026-07-10-02",
+    timestamp: "2026-07-10T09:04:00+09:00",
+    title: "일반 회원가입 승인대기 전환",
+    summary: "초대받은 이메일만 가입되던 Supabase 규칙을 수정했습니다. 일반 사용자는 이메일 인증 후 승인대기로 생성되고, 관리자가 권한을 지정하기 전에는 생산일정관리와 검사일지 업무 화면에 접근할 수 없습니다.",
+    files: ["supabase-auth-public-signup.sql", "app.js", "sw.js", "package.json", "tests/global-auth-public-signup.test.js", "tests/global-auth-rollout-ready.test.js"]
+  },
+  {
     version: "2026-07-10-01",
     timestamp: "2026-07-10T08:12:00+09:00",
     title: "전체 접속 로그인 보안 적용",
@@ -1334,7 +1341,7 @@ function getSecurityAuthErrorMessage(error, fallback = "회원가입 요청에 �
   const rawMessage = String(error?.message || error?.msg || error?.error_description || error?.error || "").trim();
   const normalizedMessage = rawMessage.toLowerCase();
   if (normalizedMessage.includes("only invited emails can create an account")) {
-    return "현재 Supabase가 초대받은 이메일만 가입 가능하도록 설정되어 있습니다. 내일 Supabase에서 일반 회원가입 허용 후 다시 시도해 주세요.";
+    return "회원가입 제한 설정 때문에 계정을 만들 수 없습니다. 관리자에게 문의해 주세요.";
   }
   if (
     normalizedMessage.includes("already registered") ||

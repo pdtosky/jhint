@@ -17,8 +17,8 @@ assert(
 
 assert(appJs.includes("function getSecurityAuthErrorMessage"), "signup failures should be translated into clear Korean messages");
 assert(
-  appJs.includes("초대받은 이메일만 가입 가능") && appJs.includes("일반 회원가입 허용"),
-  "signup error helper should explain the Supabase invite-only setting before rollout"
+  appJs.includes("회원가입 제한 설정") && appJs.includes("관리자에게 문의"),
+  "signup error helper should explain an unexpected server-side signup restriction"
 );
 
 const normalizeAdminUserStart = appJs.indexOf("function normalizeAdminUser");
@@ -53,8 +53,8 @@ assert(!/[-�]/.test(apiSource), "account API messages should not contain m
 assert(fs.existsSync(checklistPath), "rollout checklist should exist for tomorrow morning switch-on");
 const checklist = fs.readFileSync(checklistPath, "utf8");
 assert(checklist.includes("requireGlobalLogin: true"), "checklist should show the exact switch to turn on");
-assert(checklist.includes("일반 회원가입 허용"), "checklist should include Supabase signup setting");
+assert(checklist.includes("일반 회원가입을 허용"), "checklist should include Supabase signup setting");
 assert(checklist.includes("관리자 승인"), "checklist should include admin approval verification");
-assert(swJs.includes("v20260710-01"), "service worker cache should be bumped when global login is enabled");
+assert(swJs.includes("v20260710-02"), "service worker cache should be bumped when public signup is enabled");
 
 console.log("global auth rollout readiness test passed");
