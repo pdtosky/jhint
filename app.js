@@ -18,7 +18,7 @@ const LEGACY_ROLE_ALIASES = {
 };
 const ROLE_VIEW_PERMISSIONS = {
   admin: ["dashboardView", "ordersView", "requisitionView", "workerView", "shippingView", "sopView", "adminView"],
-  production: ["dashboardView", "workerView"],
+  production: ["dashboardView", "workerView", "sopView"],
   sales: ["dashboardView", "requisitionView", "ordersView", "shippingView"],
   office: ["dashboardView", "ordersView", "requisitionView", "workerView", "shippingView", "sopView", "adminView"],
   quality: ["dashboardView", "ordersView", "requisitionView", "workerView", "shippingView", "sopView"],
@@ -60,6 +60,13 @@ const HOLIDAY_POLL_INTERVAL_MS = Number(
 );
 const BACKEND_MODE = APP_CONFIG.backend || "api";
 const CODEX_RELEASE_NOTES = [
+  {
+    version: "2026-07-10-08",
+    timestamp: "2026-07-10T15:00:00+09:00",
+    title: "생산 권한 작업표준서 조회 허용",
+    summary: "생산 계정에서 작업표준서 탭과 배포된 문서를 조회할 수 있도록 허용했습니다. 문서 작성, 수정, 삭제 권한은 관리자, 총무, 품질 계정에만 유지됩니다.",
+    files: ["app.js", "sw.js", "tests/admin-permissions.test.js"]
+  },
   {
     version: "2026-07-10-07",
     timestamp: "2026-07-10T14:35:00+09:00",
@@ -1595,6 +1602,10 @@ function canAccessView(targetId) {
   if (targetId === "dashboardView") return true;
   if (!currentAdminRole) return true;
   return (ROLE_VIEW_PERMISSIONS[currentAdminRole] || ["dashboardView"]).includes(targetId);
+}
+
+function canManageSopDocuments() {
+  return isAdminLoggedIn && ["admin", "office", "quality"].includes(currentAdminRole);
 }
 
 function canAccessAdminSection(section) {
@@ -4511,7 +4522,7 @@ function renderAdminSession() {
   if (sopAdminContent) sopAdminContent.hidden = !canUseSop;
   if (sopForm) {
     Array.from(sopForm.elements).forEach((element) => {
-      element.disabled = !canUseSop;
+      element.disabled = !canManageSopDocuments();
     });
   }
   tabButtons.forEach((button) => {
@@ -4560,9 +4571,9 @@ function renderAdminPage(options = {}) {
 
 function renderSopPage() {
   if (!sopPageRoot) return;
-  const statusText = isAdminLoggedIn
-    ? "관리자 로그인 상태입니다. Smart SOP 관리자 기능을 사용할 수 있습니다."
-    : "관리자 기능은 생산일정관리 관리자 로그인 후 사용할 수 있습니다.";
+  const statusText = canManageSopDocuments()
+    ? "작업표준서 문서 작성과 조회가 가능합니다."
+    : "배포완료된 작업표준서를 조회할 수 있습니다.";
   const countText = `${getSmartSopRecords().length}건`;
   const existingFrame = sopPageRoot.querySelector(".sop-module-frame");
 
@@ -4837,7 +4848,7 @@ function renderSopCard(sop, { adminMode = false } = {}) {
       </div>
       <p class="sop-note">${escapeHtml(summary.note || "작업 기준/주의사항 없음")}</p>
       <div class="sop-card-actions">
-        ${adminMode && isAdminLoggedIn ? `
+        ${adminMode && canManageSopDocuments() ? `
           <button type="button" class="tab-btn" data-sop-action="load" data-sop-id="${escapeHtml(summary.id)}">불러오기</button>
           <button type="button" class="danger-action-btn" data-sop-action="delete" data-sop-id="${escapeHtml(summary.id)}">삭제</button>
         ` : `<button type="button" class="tab-btn" data-sop-action="load" data-sop-id="${escapeHtml(summary.id)}">보기</button>`}
@@ -4946,8 +4957,8 @@ function renderSopDetail(sop) {
 }
 
 async function handleSopSubmit() {
-  if (!isAdminLoggedIn) {
-    showAppAlert("관리자 로그인 후 작업표준서를 저장할 수 있습니다.");
+  if (!canManageSopDocuments()) {
+    showAppAlert("작업표준서 문서 편집 권한이 없습니다.");
     return;
   }
 
@@ -5006,8 +5017,8 @@ async function handleSopAction(button) {
   if (!sop) return;
 
   if (action === "edit") {
-    if (!isAdminLoggedIn) {
-      showAppAlert("관리자 로그인 후 수정할 수 있습니다.");
+    if (!canManageSopDocuments()) {
+      showAppAlert("작업표준서 문서 편집 권한이 없습니다.");
       return;
     }
     editingSopId = sop.id;
@@ -5024,8 +5035,8 @@ async function handleSopAction(button) {
   }
 
   if (action === "delete") {
-    if (!isAdminLoggedIn) {
-      showAppAlert("관리자 로그인 후 삭제할 수 있습니다.");
+    if (!canManageSopDocuments()) {
+      showAppAlert("작업표준서 문서 삭제 권한이 없습니다.");
       return;
     }
     const ok = await showAppConfirm(`${sop.product || "선택한 작업표준서"}를 삭제할까요?`, {
@@ -5196,8 +5207,8 @@ function syncSopRelatedRecords(target) {
 }
 
 async function saveSopDraft(forceStatus = "") {
-  if (!isAdminLoggedIn) {
-    showAppAlert("관리자 로그인 후 작업표준서를 저장할 수 있습니다.");
+  if (!canManageSopDocuments()) {
+    showAppAlert("작업표준서 문서 편집 권한이 없습니다.");
     return;
   }
   syncSopDraftFromPage();
@@ -5234,8 +5245,8 @@ async function saveSopDraft(forceStatus = "") {
 }
 
 async function deleteSopRecord(id) {
-  if (!isAdminLoggedIn) {
-    showAppAlert("관리자 로그인 후 삭제할 수 있습니다.");
+  if (!canManageSopDocuments()) {
+    showAppAlert("작업표준서 문서 삭제 권한이 없습니다.");
     return;
   }
   const sop = getExistingSop(id);
@@ -5266,8 +5277,8 @@ async function deleteSopRecord(id) {
 }
 
 async function importSeedSops() {
-  if (!isAdminLoggedIn) {
-    showAppAlert("관리자 로그인 후 가져올 수 있습니다.");
+  if (!canManageSopDocuments()) {
+    showAppAlert("작업표준서 문서 편집 권한이 없습니다.");
     return;
   }
   const seedSops = getSeedSops();
@@ -5307,7 +5318,7 @@ async function importSeedSops() {
 
 function createSmartSopBridge() {
   return {
-    isAdminLoggedIn: () => isAdminLoggedIn,
+    isAdminLoggedIn: () => canManageSopDocuments(),
     request: handleSmartSopBridgeRequest
   };
 }
@@ -5360,8 +5371,8 @@ function getSmartSopRecord(id) {
 }
 
 async function saveSmartSopRecord(input) {
-  if (!isAdminLoggedIn) {
-    throw makeSmartSopError("관리자 로그인 후 저장할 수 있습니다.", 403);
+  if (!canManageSopDocuments()) {
+    throw makeSmartSopError("작업표준서 문서 편집 권한이 없습니다.", 403);
   }
 
   const nextSop = normalizeSopRecord({
@@ -5395,8 +5406,8 @@ async function saveSmartSopRecord(input) {
 }
 
 async function deleteSmartSopRecord(id) {
-  if (!isAdminLoggedIn) {
-    throw makeSmartSopError("관리자 로그인 후 삭제할 수 있습니다.", 403);
+  if (!canManageSopDocuments()) {
+    throw makeSmartSopError("작업표준서 문서 삭제 권한이 없습니다.", 403);
   }
 
   const targetId = String(id || "");
@@ -5474,7 +5485,15 @@ async function handleSmartSopBridgeRequest(request) {
   const searchParams = new URLSearchParams(String(request?.search || "").replace(/^\?/, ""));
 
   if (method === "GET" && path === "/api/sops") {
-    return { status: 200, body: { sops: getSmartSopRecords({ query: searchParams.get("q") || "" }) } };
+    return {
+      status: 200,
+      body: {
+        sops: getSmartSopRecords({
+          publishedOnly: !canManageSopDocuments(),
+          query: searchParams.get("q") || ""
+        })
+      }
+    };
   }
 
   if (method === "GET" && path === "/api/worker/sops") {
@@ -5505,7 +5524,8 @@ async function handleSmartSopBridgeRequest(request) {
     const id = decodeURIComponent(path.split("/").pop() || "");
     if (method === "GET") {
       const sop = getSmartSopRecord(id);
-      return sop
+      const canReadSop = sop && (canManageSopDocuments() || String(sop.document?.status || sop.status || "") === "배포완료");
+      return canReadSop
         ? { status: 200, body: { sop } }
         : { status: 404, body: { error: "SOP not found" } };
     }

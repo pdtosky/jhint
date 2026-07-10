@@ -23,6 +23,6 @@ assert(
   "login logging must happen only after the latest remote state is loaded"
 );
 assert(!appJs.slice(recorderStart, appJs.indexOf("async function handleGlobalSignup", recorderStart)).includes("password"), "login activities must never store passwords");
-assert(swJs.includes("v20260710-07"), "service worker cache should be bumped for login logging");
+assert(swJs.includes("v20260710-08"), "service worker cache should include the latest permissions update");
 
 console.log("global auth login-log test passed");
