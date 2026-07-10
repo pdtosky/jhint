@@ -169,6 +169,7 @@ body.security-auth-required .page-shell {
   align-items: end;
   margin-bottom: 24px;
   text-align: center;
+  position: relative;
 }
 
 .hero-brand {
@@ -180,6 +181,56 @@ body.security-auth-required .page-shell {
 
 .hero-brand > .company-logo {
   display: none;
+}
+
+.global-session-bar {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 8px 7px 13px;
+  border: 1px solid rgba(13, 107, 95, 0.2);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: 0 8px 22px rgba(36, 59, 82, 0.08);
+  text-align: left;
+}
+
+.global-session-bar[hidden] {
+  display: none;
+}
+
+.global-session-identity {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+
+.global-session-identity span {
+  color: var(--sub);
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.global-session-identity strong {
+  max-width: 240px;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 0.84rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.global-logout-btn {
+  min-height: 36px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 11px;
+  background: var(--ink);
+  color: #fff;
+  font-weight: 800;
 }
 
 .company-logo {
@@ -1043,6 +1094,26 @@ button {
   display: grid;
   gap: 12px;
   margin-top: 18px;
+}
+
+.worker-form input.account-identity-input {
+  border-color: rgba(13, 107, 95, 0.35);
+  background: #e9f8f3;
+  color: var(--brand);
+  font-weight: 800;
+}
+
+.worker-account-name-help {
+  display: block;
+  margin-top: 6px;
+  color: var(--brand);
+  font-size: 0.8rem;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.worker-account-name-help[data-tone="warning"] {
+  color: #a76608;
 }
 
 label {
@@ -2239,6 +2310,17 @@ tbody tr:last-child td {
 }
 
 @media (max-width: 760px) {
+  .global-session-bar {
+    position: static;
+    width: 100%;
+    justify-content: space-between;
+    margin-top: 10px;
+  }
+
+  .global-session-identity strong {
+    max-width: min(64vw, 260px);
+  }
+
   #calendarDetailModal .modal-card {
     width: min(96vw, 520px);
     max-height: 88vh;

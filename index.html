@@ -93,6 +93,13 @@
         <h1>&#49373;&#49328;&#51068;&#51221; &#44288;&#47532;</h1>
         <img src="company-logo.jpg" alt="&#51652;&#55141;&#47924;&#50669; &#47196;&#44256;" class="company-logo" />
       </div>
+      <div class="global-session-bar" id="globalSessionBar" hidden>
+        <div class="global-session-identity">
+          <span>로그인 계정</span>
+          <strong id="globalSessionUser">-</strong>
+        </div>
+        <button type="button" class="global-logout-btn" id="globalLogoutBtn">로그아웃</button>
+      </div>
     </header>
 
     <nav class="page-tabs" aria-label="views">
@@ -482,7 +489,8 @@
           <form id="workerForm" class="worker-form">
             <label>
               &#51089;&#50629;&#51088;&#47749;
-              <input type="text" name="workerName" placeholder="&#50696;: &#44608;&#52384;&#49688;" required />
+              <input type="text" name="workerName" id="workerNameInput" placeholder="&#50696;: &#44608;&#52384;&#49688;" aria-describedby="workerAccountNameHelp" required />
+              <small class="worker-account-name-help" id="workerAccountNameHelp" hidden></small>
             </label>
             <label>
               &#51109;&#48708;&#47749;

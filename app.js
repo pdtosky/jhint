@@ -61,6 +61,13 @@ const HOLIDAY_POLL_INTERVAL_MS = Number(
 const BACKEND_MODE = APP_CONFIG.backend || "api";
 const CODEX_RELEASE_NOTES = [
   {
+    version: "2026-07-10-09",
+    timestamp: "2026-07-10T15:29:21+09:00",
+    title: "작업자 계정 이름 자동입력 및 공통 로그아웃",
+    summary: "생산 계정으로 로그인하면 계정에 등록된 사용자 이름을 작업자명에 자동 입력하고 수정하지 못하게 했습니다. 모든 권한에서 상단 로그아웃 버튼을 사용할 수 있으며 로그아웃하면 로그인 화면으로 이동합니다.",
+    files: ["index.html", "style.css", "app.js", "sw.js", "package.json", "tests/worker-account-session.test.js"]
+  },
+  {
     version: "2026-07-10-08",
     timestamp: "2026-07-10T15:00:00+09:00",
     title: "생산 권한 작업표준서 조회 허용",
@@ -338,6 +345,7 @@ let isAdminAuthListenerBound = false;
 let isAppDataInitialized = false;
 let currentAdminEmail = "";
 let currentAdminRole = "";
+let currentAdminDisplayName = "";
 let currentRequisitionEmail = "";
 let pendingRequisitionOrderSource = null;
 
@@ -349,6 +357,9 @@ const globalPasswordResetForm = document.getElementById("globalPasswordResetForm
 const securityAuthMessage = document.getElementById("securityAuthMessage");
 const securityAuthTabs = document.querySelectorAll("[data-security-auth-tab]");
 const securityAuthPanels = document.querySelectorAll("[data-security-auth-panel]");
+const globalSessionBar = document.getElementById("globalSessionBar");
+const globalSessionUser = document.getElementById("globalSessionUser");
+const globalLogoutBtn = document.getElementById("globalLogoutBtn");
 const adminLoginForm = document.getElementById("adminLoginForm");
 const adminPageLoginForm = document.getElementById("adminPageLoginForm");
 const adminLoginPanel = document.getElementById("adminLoginPanel");
@@ -381,6 +392,8 @@ const editPaymentRequestedInput = document.getElementById("editPaymentRequested"
 const editDeliveryTypeInput = document.getElementById("editDeliveryType");
 const cancelEditBtn = document.getElementById("cancelEditBtn");
 const workerForm = document.getElementById("workerForm");
+const workerNameInput = document.getElementById("workerNameInput");
+const workerAccountNameHelp = document.getElementById("workerAccountNameHelp");
 const ordersTableBody = document.getElementById("ordersTableBody");
 const activeOrderSearchInput = document.getElementById("activeOrderSearchInput");
 const completedOrdersToggleBtn = document.getElementById("completedOrdersToggleBtn");
@@ -495,6 +508,10 @@ function bindEvents() {
   });
 
   adminLogoutBtn.addEventListener("click", () => {
+    handleAdminLogout();
+  });
+
+  globalLogoutBtn?.addEventListener("click", () => {
     handleAdminLogout();
   });
 
@@ -1634,11 +1651,17 @@ function getCurrentRoleLabel() {
   return getAdminAccountRoleLabel(currentAdminRole);
 }
 
-function setAdminSession(email, role = "") {
+function getSessionDisplayName(user = {}, email = "") {
+  const metadata = user.user_metadata || user.userMetadata || user.raw_user_meta_data || {};
+  return String(metadata.display_name || metadata.name || metadata.full_name || "").trim();
+}
+
+function setAdminSession(email, role = "", displayName = "") {
   const normalizedEmail = String(email || "").trim().toLowerCase();
   const normalizedRole = normalizeAccountRole(role, normalizedEmail && isAllowedAdminEmail(normalizedEmail) ? "admin" : "");
   const isLoggedIn = Boolean(normalizedEmail && normalizedRole);
   currentAdminRole = isLoggedIn ? normalizedRole : "";
+  currentAdminDisplayName = isLoggedIn ? String(displayName || "").trim() : "";
   isAdminLoggedIn = isLoggedIn;
   isRequisitionLoggedIn = isLoggedIn && canAccessView("requisitionView");
   currentAdminEmail = isLoggedIn ? normalizedEmail : "";
@@ -1656,7 +1679,7 @@ async function restoreAdminSession() {
     setAdminSession("");
     return;
   }
-  setAdminSession(sessionEmail, sessionRole);
+  setAdminSession(sessionEmail, sessionRole, getSessionDisplayName(sessionUser, sessionEmail));
 }
 
 function bindAdminAuthListener() {
@@ -1676,7 +1699,7 @@ function bindAdminAuthListener() {
       }, 0);
       return;
     }
-    setAdminSession(sessionEmail, sessionRole);
+    setAdminSession(sessionEmail, sessionRole, getSessionDisplayName(sessionUser, sessionEmail));
     renderSecurityLoginGate();
     if (REQUIRE_GLOBAL_LOGIN && currentAdminEmail) {
       await initializeAppData();
@@ -3614,7 +3637,7 @@ async function handleAdminLogin(formElement) {
     return;
   }
 
-  setAdminSession(sessionEmail, sessionRole);
+  setAdminSession(sessionEmail, sessionRole, getSessionDisplayName(sessionUser, sessionEmail));
   adminLoginForm.reset();
   adminPageLoginForm.reset();
   renderAdminSession();
@@ -4184,7 +4207,7 @@ async function handleGlobalLogin() {
     return;
   }
 
-  setAdminSession(sessionEmail, sessionRole);
+  setAdminSession(sessionEmail, sessionRole, getSessionDisplayName(sessionUser, sessionEmail));
   globalLoginForm.reset();
   renderSecurityLoginGate();
   await initializeAppData();
@@ -4306,6 +4329,8 @@ async function handleAdminLogout() {
   }
   setAdminSession("");
   resetAdminAccountListState();
+  switchSecurityAuthMode("login");
+  setSecurityAuthMessage("로그아웃되었습니다.", "success");
   renderSecurityLoginGate();
   renderAdminSession();
   renderSopPage();
@@ -4339,7 +4364,7 @@ async function handleRequisitionLogin(formElement) {
   const sessionUser = data?.user || data?.session?.user || {};
   const sessionEmail = sessionUser.email || requisitionEmail;
   const sessionRole = getSessionRole(sessionUser, sessionEmail);
-  setAdminSession(sessionEmail, sessionRole);
+  setAdminSession(sessionEmail, sessionRole, getSessionDisplayName(sessionUser, sessionEmail));
   if (!isRequisitionLoggedIn) {
     await supabaseAuthClient.auth.signOut({ scope: "local" });
     setAdminSession("");
@@ -4487,6 +4512,11 @@ function getSortedOrders(orders) {
 }
 
 function renderAdminSession() {
+  const sessionLabel = currentAdminDisplayName || currentAdminEmail || "-";
+  if (globalSessionBar) globalSessionBar.hidden = !isAdminLoggedIn;
+  if (globalSessionUser) {
+    globalSessionUser.textContent = isAdminLoggedIn ? `${sessionLabel} · ${getCurrentRoleLabel()}` : "-";
+  }
   adminLoginPanel.hidden = isAdminLoggedIn;
   adminSessionPanel.hidden = !isAdminLoggedIn;
   adminSessionUser.textContent = currentAdminEmail ? `${currentAdminEmail} · ${getCurrentRoleLabel()}` : "admin";
@@ -4529,6 +4559,35 @@ function renderAdminSession() {
     const targetId = button.dataset.viewTarget || "";
     button.hidden = Boolean(currentAdminRole) && !canAccessView(targetId);
   });
+  syncWorkerAccountIdentity();
+}
+
+function syncWorkerAccountIdentity() {
+  if (!workerNameInput) return;
+
+  const shouldLockWorkerName = currentAdminRole === "production" && Boolean(currentAdminDisplayName);
+  if (currentAdminRole === "production") {
+    workerNameInput.value = currentAdminDisplayName;
+    workerNameInput.readOnly = shouldLockWorkerName;
+    workerNameInput.classList.toggle("account-identity-input", shouldLockWorkerName);
+    if (workerAccountNameHelp) {
+      workerAccountNameHelp.hidden = false;
+      workerAccountNameHelp.textContent = shouldLockWorkerName
+        ? "로그인 계정에 등록된 작업자명이 자동 입력되었습니다."
+        : "계정에 사용자 이름이 없습니다. 직접 입력한 뒤 관리자에게 이름 등록을 요청해 주세요.";
+      workerAccountNameHelp.dataset.tone = shouldLockWorkerName ? "success" : "warning";
+    }
+    return;
+  }
+
+  if (!currentAdminRole) workerNameInput.value = "";
+  workerNameInput.readOnly = false;
+  workerNameInput.classList.remove("account-identity-input");
+  if (workerAccountNameHelp) {
+    workerAccountNameHelp.hidden = true;
+    workerAccountNameHelp.textContent = "";
+    delete workerAccountNameHelp.dataset.tone;
+  }
 }
 
 function shouldRenderAdminAccountsInPageRender(options = {}) {
@@ -10843,7 +10902,7 @@ async function handleAdminLogin(formElement) {
     return;
   }
 
-  setAdminSession(sessionEmail, sessionRole);
+  setAdminSession(sessionEmail, sessionRole, getSessionDisplayName(sessionUser, sessionEmail));
   adminLoginForm.reset();
   adminPageLoginForm.reset();
   renderAdminSession();

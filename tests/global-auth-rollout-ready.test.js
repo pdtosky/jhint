@@ -65,6 +65,6 @@ const checklist = fs.readFileSync(checklistPath, "utf8");
 assert(checklist.includes("requireGlobalLogin: true"), "checklist should show the exact switch to turn on");
 assert(checklist.includes("일반 회원가입을 허용"), "checklist should include Supabase signup setting");
 assert(checklist.includes("관리자 승인"), "checklist should include admin approval verification");
-assert(swJs.includes("v20260710-08"), "service worker cache should include the latest permissions update");
+assert(swJs.includes("v20260710-09"), "service worker cache should include the latest worker-session update");
 
 console.log("global auth rollout readiness test passed");
