@@ -61,6 +61,13 @@ const HOLIDAY_POLL_INTERVAL_MS = Number(
 const BACKEND_MODE = APP_CONFIG.backend || "api";
 const CODEX_RELEASE_NOTES = [
   {
+    version: "2026-07-10-14",
+    timestamp: "2026-07-10T17:40:00+09:00",
+    title: "작업 인계와 진행 작업 보호 강화",
+    summary: "작업중지 후 다른 작업자의 재시작은 허용하면서, 진행 중인 다른 작업자의 작업을 일시정지, 작업중지, 작업종료하지 못하도록 차단했습니다. 중지 이력에는 당시 작업자와 장비를 함께 고정 저장합니다.",
+    files: ["app.js", "sw.js", "tests/worker-account-session.test.js"]
+  },
+  {
     version: "2026-07-10-13",
     timestamp: "2026-07-10T17:20:00+09:00",
     title: "작업중지 작업자 인계 규칙 명확화",
@@ -1070,6 +1077,7 @@ async function updateWorkState(nextStatus, lockedInput = {}) {
     id: crypto.randomUUID(),
     type: nextStatus === "working" ? "start" : "end",
     workerName,
+    machineName,
     orderId,
     timestamp: new Date().toISOString(),
     message:
@@ -1124,6 +1132,14 @@ function setWorkStartConfirmationLocked(isLocked) {
   });
 }
 
+function canCurrentWorkerControlActiveOrder(order, workerName, actionLabel) {
+  if (!order?.workerName || order.workerName === workerName) return true;
+  const message = `${order.workerName} 작업자가 진행 중인 작업입니다.\n${actionLabel}은 현재 작업자만 할 수 있습니다.`;
+  showWorkerAlert(message);
+  showAppAlert(message);
+  return false;
+}
+
 function preparePause() {
   if (!canAccessView("workerView")) {
     showPermissionDenied("workerView");
@@ -1143,6 +1159,7 @@ function preparePause() {
     showAppAlert("작업중지는 작업 중인 작업에서만 사용할 수 있습니다.");
     return;
   }
+  if (!canCurrentWorkerControlActiveOrder(order, workerName, "작업중지")) return;
 
   pendingPauseOrderId = orderId;
   pendingPauseWorkerName = workerName;
@@ -1183,6 +1200,7 @@ async function pauseTemporarily() {
     render();
     return;
   }
+  if (!canCurrentWorkerControlActiveOrder(order, workerName, "일시정지")) return;
 
   const now = new Date().toISOString();
   const rollbackState = normalizeAppState(state);
@@ -1197,6 +1215,7 @@ async function pauseTemporarily() {
     id: crypto.randomUUID(),
     type: "temporaryPause",
     workerName,
+    machineName,
     orderId,
     timestamp: now,
     message: "일시정지했습니다."
@@ -1232,6 +1251,10 @@ async function finalizePause() {
     resetPauseInputs();
     return;
   }
+  if (order.status !== "working" || !canCurrentWorkerControlActiveOrder(order, pendingPauseWorkerName, "작업중지")) {
+    resetPauseInputs();
+    return;
+  }
 
   const rollbackState = normalizeAppState(state);
   const now = new Date();
@@ -1249,6 +1272,7 @@ async function finalizePause() {
     id: crypto.randomUUID(),
     type: "pause",
     workerName: pendingPauseWorkerName,
+    machineName: order.machineName || "",
     orderId: pendingPauseOrderId,
     timestamp: now.toISOString(),
     message: `작업을 중지했습니다. / 사유 ${pauseReason}${workQty ? ` / 작업수량 ${workQty}` : ""}${workHitQty ? ` / 작업타수 ${workHitQty}` : ""}`
@@ -1280,6 +1304,14 @@ function prepareCompletion() {
   const orderId = String(formData.get("orderId") || "");
   if (!workerName || !machineName || !orderId) return;
 
+  const order = state.orders.find((item) => item.id === orderId);
+  if (!order || order.status !== "working") {
+    showWorkerAlert("작업종료는 작업 중인 작업에서만 사용할 수 있습니다.");
+    showAppAlert("작업종료는 작업 중인 작업에서만 사용할 수 있습니다.");
+    return;
+  }
+  if (!canCurrentWorkerControlActiveOrder(order, workerName, "작업종료")) return;
+
   pendingCompletionOrderId = orderId;
   pendingCompletionWorkerName = workerName;
   productionQtyInput.disabled = false;
@@ -1303,6 +1335,10 @@ async function finalizeCompletion() {
     resetCompletionInputs();
     return;
   }
+  if (order.status !== "working" || !canCurrentWorkerControlActiveOrder(order, pendingCompletionWorkerName, "작업종료")) {
+    resetCompletionInputs();
+    return;
+  }
 
   const rollbackState = normalizeAppState(state);
   order.status = "complete";
@@ -1321,6 +1357,7 @@ async function finalizeCompletion() {
     id: crypto.randomUUID(),
     type: "end",
     workerName: pendingCompletionWorkerName,
+    machineName: order.machineName || "",
     orderId: pendingCompletionOrderId,
     timestamp: new Date().toISOString(),
     message: `${TEXT.endMessage} / 오늘 작업수량 ${productionQty}${totalHitQty ? ` / 오늘 작업타수 ${totalHitQty}` : ""} / ${TEXT.productionQty} ${order.productionQty}${order.totalHitQty ? ` / ${TEXT.totalHitQty} ${order.totalHitQty}` : ""}`
@@ -10321,7 +10358,7 @@ function buildPauseJournalRows(order) {
         product: order.product || "-",
         dueDate: order.dueDate || "",
         workerName: activity.workerName || order.workerName || "작업자 미지정",
-        machineName: order.machineName || "",
+        machineName: activity.machineName || order.machineName || "",
         qty,
         hitQty,
         elapsedMs: 0,

@@ -44,12 +44,20 @@ assert(
   appJs.includes("다른 작업자도 자신의 로그인 계정으로 이어서 시작할 수 있습니다."),
   "paused work should explain that another signed-in worker can take over"
 );
+assert(appJs.includes("function canCurrentWorkerControlActiveOrder"), "active work controls should verify the current worker");
+assert(
+  appJs.includes('canCurrentWorkerControlActiveOrder(order, workerName, "작업중지")') &&
+    appJs.includes('canCurrentWorkerControlActiveOrder(order, workerName, "일시정지")') &&
+    appJs.includes('canCurrentWorkerControlActiveOrder(order, workerName, "작업종료")'),
+  "another worker must not pause, temporarily pause, or complete someone else's active work"
+);
+assert(appJs.includes("machineName: activity.machineName || order.machineName"), "pause journal rows should keep the machine used at pause time");
 assert(appJs.includes("workerNameInput.readOnly = shouldLockWorkerName"), "registered worker identity should not be editable");
 assert(appJs.includes('globalLogoutBtn?.addEventListener("click"'), "global logout button should end the current session");
 assert(appJs.includes('setSecurityAuthMessage("로그아웃되었습니다.", "success")'), "logout should return a clear login-screen message");
 
 assert(styleCss.includes(".global-session-bar"), "common session controls should have a responsive layout");
 assert(styleCss.includes(".worker-form input.account-identity-input"), "automatic worker identity should be visually distinct");
-assert(swJs.includes("v20260710-13"), "service worker cache should include the latest paused-work handoff update");
+assert(swJs.includes("v20260710-14"), "service worker cache should include the latest active-work ownership update");
 
 console.log("worker account session test passed");
