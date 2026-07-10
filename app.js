@@ -60,6 +60,13 @@ const HOLIDAY_POLL_INTERVAL_MS = Number(
 const BACKEND_MODE = APP_CONFIG.backend || "api";
 const CODEX_RELEASE_NOTES = [
   {
+    version: "2026-07-10-05",
+    timestamp: "2026-07-10T12:25:00+09:00",
+    title: "이메일 인증 임시중지 보안 보강",
+    summary: "인증 메일 발송 제한을 피하기 위해 Supabase 이메일 확인을 임시 중지했습니다. 신규 계정은 관리자 권한 승인 전 즉시 로그아웃되며 업무 화면에 접근할 수 없습니다.",
+    files: ["Supabase Authentication Providers", "index.html", "app.js", "sw.js", "tests/global-auth-gate.test.js"]
+  },
+  {
     version: "2026-07-10-04",
     timestamp: "2026-07-10T10:50:00+09:00",
     title: "회원가입 인증메일 한도 안내 개선",
@@ -1610,16 +1617,33 @@ async function restoreAdminSession() {
   const { data } = await supabaseAuthClient.auth.getSession();
   const sessionUser = data?.session?.user || {};
   const sessionEmail = sessionUser.email || "";
-  setAdminSession(sessionEmail, getSessionRole(sessionUser, sessionEmail));
+  const sessionRole = getSessionRole(sessionUser, sessionEmail);
+  if (sessionEmail && !sessionRole) {
+    await supabaseAuthClient.auth.signOut({ scope: "local" });
+    setAdminSession("");
+    return;
+  }
+  setAdminSession(sessionEmail, sessionRole);
 }
 
 function bindAdminAuthListener() {
   if (!supabaseAuthClient || isAdminAuthListenerBound) return;
   isAdminAuthListenerBound = true;
-  supabaseAuthClient.auth.onAuthStateChange(async (_event, session) => {
+  supabaseAuthClient.auth.onAuthStateChange(async (event, session) => {
     const sessionUser = session?.user || {};
     const sessionEmail = sessionUser.email || "";
-    setAdminSession(sessionEmail, getSessionRole(sessionUser, sessionEmail));
+    const sessionRole = getSessionRole(sessionUser, sessionEmail);
+    if (event === "SIGNED_IN" && sessionEmail && !sessionRole) {
+      setAdminSession("");
+      renderSecurityLoginGate("가입 신청이 접수되었습니다. 관리자 승인 후 로그인해 주세요.");
+      setTimeout(() => {
+        supabaseAuthClient.auth.signOut({ scope: "local" }).catch((error) => {
+          console.error("Unapproved signup session sign-out failed.", error);
+        });
+      }, 0);
+      return;
+    }
+    setAdminSession(sessionEmail, sessionRole);
     renderSecurityLoginGate();
     if (REQUIRE_GLOBAL_LOGIN && currentAdminEmail) {
       await initializeAppData();
@@ -4110,7 +4134,7 @@ async function handleGlobalLogin() {
 
   const { data, error } = await supabaseAuthClient.auth.signInWithPassword({ email, password });
   if (error) {
-    setSecurityAuthMessage("로그인에 실패했습니다. 이메일 인증 여부와 비밀번호를 확인해 주세요.", "error");
+    setSecurityAuthMessage("로그인에 실패했습니다. 이메일, 비밀번호 또는 관리자 승인 상태를 확인해 주세요.", "error");
     return;
   }
 
@@ -4120,7 +4144,7 @@ async function handleGlobalLogin() {
   if (!sessionRole) {
     await supabaseAuthClient.auth.signOut({ scope: "local" });
     setAdminSession("");
-    renderSecurityLoginGate("이메일 인증은 되었지만 관리자 승인이 아직 없습니다. 관리자 승인 후 다시 로그인해 주세요.");
+    renderSecurityLoginGate("관리자 승인이 아직 없습니다. 관리자 승인 후 다시 로그인해 주세요.");
     return;
   }
 
@@ -4154,7 +4178,7 @@ async function handleGlobalSignup() {
 
   setSecurityAuthSubmitBusy(globalSignupForm, true);
   try {
-    const { error } = await supabaseAuthClient.auth.signUp({
+    const { data, error } = await supabaseAuthClient.auth.signUp({
       email,
       password,
       options: {
@@ -4173,9 +4197,14 @@ async function handleGlobalSignup() {
       return;
     }
 
+    if (data?.session) {
+      await supabaseAuthClient.auth.signOut({ scope: "local" });
+      setAdminSession("");
+    }
+
     globalSignupForm.reset();
     switchSecurityAuthMode("login");
-    setSecurityAuthMessage("인증 메일을 보냈습니다. 메일 인증 후 관리자 승인을 기다려 주세요.", "success");
+    setSecurityAuthMessage("가입 신청이 접수되었습니다. 관리자 승인 후 로그인할 수 있습니다.", "success");
   } finally {
     setSecurityAuthSubmitBusy(globalSignupForm, false);
   }

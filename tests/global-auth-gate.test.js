@@ -14,6 +14,11 @@ assert(indexHtml.includes('id="globalSignupForm"'), "email-verification signup f
 assert(indexHtml.includes('id="globalPasswordResetForm"'), "password reset form should be prepared");
 assert(indexHtml.includes('data-security-auth-tab="signup"'), "signup tab should be available");
 assert(indexHtml.includes('data-security-auth-tab="reset"'), "password reset tab should be available");
+assert(indexHtml.includes(">가입 신청</button>"), "temporary signup flow should not promise a confirmation email");
+assert(
+  indexHtml.includes("메일 인증 없이 가입되며, 관리자가 승인해야 접속할 수 있습니다."),
+  "signup helper should explain the temporary no-email approval flow"
+);
 
 assert(configJs.includes("requireGlobalLogin: true"), "global login should be enabled for the production rollout");
 assert(appJs.includes("const REQUIRE_GLOBAL_LOGIN = APP_CONFIG.requireGlobalLogin === true"), "app should only enforce global login when the flag is true");
@@ -21,9 +26,18 @@ assert(appJs.includes("function renderSecurityLoginGate"), "app should render th
 assert(appJs.includes("function handleGlobalSignup"), "app should handle email-verification signup");
 assert(appJs.includes("supabaseAuthClient.auth.signUp"), "signup should use Supabase Auth signUp");
 assert(appJs.includes("emailRedirectTo: getAuthRedirectUrl()"), "signup should use an email verification redirect URL");
+assert(
+  appJs.includes('event === "SIGNED_IN" && sessionEmail && !sessionRole') &&
+    appJs.includes('supabaseAuthClient.auth.signOut({ scope: "local" })'),
+  "unapproved signup sessions should be signed out immediately"
+);
+assert(
+  appJs.includes("가입 신청이 접수되었습니다. 관리자 승인 후 로그인할 수 있습니다."),
+  "signup success should explain that manager approval is still required"
+);
 assert(appJs.includes("function handleGlobalPasswordReset"), "app should handle password reset requests");
 assert(appJs.includes("supabaseAuthClient.auth.resetPasswordForEmail"), "password reset should use Supabase Auth resetPasswordForEmail");
-assert(appJs.includes("관리자 승인"), "signup flow should explain that admin approval is still required after email verification");
+assert(appJs.includes("관리자 승인"), "signup flow should explain that admin approval is required");
 assert(!appJs.includes("SUPABASE_SERVICE_ROLE_KEY"), "browser code must not expose the service-role key");
 
 assert(styleCss.includes(".security-login-gate"), "global login gate should have a dedicated layout");
