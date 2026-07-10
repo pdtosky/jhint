@@ -1,4 +1,5 @@
 ﻿const ADMIN_SESSION_KEY = "production-admin-session-v1";
+const AUTH_REMEMBER_KEY = "production-auth-remember-v1";
 const DUE_ALARM_KEY = "production-due-alarm-date-v1";
 const API_STATE_URL = "/api/state";
 const ADMIN_USERS_API_URL = "/api/admin-users";
@@ -59,6 +60,13 @@ const HOLIDAY_POLL_INTERVAL_MS = Number(
 );
 const BACKEND_MODE = APP_CONFIG.backend || "api";
 const CODEX_RELEASE_NOTES = [
+  {
+    version: "2026-07-10-06",
+    timestamp: "2026-07-10T14:05:00+09:00",
+    title: "기기별 로그인 유지 선택 추가",
+    summary: "로그인 화면에 개인 기기용 로그인 유지 선택을 추가했습니다. 선택하지 않으면 창을 닫을 때 로그아웃되고, 선택한 기기에서는 직접 로그아웃하기 전까지 Supabase 세션이 유지됩니다.",
+    files: ["index.html", "style.css", "app.js", "sw.js", "tests/global-auth-remember-login.test.js"]
+  },
   {
     version: "2026-07-10-05",
     timestamp: "2026-07-10T12:25:00+09:00",
@@ -321,6 +329,7 @@ let pendingRequisitionOrderSource = null;
 
 const securityLoginGate = document.getElementById("securityLoginGate");
 const globalLoginForm = document.getElementById("globalLoginForm");
+const globalRememberLogin = document.getElementById("globalRememberLogin");
 const globalSignupForm = document.getElementById("globalSignupForm");
 const globalPasswordResetForm = document.getElementById("globalPasswordResetForm");
 const securityAuthMessage = document.getElementById("securityAuthMessage");
@@ -1311,6 +1320,8 @@ function createEmptyState() {
 }
 
 function bindSecurityAuthEvents() {
+  syncLoginPersistenceControl();
+
   securityAuthTabs.forEach((button) => {
     button.addEventListener("click", () => {
       switchSecurityAuthMode(button.dataset.securityAuthTab || "login");
@@ -1404,6 +1415,10 @@ function renderSecurityLoginGate(message = "") {
   const isApprovedSession = Boolean(currentAdminEmail && currentAdminRole);
   securityLoginGate.hidden = isApprovedSession;
   document.body.classList.toggle("security-auth-required", !isApprovedSession);
+
+  if (!isApprovedSession) {
+    syncLoginPersistenceControl();
+  }
 
   if (message) {
     setSecurityAuthMessage(message, "info");
@@ -4126,11 +4141,14 @@ async function handleGlobalLogin() {
   const formData = new FormData(globalLoginForm);
   const email = String(formData.get("globalLoginEmail") || "").trim().toLowerCase();
   const password = String(formData.get("globalLoginPassword") || "").trim();
+  const rememberLogin = formData.get("rememberLogin") === "true";
 
   if (!email || !password) {
     setSecurityAuthMessage("이메일과 비밀번호를 입력해 주세요.", "error");
     return;
   }
+
+  setAuthPersistencePreference(rememberLogin);
 
   const { data, error } = await supabaseAuthClient.auth.signInWithPassword({ email, password });
   if (error) {
@@ -11755,14 +11773,62 @@ function startDueAlarmClock() {
   setInterval(() => showDueAlarmIfNeeded(), 30000);
 }
 
-function clearPersistentSupabaseAuthStorage() {
+function isSupabaseAuthStorageKey(key) {
+  return String(key || "").startsWith("sb-") && String(key || "").includes("auth-token");
+}
+
+function clearSupabaseAuthStorage(storage) {
   try {
-    Object.keys(localStorage)
-      .filter((key) => key.startsWith("sb-") && key.includes("auth-token"))
-      .forEach((key) => localStorage.removeItem(key));
+    Object.keys(storage)
+      .filter(isSupabaseAuthStorageKey)
+      .forEach((key) => storage.removeItem(key));
   } catch (error) {
-    // Some privacy modes can block localStorage access.
+    // Some privacy modes can block browser storage access.
   }
+}
+
+function shouldRememberLogin() {
+  try {
+    return localStorage.getItem(AUTH_REMEMBER_KEY) === "true";
+  } catch (error) {
+    return false;
+  }
+}
+
+function setAuthPersistencePreference(rememberLogin) {
+  const shouldRemember = Boolean(rememberLogin);
+  try {
+    localStorage.setItem(AUTH_REMEMBER_KEY, shouldRemember ? "true" : "false");
+  } catch (error) {
+    // The current-tab session still works when localStorage is unavailable.
+  }
+
+  clearSupabaseAuthStorage(shouldRemember ? window.sessionStorage : window.localStorage);
+}
+
+function syncLoginPersistenceControl() {
+  if (globalRememberLogin) {
+    globalRememberLogin.checked = shouldRememberLogin();
+  }
+}
+
+function createSupabaseAuthStorage() {
+  return {
+    getItem(key) {
+      const storage = shouldRememberLogin() ? window.localStorage : window.sessionStorage;
+      return storage.getItem(key);
+    },
+    setItem(key, value) {
+      const primaryStorage = shouldRememberLogin() ? window.localStorage : window.sessionStorage;
+      const inactiveStorage = shouldRememberLogin() ? window.sessionStorage : window.localStorage;
+      primaryStorage.setItem(key, value);
+      inactiveStorage.removeItem(key);
+    },
+    removeItem(key) {
+      window.localStorage.removeItem(key);
+      window.sessionStorage.removeItem(key);
+    }
+  };
 }
 
 function createSupabaseAuthClient() {
@@ -11770,11 +11836,11 @@ function createSupabaseAuthClient() {
     return null;
   }
 
-  clearPersistentSupabaseAuthStorage();
+  clearSupabaseAuthStorage(shouldRememberLogin() ? window.sessionStorage : window.localStorage);
 
   return window.supabase.createClient(APP_CONFIG.supabaseUrl, APP_CONFIG.supabaseAnonKey, {
     auth: {
-      storage: window.sessionStorage,
+      storage: createSupabaseAuthStorage(),
       persistSession: true,
       autoRefreshToken: true,
       detectSessionInUrl: true
