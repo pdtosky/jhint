@@ -14,13 +14,20 @@ assert(indexHtml.includes('id="workerNameInput"'), "worker-name input should hav
 assert(indexHtml.includes('id="workerAccountNameHelp"'), "worker-name auto-fill should explain its source");
 
 assert(appJs.includes("function getSessionDisplayName"), "Supabase display name should be normalized for UI use");
-assert(appJs.includes('currentAdminRole === "production"'), "automatic worker identity should be limited to production accounts");
+assert(
+  appJs.includes('const canUseWorkerInput = isAdminLoggedIn && canAccessView("workerView")'),
+  "automatic worker identity should apply to every signed-in account that can use worker input"
+);
+assert(
+  appJs.includes("if (currentAdminDisplayName) {") && appJs.includes("workerNameInput.value = currentAdminDisplayName"),
+  "registered account names should be copied into the worker-name field"
+);
 assert(appJs.includes("workerNameInput.readOnly = shouldLockWorkerName"), "registered worker identity should not be editable");
 assert(appJs.includes('globalLogoutBtn?.addEventListener("click"'), "global logout button should end the current session");
 assert(appJs.includes('setSecurityAuthMessage("로그아웃되었습니다.", "success")'), "logout should return a clear login-screen message");
 
 assert(styleCss.includes(".global-session-bar"), "common session controls should have a responsive layout");
 assert(styleCss.includes(".worker-form input.account-identity-input"), "automatic worker identity should be visually distinct");
-assert(swJs.includes("v20260710-10"), "service worker cache should include the latest permission update");
+assert(swJs.includes("v20260710-11"), "service worker cache should include the latest worker identity update");
 
 console.log("worker account session test passed");

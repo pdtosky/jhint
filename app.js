@@ -61,6 +61,13 @@ const HOLIDAY_POLL_INTERVAL_MS = Number(
 const BACKEND_MODE = APP_CONFIG.backend || "api";
 const CODEX_RELEASE_NOTES = [
   {
+    version: "2026-07-10-11",
+    timestamp: "2026-07-10T16:35:00+09:00",
+    title: "로그인 계정 작업자명 자동입력 확대",
+    summary: "작업자 입력 권한이 있는 모든 로그인 계정에서 계정에 등록된 사용자 이름을 작업자명에 자동 입력하도록 확대했습니다. 사용자 이름이 없는 계정은 직접 입력할 수 있고 화면 갱신 시 입력값이 지워지지 않습니다.",
+    files: ["app.js", "sw.js", "tests/worker-account-session.test.js"]
+  },
+  {
     version: "2026-07-10-10",
     timestamp: "2026-07-10T16:10:30+09:00",
     title: "영업 권한 작업표준서 조회 허용",
@@ -4572,9 +4579,12 @@ function renderAdminSession() {
 function syncWorkerAccountIdentity() {
   if (!workerNameInput) return;
 
-  const shouldLockWorkerName = currentAdminRole === "production" && Boolean(currentAdminDisplayName);
-  if (currentAdminRole === "production") {
-    workerNameInput.value = currentAdminDisplayName;
+  const canUseWorkerInput = isAdminLoggedIn && canAccessView("workerView");
+  const shouldLockWorkerName = canUseWorkerInput && Boolean(currentAdminDisplayName);
+  if (canUseWorkerInput) {
+    if (currentAdminDisplayName) {
+      workerNameInput.value = currentAdminDisplayName;
+    }
     workerNameInput.readOnly = shouldLockWorkerName;
     workerNameInput.classList.toggle("account-identity-input", shouldLockWorkerName);
     if (workerAccountNameHelp) {
