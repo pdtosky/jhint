@@ -14,6 +14,8 @@ assert(indexHtml.includes('id="workerNameInput"'), "worker-name input should hav
 assert(indexHtml.includes('id="workerAccountNameHelp"'), "worker-name auto-fill should explain its source");
 
 assert(appJs.includes("function getSessionDisplayName"), "Supabase display name should be normalized for UI use");
+assert(appJs.includes("async function getFreshSessionUser"), "account metadata should be refreshed from Supabase after login and session restore");
+assert(appJs.includes("supabaseAuthClient.auth.getUser()"), "latest user metadata should come from the authenticated Supabase user endpoint");
 assert(
   appJs.includes('const canUseWorkerInput = isAdminLoggedIn && canAccessView("workerView")'),
   "automatic worker identity should apply to every signed-in account that can use worker input"
@@ -22,12 +24,20 @@ assert(
   appJs.includes("if (currentAdminDisplayName) {") && appJs.includes("workerNameInput.value = currentAdminDisplayName"),
   "registered account names should be copied into the worker-name field"
 );
+assert(
+  appJs.includes('workerNameInput.value = accountWorkerName || order.workerName || ""'),
+  "selecting an existing work item should not replace the signed-in account name"
+);
+assert(
+  (appJs.match(/syncWorkerAccountIdentity\(\);/g) || []).length >= 5,
+  "worker identity should be reapplied before start, pause, temporary pause, and completion actions"
+);
 assert(appJs.includes("workerNameInput.readOnly = shouldLockWorkerName"), "registered worker identity should not be editable");
 assert(appJs.includes('globalLogoutBtn?.addEventListener("click"'), "global logout button should end the current session");
 assert(appJs.includes('setSecurityAuthMessage("로그아웃되었습니다.", "success")'), "logout should return a clear login-screen message");
 
 assert(styleCss.includes(".global-session-bar"), "common session controls should have a responsive layout");
 assert(styleCss.includes(".worker-form input.account-identity-input"), "automatic worker identity should be visually distinct");
-assert(swJs.includes("v20260710-11"), "service worker cache should include the latest worker identity update");
+assert(swJs.includes("v20260710-12"), "service worker cache should include the latest worker identity safety update");
 
 console.log("worker account session test passed");

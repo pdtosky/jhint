@@ -61,6 +61,13 @@ const HOLIDAY_POLL_INTERVAL_MS = Number(
 const BACKEND_MODE = APP_CONFIG.backend || "api";
 const CODEX_RELEASE_NOTES = [
   {
+    version: "2026-07-10-12",
+    timestamp: "2026-07-10T16:55:00+09:00",
+    title: "작업자 계정 이름 동기화 안전장치",
+    summary: "로그인과 세션 복원 시 Supabase의 최신 사용자 이름을 다시 확인합니다. 작업 선택과 시작, 일시정지, 작업중지, 작업종료 과정에서도 로그인 계정 이름이 다른 작업자명으로 덮어써지지 않도록 고정했습니다.",
+    files: ["app.js", "sw.js", "tests/worker-account-session.test.js"]
+  },
+  {
     version: "2026-07-10-11",
     timestamp: "2026-07-10T16:35:00+09:00",
     title: "로그인 계정 작업자명 자동입력 확대",
@@ -1116,6 +1123,7 @@ function preparePause() {
     return;
   }
 
+  syncWorkerAccountIdentity();
   const formData = new FormData(workerForm);
   const workerName = String(formData.get("workerName") || "").trim();
   const machineName = String(formData.get("machineName") || "").trim();
@@ -1144,6 +1152,7 @@ async function pauseTemporarily() {
     return;
   }
 
+  syncWorkerAccountIdentity();
   const formData = new FormData(workerForm);
   const workerName = String(formData.get("workerName") || "").trim();
   const machineName = String(formData.get("machineName") || "").trim();
@@ -1257,6 +1266,7 @@ function prepareCompletion() {
     return;
   }
 
+  syncWorkerAccountIdentity();
   const formData = new FormData(workerForm);
   const workerName = String(formData.get("workerName") || "").trim();
   const machineName = String(formData.get("machineName") || "").trim();
@@ -1670,6 +1680,17 @@ function getSessionDisplayName(user = {}, email = "") {
   return String(metadata.display_name || metadata.name || metadata.full_name || "").trim();
 }
 
+async function getFreshSessionUser(fallbackUser = {}) {
+  if (!supabaseAuthClient) return fallbackUser;
+  try {
+    const { data, error } = await supabaseAuthClient.auth.getUser();
+    if (!error && data?.user) return data.user;
+  } catch (error) {
+    console.warn("Latest account profile lookup failed.", error);
+  }
+  return fallbackUser;
+}
+
 function setAdminSession(email, role = "", displayName = "") {
   const normalizedEmail = String(email || "").trim().toLowerCase();
   const normalizedRole = normalizeAccountRole(role, normalizedEmail && isAllowedAdminEmail(normalizedEmail) ? "admin" : "");
@@ -1685,7 +1706,7 @@ function setAdminSession(email, role = "", displayName = "") {
 async function restoreAdminSession() {
   if (!supabaseAuthClient) return;
   const { data } = await supabaseAuthClient.auth.getSession();
-  const sessionUser = data?.session?.user || {};
+  const sessionUser = await getFreshSessionUser(data?.session?.user || {});
   const sessionEmail = sessionUser.email || "";
   const sessionRole = getSessionRole(sessionUser, sessionEmail);
   if (sessionEmail && !sessionRole) {
@@ -3642,7 +3663,7 @@ async function handleAdminLogin(formElement) {
     return;
   }
 
-  const sessionUser = data?.user || data?.session?.user || {};
+  const sessionUser = await getFreshSessionUser(data?.user || data?.session?.user || {});
   const sessionEmail = sessionUser.email || adminEmail;
   const sessionRole = getSessionRole(sessionUser, sessionEmail);
   if (!sessionRole) {
@@ -4211,7 +4232,7 @@ async function handleGlobalLogin() {
     return;
   }
 
-  const sessionUser = data?.user || data?.session?.user || {};
+  const sessionUser = await getFreshSessionUser(data?.user || data?.session?.user || {});
   const sessionEmail = sessionUser.email || email;
   const sessionRole = getSessionRole(sessionUser, sessionEmail);
   if (!sessionRole) {
@@ -4375,7 +4396,7 @@ async function handleRequisitionLogin(formElement) {
     return;
   }
 
-  const sessionUser = data?.user || data?.session?.user || {};
+  const sessionUser = await getFreshSessionUser(data?.user || data?.session?.user || {});
   const sessionEmail = sessionUser.email || requisitionEmail;
   const sessionRole = getSessionRole(sessionUser, sessionEmail);
   setAdminSession(sessionEmail, sessionRole, getSessionDisplayName(sessionUser, sessionEmail));
@@ -8206,7 +8227,8 @@ function populateWorkerFormFromOrder(order) {
   const machineNameInput = workerForm.elements.namedItem("machineName");
 
   if (workerNameInput) {
-    workerNameInput.value = order.workerName || "";
+    const accountWorkerName = isAdminLoggedIn && canAccessView("workerView") ? currentAdminDisplayName : "";
+    workerNameInput.value = accountWorkerName || order.workerName || "";
   }
   if (machineNameInput) {
     machineNameInput.value = order.machineName || "";
@@ -10763,6 +10785,7 @@ function confirmWorkStart() {
     return;
   }
 
+  syncWorkerAccountIdentity();
   const formData = new FormData(workerForm);
   const workerName = String(formData.get("workerName") || "").trim();
   const machineName = String(formData.get("machineName") || "").trim();
@@ -10910,7 +10933,7 @@ async function handleAdminLogin(formElement) {
     return;
   }
 
-  const sessionUser = data?.user || data?.session?.user || {};
+  const sessionUser = await getFreshSessionUser(data?.user || data?.session?.user || {});
   const sessionEmail = sessionUser.email || adminEmail;
   const sessionRole = getSessionRole(sessionUser, sessionEmail);
   if (!sessionRole) {
