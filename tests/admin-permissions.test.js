@@ -32,7 +32,11 @@ assert(
 );
 assert(appJs.includes("isAdminLoggedIn: () => canManageSopDocuments()"), "embedded Smart SOP should receive document-editor permission, not generic login state");
 assert(appJs.includes("publishedOnly: !canManageSopDocuments()"), "read-only SOP users should only receive published documents");
-assert(appJs.includes('sales: ["dashboardView", "requisitionView", "ordersView", "shippingView"]'), "sales role should access sales workflow pages");
+assert(appJs.includes('sales: ["dashboardView", "requisitionView", "ordersView", "shippingView", "sopView"]'), "sales role should access sales workflow pages and SOP viewing");
+assert(
+  appJs.includes('["admin", "office", "quality"].includes(currentAdminRole)'),
+  "sales users should not receive SOP document editing permission"
+);
 assert(appJs.includes('shipping: ["dashboardView", "shippingView"]'), "shipping role should only access dashboard and shipping");
 assert(appJs.includes('quality: ["dashboardView", "ordersView", "requisitionView", "workerView", "shippingView", "sopView"]'), "quality role should access all non-admin pages");
 assert(appJs.includes("canAccessAdminSection(button.dataset.adminSection"), "admin section clicks should be permission-checked");

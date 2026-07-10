@@ -19,7 +19,7 @@ const LEGACY_ROLE_ALIASES = {
 const ROLE_VIEW_PERMISSIONS = {
   admin: ["dashboardView", "ordersView", "requisitionView", "workerView", "shippingView", "sopView", "adminView"],
   production: ["dashboardView", "workerView", "sopView"],
-  sales: ["dashboardView", "requisitionView", "ordersView", "shippingView"],
+  sales: ["dashboardView", "requisitionView", "ordersView", "shippingView", "sopView"],
   office: ["dashboardView", "ordersView", "requisitionView", "workerView", "shippingView", "sopView", "adminView"],
   quality: ["dashboardView", "ordersView", "requisitionView", "workerView", "shippingView", "sopView"],
   shipping: ["dashboardView", "shippingView"]
@@ -60,6 +60,13 @@ const HOLIDAY_POLL_INTERVAL_MS = Number(
 );
 const BACKEND_MODE = APP_CONFIG.backend || "api";
 const CODEX_RELEASE_NOTES = [
+  {
+    version: "2026-07-10-10",
+    timestamp: "2026-07-10T16:10:30+09:00",
+    title: "영업 권한 작업표준서 조회 허용",
+    summary: "영업 계정에서도 작업표준서 탭과 배포된 문서를 조회할 수 있도록 허용했습니다. 문서 등록, 수정, 삭제 권한은 관리자, 총무, 품질 계정에만 유지됩니다.",
+    files: ["app.js", "sw.js", "tests/admin-permissions.test.js"]
+  },
   {
     version: "2026-07-10-09",
     timestamp: "2026-07-10T15:29:21+09:00",

@@ -21,6 +21,6 @@ assert(appJs.includes('setSecurityAuthMessage("로그아웃되었습니다.", "s
 
 assert(styleCss.includes(".global-session-bar"), "common session controls should have a responsive layout");
 assert(styleCss.includes(".worker-form input.account-identity-input"), "automatic worker identity should be visually distinct");
-assert(swJs.includes("v20260710-09"), "service worker cache should include the worker-session update");
+assert(swJs.includes("v20260710-10"), "service worker cache should include the latest permission update");
 
 console.log("worker account session test passed");
