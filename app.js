@@ -60,6 +60,13 @@ const HOLIDAY_POLL_INTERVAL_MS = Number(
 const BACKEND_MODE = APP_CONFIG.backend || "api";
 const CODEX_RELEASE_NOTES = [
   {
+    version: "2026-07-10-03",
+    timestamp: "2026-07-10T10:03:00+09:00",
+    title: "이메일 인증 운영주소 연결",
+    summary: "Supabase 인증의 기본 사이트 주소와 허용 리디렉션 주소를 jhint.vercel.app으로 변경했습니다. 앞으로 회원가입 인증 메일을 누르면 localhost가 아니라 생산일정관리 로그인 화면으로 이동합니다.",
+    files: ["Supabase Authentication URL Configuration", "app.js", "sw.js"]
+  },
+  {
     version: "2026-07-10-02",
     timestamp: "2026-07-10T09:04:00+09:00",
     title: "일반 회원가입 승인대기 전환",
