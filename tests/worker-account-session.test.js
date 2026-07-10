@@ -32,12 +32,24 @@ assert(
   (appJs.match(/syncWorkerAccountIdentity\(\);/g) || []).length >= 5,
   "worker identity should be reapplied before start, pause, temporary pause, and completion actions"
 );
+assert(
+  appJs.includes('!["ready", "paused", "break"].includes(order.status)'),
+  "paused work should remain restartable"
+);
+assert(
+  appJs.includes('nextStatus === "working" && isTemporarilyPaused(order)'),
+  "same-worker and same-machine restrictions should apply only to temporary pauses"
+);
+assert(
+  appJs.includes("다른 작업자도 자신의 로그인 계정으로 이어서 시작할 수 있습니다."),
+  "paused work should explain that another signed-in worker can take over"
+);
 assert(appJs.includes("workerNameInput.readOnly = shouldLockWorkerName"), "registered worker identity should not be editable");
 assert(appJs.includes('globalLogoutBtn?.addEventListener("click"'), "global logout button should end the current session");
 assert(appJs.includes('setSecurityAuthMessage("로그아웃되었습니다.", "success")'), "logout should return a clear login-screen message");
 
 assert(styleCss.includes(".global-session-bar"), "common session controls should have a responsive layout");
 assert(styleCss.includes(".worker-form input.account-identity-input"), "automatic worker identity should be visually distinct");
-assert(swJs.includes("v20260710-12"), "service worker cache should include the latest worker identity safety update");
+assert(swJs.includes("v20260710-13"), "service worker cache should include the latest paused-work handoff update");
 
 console.log("worker account session test passed");

@@ -61,6 +61,13 @@ const HOLIDAY_POLL_INTERVAL_MS = Number(
 const BACKEND_MODE = APP_CONFIG.backend || "api";
 const CODEX_RELEASE_NOTES = [
   {
+    version: "2026-07-10-13",
+    timestamp: "2026-07-10T17:20:00+09:00",
+    title: "작업중지 작업자 인계 규칙 명확화",
+    summary: "작업중지된 작업은 다른 작업자가 자신의 로그인 계정으로 이어서 시작할 수 있음을 선택 안내에 명확히 표시했습니다. 일시정지는 기존 작업자와 기존 장비로만 재시작하는 규칙을 유지하고 회귀 테스트로 보호했습니다.",
+    files: ["app.js", "sw.js", "tests/worker-account-session.test.js"]
+  },
+  {
     version: "2026-07-10-12",
     timestamp: "2026-07-10T16:55:00+09:00",
     title: "작업자 계정 이름 동기화 안전장치",
@@ -12742,9 +12749,9 @@ function updateWorkerOrderSelectVisual() {
   orderSelect.classList.toggle("paused-selected", Boolean(isPaused));
   orderSelect.classList.toggle("break-selected", Boolean(isBreak));
   orderSelect.title = isBreak
-    ? "일시정지된 작업입니다. 작업 시작을 누르면 기존 시간에서 이어서 진행됩니다."
+    ? "일시정지된 작업입니다. 기존 작업자와 기존 장비로만 이어서 시작할 수 있습니다."
     : isPaused
-      ? "작업 중지된 작업입니다. 다시 시작 전 작업 내용을 확인해 주세요."
+      ? "작업 중지된 작업입니다. 다른 작업자도 자신의 로그인 계정으로 이어서 시작할 수 있습니다."
       : "";
 }
 
