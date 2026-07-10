@@ -60,6 +60,13 @@ const HOLIDAY_POLL_INTERVAL_MS = Number(
 const BACKEND_MODE = APP_CONFIG.backend || "api";
 const CODEX_RELEASE_NOTES = [
   {
+    version: "2026-07-10-04",
+    timestamp: "2026-07-10T10:50:00+09:00",
+    title: "회원가입 인증메일 한도 안내 개선",
+    summary: "계정 삭제 후 재가입할 때 Supabase 인증메일 발송 한도를 초과하면 기존 계정 문제로 오해하지 않도록 정확한 한국어 안내를 표시하고, 가입 요청 중 버튼을 잠가 중복 요청을 막았습니다.",
+    files: ["app.js", "sw.js", "tests/global-auth-rollout-ready.test.js"]
+  },
+  {
     version: "2026-07-10-03",
     timestamp: "2026-07-10T10:03:00+09:00",
     title: "이메일 인증 운영주소 연결",
@@ -1346,7 +1353,15 @@ function getAuthRedirectUrl() {
 
 function getSecurityAuthErrorMessage(error, fallback = "회원가입 요청에 실패했습니다. 이메일 형식이나 이미 가입된 계정인지 확인해 주세요.") {
   const rawMessage = String(error?.message || error?.msg || error?.error_description || error?.error || "").trim();
+  const errorCode = String(error?.code || error?.error_code || "").trim().toLowerCase();
   const normalizedMessage = rawMessage.toLowerCase();
+  if (
+    errorCode === "over_email_send_rate_limit" ||
+    normalizedMessage.includes("email rate limit") ||
+    normalizedMessage.includes("rate limit exceeded")
+  ) {
+    return "계정 삭제는 정상 처리되었습니다. 현재 인증 메일 발송 한도를 초과했으므로 잠시 후 같은 이메일로 다시 시도해 주세요.";
+  }
   if (normalizedMessage.includes("only invited emails can create an account")) {
     return "회원가입 제한 설정 때문에 계정을 만들 수 없습니다. 관리자에게 문의해 주세요.";
   }
@@ -1361,6 +1376,13 @@ function getSecurityAuthErrorMessage(error, fallback = "회원가입 요청에 �
     return "비밀번호 조건을 확인해 주세요. 비밀번호는 8자 이상으로 입력해야 합니다.";
   }
   return fallback;
+}
+
+function setSecurityAuthSubmitBusy(form, isBusy) {
+  const submitButton = form?.querySelector('button[type="submit"]');
+  if (!submitButton) return;
+  submitButton.disabled = Boolean(isBusy);
+  submitButton.setAttribute("aria-busy", isBusy ? "true" : "false");
 }
 
 function renderSecurityLoginGate(message = "") {
@@ -4130,28 +4152,33 @@ async function handleGlobalSignup() {
     return;
   }
 
-  const { error } = await supabaseAuthClient.auth.signUp({
-    email,
-    password,
-    options: {
-      emailRedirectTo: getAuthRedirectUrl(),
-      // This is only a signup request profile. Authorization must stay in app_metadata.
-      data: {
-        display_name: displayName,
-        phone,
-        approval_status: "pending"
+  setSecurityAuthSubmitBusy(globalSignupForm, true);
+  try {
+    const { error } = await supabaseAuthClient.auth.signUp({
+      email,
+      password,
+      options: {
+        emailRedirectTo: getAuthRedirectUrl(),
+        // This is only a signup request profile. Authorization must stay in app_metadata.
+        data: {
+          display_name: displayName,
+          phone,
+          approval_status: "pending"
+        }
       }
+    });
+
+    if (error) {
+      setSecurityAuthMessage(getSecurityAuthErrorMessage(error), "error");
+      return;
     }
-  });
 
-  if (error) {
-    setSecurityAuthMessage(getSecurityAuthErrorMessage(error), "error");
-    return;
+    globalSignupForm.reset();
+    switchSecurityAuthMode("login");
+    setSecurityAuthMessage("인증 메일을 보냈습니다. 메일 인증 후 관리자 승인을 기다려 주세요.", "success");
+  } finally {
+    setSecurityAuthSubmitBusy(globalSignupForm, false);
   }
-
-  globalSignupForm.reset();
-  switchSecurityAuthMode("login");
-  setSecurityAuthMessage("인증 메일을 보냈습니다. 메일 인증 후 관리자 승인을 기다려 주세요.", "success");
 }
 
 async function handleGlobalPasswordReset() {

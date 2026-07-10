@@ -20,6 +20,16 @@ assert(
   appJs.includes("회원가입 제한 설정") && appJs.includes("관리자에게 문의"),
   "signup error helper should explain an unexpected server-side signup restriction"
 );
+assert(
+  appJs.includes('errorCode === "over_email_send_rate_limit"') &&
+    appJs.includes("현재 인증 메일 발송 한도를 초과했으므로 잠시 후 같은 이메일로 다시 시도해 주세요."),
+  "signup error helper should clearly explain the email delivery rate limit"
+);
+assert(
+  appJs.includes("setSecurityAuthSubmitBusy(globalSignupForm, true)") &&
+    appJs.includes("setSecurityAuthSubmitBusy(globalSignupForm, false)"),
+  "signup should lock its submit button while the request is in progress"
+);
 
 const normalizeAdminUserStart = appJs.indexOf("function normalizeAdminUser");
 const requestAdminUsersStart = appJs.indexOf("async function requestAdminUsersApi", normalizeAdminUserStart);
@@ -55,6 +65,6 @@ const checklist = fs.readFileSync(checklistPath, "utf8");
 assert(checklist.includes("requireGlobalLogin: true"), "checklist should show the exact switch to turn on");
 assert(checklist.includes("일반 회원가입을 허용"), "checklist should include Supabase signup setting");
 assert(checklist.includes("관리자 승인"), "checklist should include admin approval verification");
-assert(swJs.includes("v20260710-03"), "service worker cache should be bumped when public signup is enabled");
+assert(swJs.includes("v20260710-04"), "service worker cache should be bumped when signup guidance changes");
 
 console.log("global auth rollout readiness test passed");
