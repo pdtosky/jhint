@@ -95,6 +95,44 @@ function todayInputValue() {
   return `${date.getFullYear()}-${month}-${day}`;
 }
 
+function hasSopDraftContent(sop = currentSop) {
+  return Boolean(
+    sop?.id ||
+    String(sop?.document?.managementNo || "").trim() ||
+    String(sop?.basic?.vendor || "").trim() ||
+    String(sop?.basic?.product || "").trim() ||
+    String(sop?.basic?.process || "").trim()
+  );
+}
+
+function createNewSopDraft(managementNo = "") {
+  const previousAuthor = String(currentSop?.document?.author || "").trim();
+  currentSop = hydrateSop(emptySop);
+  currentSop.document.managementNo = String(managementNo || "").trim();
+  currentSop.document.registeredDate = todayInputValue();
+  currentSop.document.author = previousAuthor;
+  adminWorkRecords = [];
+  adminSearchTerm = "";
+}
+
+async function startNewSopDocument({ confirmDiscard = true } = {}) {
+  if (confirmDiscard && hasSopDraftContent() && !currentSop.id) {
+    const ok = await showConfirmDialog({
+      title: "새 작업표준서를 작성할까요?",
+      message: "아직 저장하지 않은 입력 내용은 사라집니다. 저장이 필요하면 먼저 임시저장해 주세요.",
+      confirmText: "새 문서 작성",
+      cancelText: "계속 입력"
+    });
+    if (!ok) return false;
+  }
+
+  const sops = await fetchSopsForManagementNo();
+  createNewSopDraft(getNextManagementNo(sops));
+  renderAdmin();
+  showToast(`새 작업표준서 ${currentSop.document.managementNo} 작성을 시작합니다.`);
+  return true;
+}
+
 function parseManagementNoSequence(value) {
   const match = String(value || "").trim().match(new RegExp(`^${SOP_MANAGEMENT_PREFIX}-(\\d+)$`, "i"));
   return match ? Number(match[1]) : 0;
@@ -194,7 +232,7 @@ function showLoginDialog() {
 function renderAdmin() {
   syncRelatedRecordsFromProcessConditions();
   adminView.innerHTML = `
-    <div class="panel"><div class="admin-heading"><div><h2>관리자 입력/저장 페이지</h2><p class="role">관리자 전용: 입력, 수정, 임시저장, 배포가 가능합니다.</p></div><button data-action="logout">로그아웃</button></div></div>
+    <div class="panel"><div class="admin-heading"><div><h2>관리자 입력/저장 페이지</h2><p class="role">관리자 전용: 입력, 수정, 임시저장, 배포가 가능합니다.</p></div><div class="actions"><button class="primary" data-action="new-sop">새 작업표준서 등록</button><button data-action="logout">로그아웃</button></div></div></div>
     ${renderAdminSearchSection()}
     ${renderDocumentSection()}
     ${renderBasicSection()}
@@ -548,6 +586,14 @@ adminView.addEventListener("click", async (event) => {
     await searchAdmin();
     return;
   }
+  if (button.dataset.action === "new-sop") {
+    try {
+      await startNewSopDocument();
+    } catch (error) {
+      showToast(error.message || "새 작업표준서를 준비하지 못했습니다.", "error");
+    }
+    return;
+  }
   if (button.dataset.action === "load-sop") {
     await loadAdminSop(button.dataset.id);
     return;
@@ -571,9 +617,15 @@ adminView.addEventListener("click", async (event) => {
   if (button.dataset.action === "auto-management-no") {
     try {
       const sops = await fetchSopsForManagementNo();
-      currentSop.document.managementNo = getNextManagementNo(sops);
+      const nextManagementNo = getNextManagementNo(sops);
+      if (currentSop.id) {
+        createNewSopDraft(nextManagementNo);
+        showToast(`기존 문서는 유지하고 새 작업표준서 ${nextManagementNo} 작성을 시작합니다.`);
+      } else {
+        currentSop.document.managementNo = nextManagementNo;
+        showToast(`관리번호 ${nextManagementNo}로 입력했습니다.`);
+      }
       renderAdmin();
-      showToast(`관리번호 ${currentSop.document.managementNo}로 입력했습니다.`);
     } catch (error) {
       showToast(error.message || "관리번호 자동입력에 실패했습니다.", "error");
     }
@@ -602,6 +654,17 @@ adminView.addEventListener("click", async (event) => {
     syncRelatedRecordsFromProcessConditions();
     try {
       const sops = await fetchSopsForManagementNo();
+      const persistedRecord = currentSop.id
+        ? sops.find((sop) => String(sop?.id || "") === String(currentSop.id))
+        : null;
+      const managementNoChanged = persistedRecord &&
+        String(persistedRecord?.document?.managementNo || "").trim().toUpperCase() !==
+        String(currentSop.document.managementNo || "").trim().toUpperCase();
+
+      if (managementNoChanged) {
+        currentSop = hydrateSop({ ...currentSop, id: "", createdAt: "" });
+      }
+
       if (isDuplicateManagementNo(currentSop.document.managementNo, currentSop.id, sops)) {
         showToast("이미 사용 중인 관리번호입니다. 다음 번호 자동입력을 눌러 새 번호를 사용해 주세요.", "error");
         return;

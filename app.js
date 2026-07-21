@@ -61,6 +61,13 @@ const HOLIDAY_POLL_INTERVAL_MS = Number(
 const BACKEND_MODE = APP_CONFIG.backend || "api";
 const CODEX_RELEASE_NOTES = [
   {
+    version: "2026-07-21-01",
+    timestamp: "2026-07-21T13:42:57+09:00",
+    title: "작업표준서 연속 등록 덮어쓰기 방지",
+    summary: "새 작업표준서 등록 시 기존 문서 ID를 확실히 초기화하고 다음 관리번호를 자동 입력합니다. 저장된 문서에서 다음 번호를 입력하거나 관리번호를 바꿔도 기존 문서를 덮어쓰지 않고 별도 문서로 등록되도록 이중 보호했습니다.",
+    files: ["app.js", "sop/app.js", "sw.js", "package.json", "tests/sop-new-document.test.js", "tests/global-auth-rollout-ready.test.js", "tests/global-auth-login-log.test.js", "tests/global-auth-remember-login.test.js", "tests/worker-account-session.test.js"]
+  },
+  {
     version: "2026-07-10-14",
     timestamp: "2026-07-10T17:40:00+09:00",
     title: "작업 인계와 진행 작업 보호 강화",
