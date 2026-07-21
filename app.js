@@ -61,6 +61,20 @@ const HOLIDAY_POLL_INTERVAL_MS = Number(
 const BACKEND_MODE = APP_CONFIG.backend || "api";
 const CODEX_RELEASE_NOTES = [
   {
+    version: "2026-07-21-04",
+    timestamp: "2026-07-21T17:05:00+09:00",
+    title: "작업표준서 작업조회 2단계 검색",
+    summary: "업체명 검색 시 작업표준서 전체 내용을 한꺼번에 펼치지 않고 관련 품목 후보를 먼저 보여준 뒤 선택한 품목의 상세 표준서를 열도록 개선했습니다.",
+    files: ["sop/app.js", "sop/styles.css", "sw.js", "package.json", "tests/sop-worker-search.test.js", "tests/global-auth-rollout-ready.test.js", "tests/global-auth-login-log.test.js", "tests/global-auth-remember-login.test.js", "tests/worker-account-session.test.js"]
+  },
+  {
+    version: "2026-07-21-03",
+    timestamp: "2026-07-21T16:30:00+09:00",
+    title: "작업표준서 기존 문서 복사 저장",
+    summary: "유사한 작업표준서를 불러와 원본은 유지하고 새 관리번호와 새 문서로 복사한 뒤 일부 내용만 수정해 저장할 수 있도록 추가했습니다.",
+    files: ["sop/app.js", "sw.js", "package.json", "tests/sop-copy.test.js", "tests/global-auth-rollout-ready.test.js", "tests/global-auth-login-log.test.js", "tests/global-auth-remember-login.test.js", "tests/worker-account-session.test.js"]
+  },
+  {
     version: "2026-07-21-02",
     timestamp: "2026-07-21T14:05:00+09:00",
     title: "작업표준서 저장 API 식별자 보호",

@@ -35,6 +35,8 @@ let currentSop = hydrateSop(emptySop);
 let adminSearchResults = [];
 let adminSearchTerm = "";
 let adminWorkRecords = [];
+let workerSearchResults = [];
+let workerSearchTerm = "";
 let pendingConfirm = null;
 let isAdminLoggedIn = Boolean(window.SOP_BRIDGE?.isAdminLoggedIn?.());
 const ADMIN_ID = "tape@jhint.net";
@@ -232,7 +234,7 @@ function showLoginDialog() {
 function renderAdmin() {
   syncRelatedRecordsFromProcessConditions();
   adminView.innerHTML = `
-    <div class="panel"><div class="admin-heading"><div><h2>관리자 입력/저장 페이지</h2><p class="role">관리자 전용: 입력, 수정, 임시저장, 배포가 가능합니다.</p></div><div class="actions"><button class="primary" data-action="new-sop">새 작업표준서 등록</button><button data-action="logout">로그아웃</button></div></div></div>
+    <div class="panel"><div class="admin-heading"><div><h2>관리자 입력/저장 페이지</h2><p class="role">관리자 전용: 입력, 수정, 임시저장, 배포가 가능합니다.</p></div><div class="actions">${currentSop.id ? '<button data-action="copy-current-sop">현재 문서 복사</button>' : ''}<button class="primary" data-action="new-sop">새 작업표준서 등록</button><button data-action="logout">로그아웃</button></div></div></div>
     ${renderAdminSearchSection()}
     ${renderDocumentSection()}
     ${renderBasicSection()}
@@ -249,7 +251,7 @@ function renderAdmin() {
 
 function renderAdminSearchSection() {
   const rows = adminSearchResults.length
-    ? adminSearchResults.map((sop) => `<tr><td>${escapeHtml(sop.document.managementNo)}</td><td>${escapeHtml(sop.basic.vendor)}</td><td>${escapeHtml(sop.basic.product)}</td><td>${escapeHtml(sop.basic.process)}</td><td>${escapeHtml(sop.document.status)}</td><td><div class="row-actions"><button data-action="load-sop" data-id="${escapeHtml(sop.id)}">불러오기</button><button class="danger" data-action="delete-sop" data-id="${escapeHtml(sop.id)}" data-name="${escapeHtml(sop.basic.product || sop.document.managementNo || "작업표준서")}">삭제</button></div></td></tr>`).join("")
+    ? adminSearchResults.map((sop) => `<tr><td>${escapeHtml(sop.document.managementNo)}</td><td>${escapeHtml(sop.basic.vendor)}</td><td>${escapeHtml(sop.basic.product)}</td><td>${escapeHtml(sop.basic.process)}</td><td>${escapeHtml(sop.document.status)}</td><td><div class="row-actions"><button data-action="load-sop" data-id="${escapeHtml(sop.id)}">불러오기</button><button data-action="copy-sop" data-id="${escapeHtml(sop.id)}">복사해서 새 문서</button><button class="danger" data-action="delete-sop" data-id="${escapeHtml(sop.id)}" data-name="${escapeHtml(sop.basic.product || sop.document.managementNo || "작업표준서")}">삭제</button></div></td></tr>`).join("")
     : `<tr><td colspan="6">저장된 작업표준서를 검색하세요.</td></tr>`;
   return `<section class="panel"><h3>저장된 작업표준서 검색</h3><div class="grid-2 search-controls"><input id="adminSearch" value="${escapeHtml(adminSearchTerm)}" placeholder="제품명, 공정명, 관리번호로 검색"><button class="primary" data-action="admin-search">검색</button></div><table class="search-table"><thead><tr><th>관리번호</th><th>업체명</th><th>제품명</th><th>공정명</th><th>배포상태</th><th>선택</th></tr></thead><tbody>${rows}</tbody></table></section>`;
 }
@@ -598,6 +600,14 @@ adminView.addEventListener("click", async (event) => {
     await loadAdminSop(button.dataset.id);
     return;
   }
+  if (button.dataset.action === "copy-sop") {
+    await copyAdminSop(button.dataset.id);
+    return;
+  }
+  if (button.dataset.action === "copy-current-sop") {
+    await startSopCopy(currentSop);
+    return;
+  }
   if (button.dataset.action === "delete-sop") {
     await deleteAdminSop(button.dataset.id, button.dataset.name);
     return;
@@ -642,8 +652,10 @@ adminView.addEventListener("click", async (event) => {
   if (button.dataset.action === "publish") currentSop.document.status = "배포완료";
   if (button.dataset.action === "preview") {
     syncRelatedRecordsFromProcessConditions();
+    workerSearchTerm = "";
+    workerSearchResults = [];
     showView("worker");
-    renderWorker([currentSop]);
+    renderWorker([currentSop], { detail: true });
     return;
   }
   if (button.dataset.action === "print-document") {
@@ -711,6 +723,50 @@ async function loadAdminSop(id) {
   showToast("불러왔습니다.");
 }
 
+function prepareSopCopy(source, managementNo) {
+  const copied = hydrateSop(structuredClone(source));
+  copied.id = "";
+  copied.createdAt = "";
+  copied.document = {
+    ...copied.document,
+    managementNo,
+    rev: "0",
+    registeredDate: todayInputValue(),
+    status: "임시저장",
+    updatedAt: ""
+  };
+  copied.revisionHistory = [blankRow("revisionHistory")];
+  return copied;
+}
+
+async function startSopCopy(source) {
+  if (!source?.basic) {
+    showToast("복사할 작업표준서를 찾을 수 없습니다.", "error");
+    return;
+  }
+  try {
+    const sops = await fetchSopsForManagementNo();
+    const nextManagementNo = getNextManagementNo(sops);
+    currentSop = prepareSopCopy(source, nextManagementNo);
+    adminWorkRecords = [];
+    adminSearchTerm = "";
+    renderAdmin();
+    showToast(`복사본을 준비했습니다. ${nextManagementNo}로 일부 내용을 수정한 뒤 저장해 주세요.`);
+  } catch (error) {
+    showToast(error.message || "작업표준서 복사에 실패했습니다.", "error");
+  }
+}
+
+async function copyAdminSop(id) {
+  const res = await fetch(`/api/sops/${encodeURIComponent(id)}`);
+  const data = await res.json();
+  if (!res.ok) {
+    showToast(data.error || "작업표준서를 불러오지 못했습니다.", "error");
+    return;
+  }
+  await startSopCopy(hydrateSop(data.sop));
+}
+
 async function refreshAdminWorkRecords() {
   if (!currentSop.id) {
     adminWorkRecords = [];
@@ -740,15 +796,42 @@ async function deleteAdminSop(id, name) {
 }
 
 async function searchWorker() {
-  const q = document.getElementById("workerSearch").value;
+  const q = document.getElementById("workerSearch").value.trim();
+  workerSearchTerm = q;
   const res = await fetch(`/api/worker/sops?q=${encodeURIComponent(q)}`);
   const data = await res.json();
-  renderWorker(data.sops);
+  workerSearchResults = data.sops || [];
+  renderWorkerSearchResults(workerSearchResults);
 }
 
-function renderWorker(sops = []) {
-  workerView.innerHTML = `<div class="panel"><h2>작업자 조회 전용 페이지</h2><p class="role">작업자 전용: 배포완료된 표준서만 조회할 수 있습니다.</p><input id="workerSearch" placeholder="제품명, 공정명, 관리번호로 검색"><div class="actions"><button id="workerSearchButton" class="primary">검색</button></div></div><div id="workerResults">${sops.length ? sops.map(renderWorkerSop).join("") : `<div class="panel">조회할 작업표준서가 없습니다.</div>`}</div>`;
+function renderWorker(sops = [], { detail = false } = {}) {
+  workerView.innerHTML = `<div class="panel"><h2>작업자 조회 전용 페이지</h2><p class="role">작업자 전용: 배포완료된 표준서만 조회할 수 있습니다.</p><input id="workerSearch" value="${escapeHtml(workerSearchTerm)}" placeholder="업체명, 제품명, 공정명, 관리번호로 검색"><div class="actions"><button id="workerSearchButton" class="primary">검색</button></div></div><div id="workerResults"></div>`;
   document.getElementById("workerSearchButton").addEventListener("click", searchWorker);
+  if (detail) {
+    document.getElementById("workerResults").innerHTML = `<div class="worker-result-toolbar"><strong>선택한 작업표준서</strong>${workerSearchTerm ? '<button type="button" data-action="back-worker-search">검색 결과로 돌아가기</button>' : ""}</div>${sops.length ? sops.map(renderWorkerSop).join("") : `<div class="panel">조회할 작업표준서가 없습니다.</div>`}`;
+  } else {
+    renderWorkerSearchResults(sops);
+  }
+}
+
+function renderWorkerSearchResults(sops = []) {
+  const results = document.getElementById("workerResults");
+  if (!results) return;
+  if (!workerSearchTerm) {
+    results.innerHTML = `<div class="panel worker-search-empty">업체명이나 제품명을 검색하면 관련 품목만 먼저 표시됩니다. 품목을 누르면 상세 작업표준서를 확인할 수 있습니다.</div>`;
+    return;
+  }
+  results.innerHTML = sops.length
+    ? `<div class="worker-result-toolbar"><strong>관련 품목 ${sops.length}건</strong><span>확인할 품목을 선택해 주세요.</span></div>${sops.map(renderWorkerSearchCandidate).join("")}`
+    : `<div class="panel worker-search-empty">검색 조건에 맞는 작업표준서가 없습니다.</div>`;
+}
+
+function renderWorkerSearchCandidate(sop) {
+  const normalized = hydrateSop(sop);
+  return `<button type="button" class="worker-search-candidate" data-action="select-worker-sop" data-sop-id="${escapeHtml(normalized.id)}">
+    <span class="worker-search-candidate-main"><strong>${escapeHtml(normalized.basic.product || "제품명 미입력")}</strong><span>${escapeHtml(normalized.basic.vendor || "업체명 미입력")} · ${escapeHtml(normalized.basic.process || "공정명 미입력")}</span></span>
+    <span class="worker-search-candidate-meta"><span>${escapeHtml(normalized.document.managementNo || "관리번호 미입력")}</span><span>${escapeHtml(normalized.document.status || "상태 미입력")}</span><b>상세 보기</b></span>
+  </button>`;
 }
 
 function renderWorkerSop(sop) {
@@ -885,6 +968,15 @@ function renderWorkerSop(sop) {
 workerView.addEventListener("click", (event) => {
   const button = event.target.closest("button");
   if (!button) return;
+  if (button.dataset.action === "select-worker-sop") {
+    const sop = workerSearchResults.find((item) => String(item.id) === String(button.dataset.sopId));
+    if (sop) renderWorker([sop], { detail: true });
+    return;
+  }
+  if (button.dataset.action === "back-worker-search") {
+    renderWorkerSearchResults(workerSearchResults);
+    return;
+  }
   if (button.dataset.action === "open-image") openImageModal(button.dataset.imageSrc, button.dataset.imageTitle);
   if (button.dataset.action === "cycle-check") {
     cycleChecklistButton(button);
