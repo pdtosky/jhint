@@ -61,6 +61,13 @@ const HOLIDAY_POLL_INTERVAL_MS = Number(
 const BACKEND_MODE = APP_CONFIG.backend || "api";
 const CODEX_RELEASE_NOTES = [
   {
+    version: "2026-07-21-02",
+    timestamp: "2026-07-21T14:05:00+09:00",
+    title: "작업표준서 저장 API 식별자 보호",
+    summary: "캐시가 남은 구형 기기에서도 기존 문서 ID로 다른 관리번호를 저장하거나 동일 관리번호를 중복 등록하지 못하도록 저장 API에 최종 검증을 추가했습니다. 실제 신규, 수정, 관리번호 변경, 중복 등록 시나리오를 실행하는 회귀 테스트를 추가했습니다.",
+    files: ["index.html", "app.js", "sop/identity.js", "sw.js", "package.json", "tests/sop-save-identity.test.js", "tests/sop-new-document.test.js", "tests/global-auth-rollout-ready.test.js", "tests/global-auth-login-log.test.js", "tests/global-auth-remember-login.test.js", "tests/worker-account-session.test.js"]
+  },
+  {
     version: "2026-07-21-01",
     timestamp: "2026-07-21T13:42:57+09:00",
     title: "작업표준서 연속 등록 덮어쓰기 방지",
@@ -5521,6 +5528,20 @@ function getSmartSopRecord(id) {
 async function saveSmartSopRecord(input) {
   if (!canManageSopDocuments()) {
     throw makeSmartSopError("작업표준서 문서 편집 권한이 없습니다.", 403);
+  }
+
+  const identityInspection = window.SOP_IDENTITY?.inspectSopSaveIdentity(
+    input || {},
+    getSmartSopRecords()
+  );
+  if (!identityInspection) {
+    throw makeSmartSopError("작업표준서 저장 안전모듈을 불러오지 못했습니다. 새로고침 후 다시 시도해 주세요.", 503);
+  }
+  if (identityInspection.reason === "management-number-changed") {
+    throw makeSmartSopError("기존 작업표준서의 관리번호가 변경되어 저장을 차단했습니다. 새 작업표준서 등록 버튼으로 작성해 주세요.", 409);
+  }
+  if (identityInspection.reason === "duplicate-management-number") {
+    throw makeSmartSopError("이미 사용 중인 관리번호입니다. 다음 관리번호를 사용해 주세요.", 409);
   }
 
   const nextSop = normalizeSopRecord({
