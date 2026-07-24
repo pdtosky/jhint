@@ -61,6 +61,13 @@ const HOLIDAY_POLL_INTERVAL_MS = Number(
 const BACKEND_MODE = APP_CONFIG.backend || "api";
 const CODEX_RELEASE_NOTES = [
   {
+    version: "2026-07-24-02",
+    timestamp: "2026-07-24T16:57:16+09:00",
+    title: "발주 삭제 재생성 및 저장 차단 방지",
+    summary: "발주 삭제 시 감사용 작업·출하 이력은 보존하고 삭제된 발주 ID를 별도로 기록합니다. 오래된 기기나 발주의뢰 자동 복구가 삭제한 발주를 다시 생성하지 못하도록 병합 및 복구 규칙을 보강했습니다.",
+    files: ["app.js", "sw.js", "tests/order-delete-persistence.test.js", "tests/state-merge-conflict.test.js", "tests/state-persistence-safety.test.js"]
+  },
+  {
     version: "2026-07-24-01",
     timestamp: "2026-07-24T00:00:00+09:00",
     title: "발주 삭제 서버 저장 보강",
@@ -1436,6 +1443,7 @@ function resetPauseInputs() {
 function createEmptyState() {
   return {
     orders: seedOrders.map(normalizeOrderRecord),
+    orderDeletedIds: [],
     requisitions: [],
     sops: [],
     sopWorkRecords: [],
@@ -1615,6 +1623,7 @@ function applyIncomingState(nextState) {
 
 function assignNormalizedState(normalized) {
   state.orders = normalized.orders;
+  state.orderDeletedIds = normalized.orderDeletedIds;
   state.requisitions = normalized.requisitions;
   state.sops = normalized.sops;
   state.sopWorkRecords = normalized.sopWorkRecords;
@@ -1652,8 +1661,16 @@ function syncCodexReleaseLogs() {
 }
 
 function normalizeAppState(appState) {
+  const orderDeletedIds = Array.from(
+    new Set((appState.orderDeletedIds || []).map((id) => String(id || "").trim()).filter(Boolean))
+  );
+  const deletedOrderIds = new Set(orderDeletedIds);
+
   return {
-    orders: (appState.orders || []).map(normalizeOrderRecord),
+    orders: (appState.orders || [])
+      .map(normalizeOrderRecord)
+      .filter((order) => !deletedOrderIds.has(String(order.id || "").trim())),
+    orderDeletedIds,
     requisitions: (appState.requisitions || appState.purchaseRequests || []).map(normalizeRequisitionRecord),
     sops: (appState.sops || appState.workStandards || []).map(normalizeSopRecord),
     sopWorkRecords: appState.sopWorkRecords || appState.workRecords || [],
@@ -1986,6 +2003,11 @@ function mergeStateByLocalChanges(previousState, nextState, remoteState) {
   merged.sopDeletedIds = Array.from(
     new Set([...(remote.sopDeletedIds || []), ...(next.sopDeletedIds || [])].filter(Boolean))
   );
+  merged.orderDeletedIds = Array.from(
+    new Set([...(remote.orderDeletedIds || []), ...(next.orderDeletedIds || [])].filter(Boolean))
+  );
+  const deletedOrderIds = new Set(merged.orderDeletedIds);
+  merged.orders = merged.orders.filter((order) => !deletedOrderIds.has(order.id));
 
   return normalizeAppState(merged);
 }
@@ -1999,6 +2021,18 @@ function getStateCountSummary(appState = {}) {
     sops: normalized.sops.length,
     sopWorkRecords: normalized.sopWorkRecords.length
   };
+}
+
+function isOrderDropCoveredByTombstones(nextState = {}, remoteState = {}) {
+  const next = normalizeAppState(nextState);
+  const remote = normalizeAppState(remoteState);
+  const nextOrderIds = new Set(next.orders.map((order) => order.id));
+  const deletedOrderIds = new Set(next.orderDeletedIds);
+  const removedOrderIds = remote.orders
+    .map((order) => order.id)
+    .filter((orderId) => orderId && !nextOrderIds.has(orderId));
+
+  return removedOrderIds.length > 0 && removedOrderIds.every((orderId) => deletedOrderIds.has(orderId));
 }
 
 const STATE_SHRINK_RULES = {
@@ -2043,6 +2077,7 @@ function getUnexpectedStateShrinkDetail(nextState, remoteState) {
     const remoteCount = remoteCounts[key] || 0;
     const nextCount = nextCounts[key] || 0;
     if (remoteCount <= 0 || nextCount >= remoteCount) return;
+    if (key === "orders" && isOrderDropCoveredByTombstones(nextState, remoteState)) return;
 
     const absoluteDrop = remoteCount - nextCount;
     const ratioAfterDrop = nextCount / remoteCount;
@@ -3482,18 +3517,30 @@ function isOrderLinkedToRequisitionItem(order, request, item) {
 function repairConvertedRequisitionOrders(appState) {
   const repairedState = {
     orders: [...(appState.orders || [])],
+    orderDeletedIds: [...(appState.orderDeletedIds || [])],
     requisitions: (appState.requisitions || []).map((request) => ({
       ...request,
       items: (request.items || []).map((item) => ({ ...item }))
     })),
     sops: [...(appState.sops || [])],
+    sopWorkRecords: [...(appState.sopWorkRecords || [])],
+    sopDeletedIds: [...(appState.sopDeletedIds || [])],
     activities: [...(appState.activities || [])]
   };
   const ordersById = new Map(repairedState.orders.map((order) => [order.id, order]));
+  const deletedOrderIds = new Set(repairedState.orderDeletedIds);
   let changed = false;
 
   repairedState.requisitions.forEach((request) => {
     (request.items || []).forEach((item) => {
+      if (item.orderId && deletedOrderIds.has(item.orderId)) {
+        item.orderId = "";
+        item.status = "";
+        item.convertedAt = "";
+        changed = true;
+        return;
+      }
+
       const shouldHaveOrder = Boolean(item.orderId || item.status === "converted");
       if (!shouldHaveOrder) return;
 
@@ -3548,6 +3595,10 @@ function repairConvertedRequisitionOrders(appState) {
 
     if ((request.items || []).length && request.items.every((item) => item.orderId)) {
       request.status = "converted";
+    } else if (request.status === "converted") {
+      request.status = "approved";
+      request.convertedAt = "";
+      changed = true;
     }
   });
 
@@ -5758,6 +5809,7 @@ function getAdminActivityLabel(type) {
   const labels = {
     login: "로그인",
     register: "발주 등록",
+    orderDelete: "발주 삭제",
     edit: "발주 수정",
     start: "작업 시작",
     temporaryPause: "일시정지",
@@ -5780,6 +5832,7 @@ function getAdminActivityTone(type) {
   const toneMap = {
     login: "account",
     register: "register",
+    orderDelete: "register",
     edit: "register",
     hold: "register",
     resumeHold: "register",
@@ -12197,7 +12250,7 @@ async function deleteOrder(orderId) {
   }
 
   const confirmed = await showAppConfirm(
-    `${order.company} / ${order.product}\n\n이 발주를 삭제하시겠습니까?\n작업 이력과 출하 이력도 함께 삭제됩니다.`,
+    `${order.company} / ${order.product}\n\n이 발주를 삭제하시겠습니까?\n작업·출하 활동 기록은 감사 이력으로 보존됩니다.`,
     {
       title: "발주 삭제",
       yesText: "삭제",
@@ -12210,7 +12263,19 @@ async function deleteOrder(orderId) {
   const rollbackState = normalizeAppState(state);
   const unlinkedFromRequisition = clearRequisitionLinkForDeletedOrder(state, order);
   state.orders = state.orders.filter((item) => item.id !== orderId);
-  state.activities = state.activities.filter((activity) => activity.orderId !== orderId);
+  state.orderDeletedIds = Array.from(new Set([...(state.orderDeletedIds || []), orderId]));
+  state.activities.unshift({
+    id: crypto.randomUUID(),
+    type: "orderDelete",
+    workerName: currentAdminDisplayName || currentAdminEmail || TEXT.admin,
+    actor: currentAdminEmail || TEXT.admin,
+    target: `${order.company || "-"} / ${order.product || "-"}`,
+    orderId,
+    timestamp: new Date().toISOString(),
+    message: unlinkedFromRequisition
+      ? "발주를 삭제하고 발주의뢰 품목을 다시 등록 가능한 상태로 변경했습니다."
+      : "발주를 삭제했습니다."
+  });
   if (selectedCalendarDateKey === order.dueDate) {
     selectedCalendarDateKey = "";
     calendarDetailModal.hidden = true;

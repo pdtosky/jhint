@@ -20,6 +20,6 @@ assert(appJs.includes("window.localStorage.removeItem(key)"), "logout should be 
 assert(appJs.includes("window.sessionStorage.removeItem(key)"), "logout should be able to remove current-tab sessions");
 
 assert(styleCss.includes(".security-remember-option"), "remember-login option should have a dedicated compact layout");
-assert(swJs.includes("v20260721-02"), "service worker cache should include the latest SOP API identity protection update");
+assert(swJs.includes("v20260724-02"), "service worker cache should include the latest update");
 
 console.log("global auth remember-login test passed");

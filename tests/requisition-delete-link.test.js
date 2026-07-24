@@ -70,4 +70,40 @@ assert.equal(appState.requisitions[0].items[0].convertedAt, "");
 assert.equal(appState.requisitions[0].items[1].orderId, "ORDER-2");
 assert.equal(appState.requisitions[0].status, "approved");
 
+const repairContext = { Map, Set };
+vm.runInNewContext(
+  `${extractFunction(source, "repairConvertedRequisitionOrders")}\nresult = repairConvertedRequisitionOrders;`,
+  repairContext
+);
+const repaired = repairContext.result({
+  orders: [],
+  orderDeletedIds: ["ORDER-1"],
+  requisitions: [
+    {
+      id: "REQ-1",
+      status: "converted",
+      convertedAt: "2026-06-16T00:00:00.000Z",
+      items: [
+        {
+          id: "ITEM-1",
+          status: "converted",
+          orderId: "ORDER-1",
+          convertedAt: "2026-06-16T00:00:00.000Z"
+        }
+      ]
+    }
+  ],
+  sops: [],
+  sopWorkRecords: [{ id: "WORK-1" }],
+  sopDeletedIds: ["SOP-1"],
+  activities: []
+});
+
+assert.equal(repaired.changed, true);
+assert.equal(repaired.state.orders.length, 0, "a tombstoned order should not be repaired");
+assert.equal(repaired.state.requisitions[0].items[0].orderId, "");
+assert.equal(repaired.state.requisitions[0].status, "approved");
+assert.equal(repaired.state.sopWorkRecords[0].id, "WORK-1");
+assert.equal(repaired.state.sopDeletedIds[0], "SOP-1");
+
 console.log("requisition delete link test passed");

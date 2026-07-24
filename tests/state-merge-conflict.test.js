@@ -31,6 +31,7 @@ const context = {
   String,
   normalizeAppState: (appState = {}) => ({
     orders: appState.orders || [],
+    orderDeletedIds: appState.orderDeletedIds || [],
     requisitions: appState.requisitions || [],
     sops: appState.sops || [],
     sopWorkRecords: appState.sopWorkRecords || [],
@@ -129,5 +130,15 @@ const mergedWithLocalDelete = context.result.mergeStateByLocalChanges(
 
 assert.equal(mergedWithLocalDelete.orders.some((order) => order.id === "order-a"), false);
 assert.equal(mergedWithLocalDelete.orders.some((order) => order.id === "order-b"), true);
+
+const mergedWithPersistentDelete = context.result.mergeStateByLocalChanges(
+  { ...previousState, orderDeletedIds: [] },
+  { ...nextStateWithoutLocalOrderChange, orderDeletedIds: ["order-a"] },
+  remoteStateWithNewerOrder
+);
+
+assert.equal(mergedWithPersistentDelete.orderDeletedIds.includes("order-a"), true);
+assert.equal(mergedWithPersistentDelete.orders.some((order) => order.id === "order-a"), false);
+assert.equal(mergedWithPersistentDelete.orders.some((order) => order.id === "order-b"), true);
 
 console.log("state merge conflict test passed");

@@ -25,8 +25,8 @@ assert(
   "Codex release notes should include the SOP overwrite fix."
 );
 assert(
-  swJs.includes("jhint-production-app-v20260721-02"),
-  "Service worker cache should be bumped for the SOP editor change."
+  swJs.includes("jhint-production-app-v20260724-02"),
+  "Service worker cache should be bumped for the latest update."
 );
 
 console.log("sop new document overwrite protection test passed");
