@@ -61,6 +61,13 @@ const HOLIDAY_POLL_INTERVAL_MS = Number(
 const BACKEND_MODE = APP_CONFIG.backend || "api";
 const CODEX_RELEASE_NOTES = [
   {
+    version: "2026-07-24-01",
+    timestamp: "2026-07-24T00:00:00+09:00",
+    title: "발주 삭제 서버 저장 보강",
+    summary: "발주 삭제가 화면에만 반영되고 서버 저장 실패가 성공처럼 처리되지 않도록 저장 완료를 확인합니다. 발주의뢰에서 전환된 발주를 삭제할 때 연결 정보도 함께 되돌리고, 저장 실패 시 삭제 전 상태로 복구합니다.",
+    files: ["app.js", "sw.js", "package.json", "tests/order-delete-persistence.test.js"]
+  },
+  {
     version: "2026-07-21-04",
     timestamp: "2026-07-21T17:05:00+09:00",
     title: "작업표준서 작업조회 2단계 검색",
@@ -12200,6 +12207,7 @@ async function deleteOrder(orderId) {
 
   if (!confirmed) return;
 
+  const rollbackState = normalizeAppState(state);
   const unlinkedFromRequisition = clearRequisitionLinkForDeletedOrder(state, order);
   state.orders = state.orders.filter((item) => item.id !== orderId);
   state.activities = state.activities.filter((activity) => activity.orderId !== orderId);
@@ -12209,9 +12217,11 @@ async function deleteOrder(orderId) {
   }
   closeOrderEditPanel();
   try {
-    await persist();
+    await persist({ throwOnError: true });
   } catch (error) {
-    handlePersistError(error);
+    assignNormalizedState(rollbackState);
+    lastStateSnapshot = JSON.stringify(rollbackState);
+    render();
     return;
   }
   render();
