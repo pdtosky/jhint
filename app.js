@@ -61,6 +61,13 @@ const HOLIDAY_POLL_INTERVAL_MS = Number(
 const BACKEND_MODE = APP_CONFIG.backend || "api";
 const CODEX_RELEASE_NOTES = [
   {
+    version: "2026-08-07-01",
+    timestamp: "2026-08-07T12:00:00+09:00",
+    title: "월간 장비 가동률 문서화",
+    summary: "관리자 장비 탭에서 장비별 일자, 하루 8시간 기준시간, 실제 가동시간, 일 가동률을 월별 표로 확인하고 A4 문서로 출력하거나 PDF로 저장할 수 있도록 추가했습니다.",
+    files: ["index.html", "app.js", "style.css", "sw.js", "package.json", "tests/admin-equipment-monthly-report.test.js", "tests/global-auth-login-log.test.js", "tests/global-auth-rollout-ready.test.js", "tests/global-auth-remember-login.test.js", "tests/sop-copy.test.js", "tests/sop-new-document.test.js", "tests/worker-account-session.test.js"]
+  },
+  {
     version: "2026-07-24-02",
     timestamp: "2026-07-24T16:57:16+09:00",
     title: "발주 삭제 재생성 및 저장 차단 방지",
@@ -392,6 +399,7 @@ let isDashboardListOpen = false;
 let isDashboardProgressOpen = false;
 let calendarCursor = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 let adminMonthFilter = "all";
+let adminEquipmentReportMachine = "";
 let adminJournalDateFilter = "";
 let adminActiveSection = "accounts";
 let adminSearchKeyword = "";
@@ -524,6 +532,9 @@ const adminRefreshUsersBtn = document.getElementById("adminRefreshUsersBtn");
 const adminAccountStatus = document.getElementById("adminAccountStatus");
 const adminAccountList = document.getElementById("adminAccountList");
 const equipmentList = document.getElementById("equipmentList");
+const equipmentReportMachineSelect = document.getElementById("equipmentReportMachineSelect");
+const equipmentReportPrintBtn = document.getElementById("equipmentReportPrintBtn");
+const equipmentReportContent = document.getElementById("equipmentReportContent");
 const moldList = document.getElementById("moldList");
 const journalList = document.getElementById("journalList");
 const workerEfficiencyList = document.getElementById("workerEfficiencyList");
@@ -655,6 +666,17 @@ function bindEvents() {
       adminJournalDateFilter = "";
       renderAdminPage();
     });
+  }
+
+  if (equipmentReportMachineSelect) {
+    equipmentReportMachineSelect.addEventListener("change", () => {
+      adminEquipmentReportMachine = equipmentReportMachineSelect.value || "";
+      renderEquipmentMonthlyReport();
+    });
+  }
+
+  if (equipmentReportPrintBtn) {
+    equipmentReportPrintBtn.addEventListener("click", printEquipmentMonthlyReport);
   }
 
   if (adminJournalDateInput) {
@@ -10295,6 +10317,9 @@ function buildEquipmentSummary() {
   const equipmentMap = new Map();
   const plannedMsPerMachine = getAdminMonthlyAvailableMs();
   const workingDayCount = getAdminWorkingDayKeys().length;
+  const reportByMachine = adminSearchKeyword
+    ? new Map()
+    : new Map(buildEquipmentDailyReport(getEquipmentReportMonthKey()).map((report) => [report.name, report]));
   const nowIso = new Date().toISOString();
 
   getFilteredAdminMonthOrders().forEach((order) => {
@@ -10327,12 +10352,18 @@ function buildEquipmentSummary() {
   return [...equipmentMap.values()]
     .filter((item) => item.jobCount > 0)
     .map((item) => {
-      const plannedMs = plannedMsPerMachine;
-      const percent = plannedMs > 0 ? Math.round((item.actualMs / plannedMs) * 100) : 0;
+      const monthlyReport = reportByMachine.get(item.name);
+      const actualMs = monthlyReport ? monthlyReport.actualMs : item.actualMs;
+      const plannedMs = monthlyReport ? monthlyReport.plannedMs : plannedMsPerMachine;
+      const percent = monthlyReport
+        ? monthlyReport.percent
+        : plannedMs > 0
+          ? Math.min(100, Math.round((actualMs / plannedMs) * 100))
+          : 0;
       const tone = getEquipmentUtilTone(percent);
       return {
         name: item.name,
-        actualMs: item.actualMs,
+        actualMs,
         plannedMs,
         percent,
         displayPercent: Math.min(percent, 100),
@@ -10340,12 +10371,271 @@ function buildEquipmentSummary() {
         toneLabel: tone.label,
         jobCount: item.jobCount,
         workerCount: item.workerSet.size,
-        workingDayCount,
+        workingDayCount: monthlyReport ? monthlyReport.days.length : workingDayCount,
         productionQty: item.productionQty,
         hitQty: item.hitQty,
         orders: getSortedOrders(item.orders)
       };
     });
+}
+
+function getEquipmentReportMonthKey() {
+  return adminMonthFilter === "all" ? toMonthKey(new Date()) : adminMonthFilter;
+}
+
+function getEquipmentReportMonthLabel(monthKey) {
+  const [year, month] = String(monthKey || "").split("-");
+  return `${year || "-"}년 ${Number(month || 0) || "-"}월`;
+}
+
+function isAdminWorkingDayKey(dateKey) {
+  return !isWeekendDateKey(dateKey) && !getKoreanPublicHolidayKeys(String(dateKey || "").slice(0, 4)).has(dateKey);
+}
+
+function getEquipmentReportWorkdayKeys(monthKey) {
+  const keys = getAdminWorkingDayKeys(monthKey);
+  const currentMonthKey = toMonthKey(new Date());
+  if (monthKey < currentMonthKey) return keys;
+  if (monthKey > currentMonthKey) return [];
+  const todayKey = toKoreanDateKey(new Date());
+  return keys.filter((dateKey) => dateKey <= todayKey);
+}
+
+function splitEquipmentIntervalByDay(startMs, endMs, monthKey, onSegment) {
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) return;
+  const [year, month] = String(monthKey || "").split("-").map(Number);
+  if (!year || !month) return;
+
+  const monthStart = new Date(year, month - 1, 1).getTime();
+  const monthEnd = new Date(year, month, 1).getTime();
+  let cursor = Math.max(startMs, monthStart);
+  const boundedEnd = Math.min(endMs, monthEnd);
+
+  while (cursor < boundedEnd) {
+    const cursorDate = new Date(cursor);
+    const nextDay = new Date(cursorDate.getFullYear(), cursorDate.getMonth(), cursorDate.getDate() + 1).getTime();
+    const segmentEnd = Math.min(boundedEnd, nextDay);
+    const dateKey = toKoreanDateKey(cursorDate);
+    if (isAdminWorkingDayKey(dateKey)) {
+      onSegment(dateKey, cursor, segmentEnd);
+    }
+    cursor = segmentEnd;
+  }
+}
+
+function buildEquipmentDailyReport(monthKey = getEquipmentReportMonthKey()) {
+  const equipmentMap = new Map();
+  const orderMap = new Map((state.orders || []).map((order) => [String(order.id || ""), order]));
+  const coveredOrderIds = new Set();
+
+  const ensureDay = (machineName, dateKey) => {
+    const name = String(machineName || "미지정 장비").trim() || "미지정 장비";
+    if (!equipmentMap.has(name)) equipmentMap.set(name, new Map());
+    const dayMap = equipmentMap.get(name);
+    if (!dayMap.has(dateKey)) {
+      dayMap.set(dateKey, { intervals: [], extraMs: 0, orderIds: new Set(), workers: new Set() });
+    }
+    return dayMap.get(dateKey);
+  };
+
+  const addInterval = (machineName, orderId, workerName, startMs, endMs) => {
+    if (endMs <= startMs) return;
+    coveredOrderIds.add(String(orderId || ""));
+    splitEquipmentIntervalByDay(startMs, endMs, monthKey, (dateKey, segmentStart, segmentEnd) => {
+      const day = ensureDay(machineName, dateKey);
+      day.intervals.push([segmentStart, segmentEnd]);
+      if (orderId) day.orderIds.add(String(orderId));
+      if (workerName) day.workers.add(String(workerName));
+    });
+  };
+
+  const activitiesByOrder = new Map();
+  (state.activities || []).forEach((activity) => {
+    const orderId = String(activity?.orderId || "");
+    const timestamp = getValidTimestamp(activity?.timestamp);
+    if (!orderId || !timestamp || !["start", "pause", "temporaryPause", "end"].includes(activity.type)) return;
+    if (!activitiesByOrder.has(orderId)) activitiesByOrder.set(orderId, []);
+    activitiesByOrder.get(orderId).push({ ...activity, timestamp });
+  });
+
+  activitiesByOrder.forEach((activities, orderId) => {
+    const order = orderMap.get(orderId) || {};
+    let openSession = null;
+    activities
+      .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+      .forEach((activity) => {
+        const eventMs = new Date(activity.timestamp).getTime();
+        if (activity.type === "start") {
+          if (openSession && eventMs > openSession.startMs) {
+            addInterval(openSession.machineName, orderId, openSession.workerName, openSession.startMs, eventMs);
+          }
+          openSession = {
+            startMs: eventMs,
+            machineName: activity.machineName || order.machineName || "미지정 장비",
+            workerName: activity.workerName || order.workerName || ""
+          };
+          return;
+        }
+        if (openSession && eventMs > openSession.startMs) {
+          addInterval(openSession.machineName, orderId, openSession.workerName, openSession.startMs, eventMs);
+        }
+        openSession = null;
+      });
+
+    if (openSession && order.status === "working") {
+      addInterval(openSession.machineName, orderId, openSession.workerName, openSession.startMs, Date.now());
+    }
+  });
+
+  (state.orders || []).forEach((order) => {
+    const orderId = String(order.id || "");
+    const baseDate = order.endTime || getOrderLastPauseAt(order) || order.startTime || order.orderDate || "";
+    const dateKey = baseDate ? toKoreanDateKey(baseDate) : "";
+    if (!dateKey || toMonthKey(dateKey) !== monthKey || !isAdminWorkingDayKey(dateKey)) return;
+
+    const day = ensureDay(order.machineName || "미지정 장비", dateKey);
+    if (orderId) day.orderIds.add(orderId);
+    if (order.workerName) day.workers.add(order.workerName);
+
+    if (!coveredOrderIds.has(orderId)) {
+      const fallbackMs = isActiveWorkStatus(order)
+        ? getAccumulatedElapsedMs(order, new Date().toISOString())
+        : Number(order.elapsedMs || 0);
+      day.extraMs += Math.max(0, fallbackMs);
+    }
+  });
+
+  const workdayKeys = getEquipmentReportWorkdayKeys(monthKey);
+  return [...equipmentMap.entries()]
+    .map(([name, dayMap]) => {
+      const days = workdayKeys.map((dateKey) => {
+        const day = dayMap.get(dateKey) || { intervals: [], extraMs: 0, orderIds: new Set(), workers: new Set() };
+        const merged = [...day.intervals]
+          .sort((a, b) => a[0] - b[0])
+          .reduce((result, interval) => {
+            const last = result[result.length - 1];
+            if (!last || interval[0] > last[1]) {
+              result.push([...interval]);
+            } else {
+              last[1] = Math.max(last[1], interval[1]);
+            }
+            return result;
+          }, []);
+        const intervalMs = merged.reduce((sum, interval) => sum + Math.max(0, interval[1] - interval[0]), 0);
+        const actualMs = intervalMs + Number(day.extraMs || 0);
+        const standardMs = 8 * 60 * 60 * 1000;
+        return {
+          dateKey,
+          actualMs,
+          countedMs: Math.min(actualMs, standardMs),
+          standardMs,
+          percent: Math.min(100, Math.round((actualMs / standardMs) * 100)),
+          jobCount: day.orderIds.size,
+          workers: [...day.workers].sort((a, b) => a.localeCompare(b, "ko-KR"))
+        };
+      });
+      const actualMs = days.reduce((sum, day) => sum + day.actualMs, 0);
+      const countedMs = days.reduce((sum, day) => sum + day.countedMs, 0);
+      const plannedMs = days.length * 8 * 60 * 60 * 1000;
+      return {
+        name,
+        monthKey,
+        days,
+        actualMs,
+        countedMs,
+        plannedMs,
+        activeDayCount: days.filter((day) => day.actualMs > 0).length,
+        jobCount: days.reduce((sum, day) => sum + day.jobCount, 0),
+        percent: plannedMs > 0 ? Math.min(100, Math.round((countedMs / plannedMs) * 100)) : 0
+      };
+    })
+    .filter((item) => item.days.some((day) => day.actualMs > 0 || day.jobCount > 0))
+    .sort((a, b) => a.name.localeCompare(b.name, "ko-KR"));
+}
+
+function renderEquipmentReportTable(report, options = {}) {
+  const rows = report.days
+    .map((day) => `
+      <tr class="${day.actualMs > 0 ? "has-operation" : ""}">
+        <td>${escapeHtml(formatDate(day.dateKey))}</td>
+        <td>${escapeHtml(getKoreanWeekday(day.dateKey))}</td>
+        <td>08:00:00</td>
+        <td>${formatElapsedMs(day.actualMs)}</td>
+        <td><strong>${day.percent}%</strong></td>
+        <td>${day.jobCount.toLocaleString()}건</td>
+        <td>${escapeHtml(day.workers.join(", ") || "-")}</td>
+      </tr>
+    `)
+    .join("");
+
+  return `
+    <section class="equipment-report-sheet${options.print ? " is-print" : ""}">
+      <div class="equipment-report-title-row">
+        <div>
+          <span>${escapeHtml(getEquipmentReportMonthLabel(report.monthKey))}</span>
+          <h5>${escapeHtml(report.name)} 가동률 보고서</h5>
+        </div>
+        <strong class="equipment-report-rate">${report.percent}%</strong>
+      </div>
+      <div class="equipment-report-summary">
+        <span><em>월 기준시간</em><strong>${formatElapsedMs(report.plannedMs)}</strong></span>
+        <span><em>실제 가동시간</em><strong>${formatElapsedMs(report.actualMs)}</strong></span>
+        <span><em>가동일</em><strong>${report.activeDayCount} / ${report.days.length}일</strong></span>
+        <span><em>월 가동률</em><strong>${report.percent}%</strong></span>
+      </div>
+      <div class="equipment-report-table-wrap">
+        <table class="equipment-report-table">
+          <thead><tr><th>날짜</th><th>요일</th><th>기준시간</th><th>실제 가동시간</th><th>가동률</th><th>작업건수</th><th>작업자</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+      <p class="equipment-report-note">가동률은 주말 및 공휴일을 제외하고 근무일 하루 8시간을 기준으로 산정하며, 하루 및 월 표시값은 최대 100%로 제한합니다.</p>
+    </section>
+  `;
+}
+
+function renderEquipmentMonthlyReport() {
+  if (!equipmentReportContent || !equipmentReportMachineSelect) return;
+  const reports = buildEquipmentDailyReport();
+  if (!reports.length) {
+    equipmentReportMachineSelect.innerHTML = `<option value="">장비 데이터 없음</option>`;
+    equipmentReportMachineSelect.disabled = true;
+    if (equipmentReportPrintBtn) equipmentReportPrintBtn.disabled = true;
+    equipmentReportContent.innerHTML = `<div class="empty-state">선택한 월의 장비 가동 데이터가 없습니다.</div>`;
+    return;
+  }
+
+  equipmentReportMachineSelect.disabled = false;
+  if (equipmentReportPrintBtn) equipmentReportPrintBtn.disabled = false;
+  if (!reports.some((item) => item.name === adminEquipmentReportMachine)) {
+    adminEquipmentReportMachine = reports[0].name;
+  }
+  equipmentReportMachineSelect.innerHTML = reports
+    .map((item) => `<option value="${escapeHtml(item.name)}"${item.name === adminEquipmentReportMachine ? " selected" : ""}>${escapeHtml(item.name)}</option>`)
+    .join("");
+  const selected = reports.find((item) => item.name === adminEquipmentReportMachine) || reports[0];
+  equipmentReportContent.innerHTML = renderEquipmentReportTable(selected);
+}
+
+function printEquipmentMonthlyReport() {
+  const report = buildEquipmentDailyReport().find((item) => item.name === adminEquipmentReportMachine);
+  if (!report) {
+    showAppAlert("출력할 장비 가동률 데이터가 없습니다.");
+    return;
+  }
+
+  const printWindow = window.open("", "_blank", "width=1200,height=900");
+  if (!printWindow) {
+    showAppAlert("인쇄창을 열 수 없습니다. 팝업 차단을 해제한 뒤 다시 시도해 주세요.");
+    return;
+  }
+
+  printWindow.document.open();
+  printWindow.document.write(`<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>${escapeHtml(report.name)} 가동률 보고서</title>
+    <style>
+      @page{size:A4 landscape;margin:10mm}*{box-sizing:border-box}body{margin:0;color:#14233b;font-family:"Malgun Gothic",sans-serif}h1,h2,h3,h4,h5,p{margin:0}.print-header{display:flex;justify-content:space-between;align-items:end;border-bottom:2px solid #0f766e;padding-bottom:8px;margin-bottom:10px}.print-header h1{font-size:22px}.print-header p{font-size:11px;color:#60708a}.equipment-report-title-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}.equipment-report-title-row span{font-size:11px;color:#60708a}.equipment-report-title-row h5{font-size:19px}.equipment-report-rate{font-size:24px;color:#0f766e}.equipment-report-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:8px}.equipment-report-summary span{border:1px solid #cbd8e8;background:#edf5ff;padding:6px 8px}.equipment-report-summary em{display:block;color:#60708a;font-size:9px;font-style:normal}.equipment-report-summary strong{font-size:13px}.equipment-report-table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:9.5px}.equipment-report-table th,.equipment-report-table td{border:1px solid #b8c7d9;padding:4px 6px;text-align:center}.equipment-report-table th{background:#dceafb}.equipment-report-table th:last-child,.equipment-report-table td:last-child{text-align:left}.equipment-report-table tr.has-operation td{background:#f2fbf8}.equipment-report-note{margin-top:6px;font-size:9px;color:#60708a}.print-footer{display:flex;justify-content:space-between;margin-top:8px;padding-top:6px;border-top:1px solid #b8c7d9;font-size:9px;color:#60708a}
+    </style></head><body><header class="print-header"><div><h1>월간 장비 가동률 보고서</h1><p>근무일 하루 8시간 기준 장비 운영 현황</p></div><strong>진흥무역(주)</strong></header>${renderEquipmentReportTable(report, { print: true })}<footer class="print-footer"><span>생산일정 관리 시스템 출력</span><span>출력일시 ${escapeHtml(formatDateTime(new Date().toISOString()))}</span></footer><script>window.addEventListener("load",()=>setTimeout(()=>{window.focus();window.print()},200));<\/script></body></html>`);
+  printWindow.document.close();
 }
 
 function getEquipmentUtilTone(percent) {
@@ -10552,6 +10842,7 @@ function renderEquipmentList() {
   const rows = buildEquipmentSummary();
   if (!rows.length) {
     equipmentList.innerHTML = `<div class="empty-state">작업자 입력 기반 장비 가동 데이터가 없습니다.</div>`;
+    renderEquipmentMonthlyReport();
     return;
   }
 
@@ -10584,6 +10875,7 @@ function renderEquipmentList() {
       </details>
     `)
     .join("")}</div>`;
+  renderEquipmentMonthlyReport();
 }
 
 function renderMoldList() {

@@ -619,6 +619,23 @@
                   <p>&#51089;&#50629;&#51088; &#51077;&#47141; &#45936;&#51060;&#53552; &#44592;&#51456; &#51665;&#44228;</p>
                 </div>
                 <div id="equipmentList" class="progress-board"></div>
+                <section class="equipment-report" id="equipmentReport">
+                  <div class="equipment-report-head">
+                    <div>
+                      <p class="panel-kicker">Monthly Equipment Report</p>
+                      <h4>월간 장비 가동률 보고서</h4>
+                      <p>근무일 하루 8시간 기준 · 주말 및 공휴일 제외</p>
+                    </div>
+                    <div class="equipment-report-actions">
+                      <label>
+                        장비 선택
+                        <select id="equipmentReportMachineSelect"></select>
+                      </label>
+                      <button type="button" class="primary-btn" id="equipmentReportPrintBtn">출력 / PDF 저장</button>
+                    </div>
+                  </div>
+                  <div id="equipmentReportContent"></div>
+                </section>
               </section>
 
               <section class="admin-block" data-admin-panel="mold">
