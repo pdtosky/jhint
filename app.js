@@ -61,6 +61,13 @@ const HOLIDAY_POLL_INTERVAL_MS = Number(
 const BACKEND_MODE = APP_CONFIG.backend || "api";
 const CODEX_RELEASE_NOTES = [
   {
+    version: "2026-08-07-04",
+    timestamp: "2026-08-07T18:10:00+09:00",
+    title: "장비 가동률 엑셀 손상 오류 수정",
+    summary: "엑셀 내부 XML 요소 순서와 문서 속성 구성을 Microsoft Excel 표준에 맞게 교정해 내려받은 XLSX 파일이 손상 경고 없이 열리도록 수정했습니다.",
+    files: ["index.html", "app.js", "xlsx-export.js", "sw.js", "tests/equipment-excel-export.test.js", "tests/admin-equipment-monthly-report.test.js", "tests/global-auth-login-log.test.js", "tests/global-auth-rollout-ready.test.js", "tests/global-auth-remember-login.test.js", "tests/sop-copy.test.js", "tests/sop-new-document.test.js", "tests/worker-account-session.test.js"]
+  },
+  {
     version: "2026-08-07-03",
     timestamp: "2026-08-07T17:20:00+09:00",
     title: "월간 전체 장비 가동률 엑셀 출력 추가",
