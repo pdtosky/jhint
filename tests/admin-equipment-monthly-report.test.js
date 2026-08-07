@@ -9,6 +9,7 @@ const styleCss = fs.readFileSync(path.join(root, "style.css"), "utf8");
 const swJs = fs.readFileSync(path.join(root, "sw.js"), "utf8");
 
 assert(!indexHtml.includes('id="equipmentReportMachineSelect"'), "equipment report should not require selecting each machine");
+assert(indexHtml.includes('id="equipmentReportExcelBtn"'), "equipment report should provide an Excel download");
 assert(indexHtml.includes('id="equipmentReportPrintBtn"'), "equipment report should provide print/PDF output");
 assert(indexHtml.includes('id="equipmentReportContent"'), "equipment report should have a dedicated document area");
 
@@ -21,6 +22,8 @@ assert(appJs.includes("Math.min(100"), "daily and monthly utilization should be 
 assert(appJs.includes("function getEquipmentReportWorkdayKeys"), "current-month reports should exclude future workdays");
 assert(appJs.includes("getAdminWorkingDayKeys(monthKey)"), "monthly report should reuse weekend and holiday exclusions");
 assert(appJs.includes("function renderEquipmentReportMatrix"), "selected month should render all machines in one matrix");
+assert(appJs.includes("function exportEquipmentMonthlyReportExcel"), "selected month should export all machines to Excel");
+assert(appJs.includes("진흥무역_장비가동률_${monthKey}.xlsx"), "Excel filename should include the selected month");
 assert(appJs.includes("<tfoot><tr><th>월 가동률</th>"), "matrix should include a monthly utilization row");
 assert(appJs.includes("matrix-grand-total"), "matrix should include an overall utilization total");
 assert(appJs.includes("totalCountedMs, totalPlannedMs"), "overall utilization should use summed time rather than averaging percentages");
@@ -32,6 +35,7 @@ assert(styleCss.includes(".equipment-matrix-table"), "all-machine matrix should 
 assert(styleCss.includes("position: sticky"), "date column should remain visible while scrolling across machines");
 assert(styleCss.includes(".equipment-report-summary"), "equipment report should show monthly summary metrics");
 assert(styleCss.includes("overflow-x: auto"), "the report table should stay usable on narrow screens");
-assert(swJs.includes("v20260807-02"), "service worker cache should refresh for the equipment report release");
+assert(swJs.includes("v20260807-03"), "service worker cache should refresh for the equipment report release");
+assert(swJs.includes('/xlsx-export.js'), "service worker should cache the Excel workbook generator");
 
 console.log("admin equipment monthly report test passed");

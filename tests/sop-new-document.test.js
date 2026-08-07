@@ -25,7 +25,7 @@ assert(
   "Codex release notes should include the SOP overwrite fix."
 );
 assert(
-  swJs.includes("jhint-production-app-v20260807-02"),
+  swJs.includes("jhint-production-app-v20260807-03"),
   "Service worker cache should be bumped for the latest update."
 );
 

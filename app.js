@@ -61,6 +61,13 @@ const HOLIDAY_POLL_INTERVAL_MS = Number(
 const BACKEND_MODE = APP_CONFIG.backend || "api";
 const CODEX_RELEASE_NOTES = [
   {
+    version: "2026-08-07-03",
+    timestamp: "2026-08-07T17:20:00+09:00",
+    title: "월간 전체 장비 가동률 엑셀 출력 추가",
+    summary: "선택한 월의 전체 장비 가동률표를 날짜별 현황, 장비별 월 합계, 전체 합계가 포함된 실제 XLSX 파일로 내려받을 수 있도록 추가했습니다.",
+    files: ["index.html", "app.js", "xlsx-export.js", "sw.js", "package.json", "tests/admin-equipment-monthly-report.test.js", "tests/equipment-excel-export.test.js", "tests/global-auth-login-log.test.js", "tests/global-auth-rollout-ready.test.js", "tests/global-auth-remember-login.test.js", "tests/sop-copy.test.js", "tests/sop-new-document.test.js", "tests/worker-account-session.test.js"]
+  },
+  {
     version: "2026-08-07-02",
     timestamp: "2026-08-07T16:30:00+09:00",
     title: "전체 장비 월간 가동률표 개편",
@@ -538,6 +545,7 @@ const adminRefreshUsersBtn = document.getElementById("adminRefreshUsersBtn");
 const adminAccountStatus = document.getElementById("adminAccountStatus");
 const adminAccountList = document.getElementById("adminAccountList");
 const equipmentList = document.getElementById("equipmentList");
+const equipmentReportExcelBtn = document.getElementById("equipmentReportExcelBtn");
 const equipmentReportPrintBtn = document.getElementById("equipmentReportPrintBtn");
 const equipmentReportContent = document.getElementById("equipmentReportContent");
 const moldList = document.getElementById("moldList");
@@ -675,6 +683,10 @@ function bindEvents() {
 
   if (equipmentReportPrintBtn) {
     equipmentReportPrintBtn.addEventListener("click", printEquipmentMonthlyReport);
+  }
+
+  if (equipmentReportExcelBtn) {
+    equipmentReportExcelBtn.addEventListener("click", exportEquipmentMonthlyReportExcel);
   }
 
   if (adminJournalDateInput) {
@@ -10626,13 +10638,98 @@ function renderEquipmentMonthlyReport() {
   const reports = buildEquipmentDailyReport();
   const hasWorkdays = reports.some((report) => report.days.length > 0);
   if (!reports.length || !hasWorkdays) {
+    if (equipmentReportExcelBtn) equipmentReportExcelBtn.disabled = true;
     if (equipmentReportPrintBtn) equipmentReportPrintBtn.disabled = true;
     equipmentReportContent.innerHTML = `<div class="empty-state">선택한 월의 장비 가동 데이터가 없습니다.</div>`;
     return;
   }
 
+  if (equipmentReportExcelBtn) equipmentReportExcelBtn.disabled = false;
   if (equipmentReportPrintBtn) equipmentReportPrintBtn.disabled = false;
   equipmentReportContent.innerHTML = renderEquipmentReportMatrix(reports);
+}
+
+function getEquipmentExcelRateStyle(percent) {
+  if (percent >= 80) return "percentHigh";
+  if (percent >= 50) return "percentMedium";
+  if (percent > 0) return "percentLow";
+  return "percentZero";
+}
+
+function exportEquipmentMonthlyReportExcel() {
+  const reports = buildEquipmentDailyReport();
+  const workdayKeys = reports[0]?.days.map((day) => day.dateKey) || [];
+  if (!reports.length || !workdayKeys.length) {
+    showAppAlert("엑셀로 저장할 장비 가동률 데이터가 없습니다.");
+    return;
+  }
+  if (!window.JhintXlsx?.createWorkbookBlob) {
+    showAppAlert("엑셀 생성 기능을 불러오지 못했습니다. 새로고침 후 다시 시도해 주세요.");
+    return;
+  }
+
+  const monthKey = reports[0].monthKey || getEquipmentReportMonthKey();
+  const dailyMaps = new Map(reports.map((report) => [report.name, new Map(report.days.map((day) => [day.dateKey, day]))]));
+  const totalActualMs = reports.reduce((sum, report) => sum + report.actualMs, 0);
+  const totalCountedMs = reports.reduce((sum, report) => sum + report.countedMs, 0);
+  const totalPlannedMs = reports.reduce((sum, report) => sum + report.plannedMs, 0);
+  const machineLastColumn = window.JhintXlsx.columnName(reports.length + 1);
+  const firstDataRow = 5;
+  const lastDataRow = firstDataRow + workdayKeys.length - 1;
+  const footerRow = lastDataRow + 1;
+  const rows = workdayKeys.map((dateKey, dayIndex) => {
+    const rowNumber = firstDataRow + dayIndex;
+    let dayCountedMs = 0;
+    const machineCells = reports.map((report) => {
+      const day = dailyMaps.get(report.name)?.get(dateKey) || { countedMs: 0, standardMs: 8 * 60 * 60 * 1000 };
+      const rate = getEquipmentRatePercent(day.countedMs, day.standardMs);
+      dayCountedMs += day.countedMs;
+      return { value: rate / 100, type: "number", style: getEquipmentExcelRateStyle(rate) };
+    });
+    const dayRate = getEquipmentRatePercent(dayCountedMs, reports.length * 8 * 60 * 60 * 1000);
+    return [
+      { value: `${formatDate(dateKey)} ${getKoreanWeekday(dateKey)}`, style: "text" },
+      ...machineCells,
+      {
+        value: dayRate / 100,
+        type: "number",
+        style: getEquipmentExcelRateStyle(dayRate),
+        formula: `AVERAGE(B${rowNumber}:${machineLastColumn}${rowNumber})`
+      }
+    ];
+  });
+  const footer = [
+    { value: "월 가동률", style: "footerText" },
+    ...reports.map((report, index) => ({
+      value: report.percent / 100,
+      type: "number",
+      style: "footerPercent",
+      formula: `AVERAGE(${window.JhintXlsx.columnName(index + 2)}${firstDataRow}:${window.JhintXlsx.columnName(index + 2)}${lastDataRow})`
+    })),
+    {
+      value: getEquipmentRatePercent(totalCountedMs, totalPlannedMs) / 100,
+      type: "number",
+      style: "footerPercent",
+      formula: `AVERAGE(B${footerRow}:${machineLastColumn}${footerRow})`
+    }
+  ];
+  const blob = window.JhintXlsx.createWorkbookBlob({
+    sheetName: `${Number(monthKey.split("-")[1])}월 장비가동률`,
+    title: `${getEquipmentReportMonthLabel(monthKey)} 전체 장비 가동률 현황표`,
+    subtitle: `근무일 하루 8시간 기준 · 주말/공휴일 제외 · 장비 ${reports.length}대 · 실제 가동 ${formatElapsedMs(totalActualMs)} · 전체 ${formatEquipmentRatePercent(getEquipmentRatePercent(totalCountedMs, totalPlannedMs))}`,
+    headers: ["일자", ...reports.map((report) => report.name), "전체"],
+    rows,
+    footer,
+    columnWidths: [18, ...reports.map((report) => Math.min(22, Math.max(11, String(report.name).length * 1.8))), 12]
+  });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = `진흥무역_장비가동률_${monthKey}.xlsx`;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1500);
 }
 
 function printEquipmentMonthlyReport() {
