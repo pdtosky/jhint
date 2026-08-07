@@ -5711,6 +5711,99 @@ html {
   color: #8492a7;
 }
 
+.equipment-matrix-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scrollbar-gutter: stable;
+}
+
+.equipment-matrix-table {
+  width: max-content;
+  min-width: 100%;
+  table-layout: auto;
+}
+
+.equipment-matrix-table th,
+.equipment-matrix-table td,
+.equipment-matrix-table th:last-child,
+.equipment-matrix-table td:last-child {
+  min-width: 84px;
+  padding: 8px 9px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.equipment-matrix-table thead th:first-child,
+.equipment-matrix-table tbody th,
+.equipment-matrix-table tfoot th {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  min-width: 112px;
+  border-right: 2px solid #abc0d7;
+  background: #edf4fc;
+}
+
+.equipment-matrix-table thead th:first-child {
+  z-index: 3;
+  background: #b9d0e8;
+}
+
+.equipment-matrix-table tbody th strong,
+.equipment-matrix-table tbody th small {
+  display: block;
+}
+
+.equipment-matrix-table tbody th small {
+  margin-top: 2px;
+  color: #6f8199;
+  font-size: 0.66rem;
+}
+
+.equipment-matrix-table tfoot th,
+.equipment-matrix-table tfoot td {
+  border-bottom: 0;
+  background: #fff4a8;
+  color: #172943;
+  font-weight: 900;
+}
+
+.equipment-matrix-table .rate-high {
+  background: #dff4ec;
+  color: #07695e;
+  font-weight: 900;
+}
+
+.equipment-matrix-table .rate-medium {
+  background: #fff2c9;
+  color: #805708;
+  font-weight: 900;
+}
+
+.equipment-matrix-table .rate-low {
+  background: #ffe3df;
+  color: #b6312c;
+  font-weight: 900;
+}
+
+.equipment-matrix-table .rate-zero {
+  background: #f6f8fb;
+  color: #9aa7b8;
+}
+
+.equipment-matrix-table .matrix-total {
+  border-left: 2px solid #abc0d7;
+  font-weight: 900;
+}
+
+.equipment-matrix-table .matrix-grand-total {
+  border-left: 2px solid #d0ae23;
+  background: #ffd84d;
+  color: #172943;
+  font-weight: 900;
+}
+
 .equipment-report-note {
   margin: 9px 0 0;
   color: var(--muted);
@@ -5964,6 +6057,21 @@ html {
 
   .equipment-report-summary {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .equipment-matrix-table th,
+  .equipment-matrix-table td,
+  .equipment-matrix-table th:last-child,
+  .equipment-matrix-table td:last-child {
+    min-width: 76px;
+    padding: 7px 8px;
+    font-size: 0.74rem;
+  }
+
+  .equipment-matrix-table thead th:first-child,
+  .equipment-matrix-table tbody th,
+  .equipment-matrix-table tfoot th {
+    min-width: 96px;
   }
 }
 

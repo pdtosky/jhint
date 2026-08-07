@@ -8,7 +8,7 @@ const appJs = fs.readFileSync(path.join(root, "app.js"), "utf8");
 const styleCss = fs.readFileSync(path.join(root, "style.css"), "utf8");
 const swJs = fs.readFileSync(path.join(root, "sw.js"), "utf8");
 
-assert(indexHtml.includes('id="equipmentReportMachineSelect"'), "equipment report should allow selecting one machine");
+assert(!indexHtml.includes('id="equipmentReportMachineSelect"'), "equipment report should not require selecting each machine");
 assert(indexHtml.includes('id="equipmentReportPrintBtn"'), "equipment report should provide print/PDF output");
 assert(indexHtml.includes('id="equipmentReportContent"'), "equipment report should have a dedicated document area");
 
@@ -20,12 +20,18 @@ assert(appJs.includes("8 * 60 * 60 * 1000"), "daily utilization should use an ei
 assert(appJs.includes("Math.min(100"), "daily and monthly utilization should be capped at 100 percent");
 assert(appJs.includes("function getEquipmentReportWorkdayKeys"), "current-month reports should exclude future workdays");
 assert(appJs.includes("getAdminWorkingDayKeys(monthKey)"), "monthly report should reuse weekend and holiday exclusions");
+assert(appJs.includes("function renderEquipmentReportMatrix"), "selected month should render all machines in one matrix");
+assert(appJs.includes("<tfoot><tr><th>월 가동률</th>"), "matrix should include a monthly utilization row");
+assert(appJs.includes("matrix-grand-total"), "matrix should include an overall utilization total");
+assert(appJs.includes("totalCountedMs, totalPlannedMs"), "overall utilization should use summed time rather than averaging percentages");
 assert(appJs.includes("function printEquipmentMonthlyReport"), "monthly report should support printing");
 assert(appJs.includes("A4 landscape"), "printed report should use an A4 landscape document");
 
 assert(styleCss.includes(".equipment-report-table"), "equipment report should use an aligned table");
+assert(styleCss.includes(".equipment-matrix-table"), "all-machine matrix should have dedicated compact styles");
+assert(styleCss.includes("position: sticky"), "date column should remain visible while scrolling across machines");
 assert(styleCss.includes(".equipment-report-summary"), "equipment report should show monthly summary metrics");
 assert(styleCss.includes("overflow-x: auto"), "the report table should stay usable on narrow screens");
-assert(swJs.includes("v20260807-01"), "service worker cache should refresh for the equipment report release");
+assert(swJs.includes("v20260807-02"), "service worker cache should refresh for the equipment report release");
 
 console.log("admin equipment monthly report test passed");

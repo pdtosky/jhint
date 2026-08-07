@@ -61,6 +61,13 @@ const HOLIDAY_POLL_INTERVAL_MS = Number(
 const BACKEND_MODE = APP_CONFIG.backend || "api";
 const CODEX_RELEASE_NOTES = [
   {
+    version: "2026-08-07-02",
+    timestamp: "2026-08-07T16:30:00+09:00",
+    title: "전체 장비 월간 가동률표 개편",
+    summary: "장비를 하나씩 선택하던 방식을 없애고 조회 월의 모든 장비를 한 표에서 일자별 가동률과 월 합계로 비교하고 출력할 수 있도록 개편했습니다.",
+    files: ["index.html", "app.js", "style.css", "sw.js", "tests/admin-equipment-monthly-report.test.js", "tests/global-auth-login-log.test.js", "tests/global-auth-rollout-ready.test.js", "tests/global-auth-remember-login.test.js", "tests/sop-copy.test.js", "tests/sop-new-document.test.js", "tests/worker-account-session.test.js"]
+  },
+  {
     version: "2026-08-07-01",
     timestamp: "2026-08-07T12:00:00+09:00",
     title: "월간 장비 가동률 문서화",
@@ -399,7 +406,6 @@ let isDashboardListOpen = false;
 let isDashboardProgressOpen = false;
 let calendarCursor = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 let adminMonthFilter = "all";
-let adminEquipmentReportMachine = "";
 let adminJournalDateFilter = "";
 let adminActiveSection = "accounts";
 let adminSearchKeyword = "";
@@ -532,7 +538,6 @@ const adminRefreshUsersBtn = document.getElementById("adminRefreshUsersBtn");
 const adminAccountStatus = document.getElementById("adminAccountStatus");
 const adminAccountList = document.getElementById("adminAccountList");
 const equipmentList = document.getElementById("equipmentList");
-const equipmentReportMachineSelect = document.getElementById("equipmentReportMachineSelect");
 const equipmentReportPrintBtn = document.getElementById("equipmentReportPrintBtn");
 const equipmentReportContent = document.getElementById("equipmentReportContent");
 const moldList = document.getElementById("moldList");
@@ -665,13 +670,6 @@ function bindEvents() {
       adminMonthFilter = "all";
       adminJournalDateFilter = "";
       renderAdminPage();
-    });
-  }
-
-  if (equipmentReportMachineSelect) {
-    equipmentReportMachineSelect.addEventListener("change", () => {
-      adminEquipmentReportMachine = equipmentReportMachineSelect.value || "";
-      renderEquipmentMonthlyReport();
     });
   }
 
@@ -10438,6 +10436,12 @@ function buildEquipmentDailyReport(monthKey = getEquipmentReportMonthKey()) {
     return dayMap.get(dateKey);
   };
 
+  // Keep every previously used machine visible so a zero-operation month is still auditable.
+  (state.orders || []).forEach((order) => {
+    const machineName = String(order.machineName || "").trim();
+    if (machineName && !equipmentMap.has(machineName)) equipmentMap.set(machineName, new Map());
+  });
+
   const addInterval = (machineName, orderId, workerName, startMs, endMs) => {
     if (endMs <= startMs) return;
     coveredOrderIds.add(String(orderId || ""));
@@ -10549,77 +10553,91 @@ function buildEquipmentDailyReport(monthKey = getEquipmentReportMonthKey()) {
         percent: plannedMs > 0 ? Math.min(100, Math.round((countedMs / plannedMs) * 100)) : 0
       };
     })
-    .filter((item) => item.days.some((day) => day.actualMs > 0 || day.jobCount > 0))
-    .sort((a, b) => a.name.localeCompare(b.name, "ko-KR"));
+    .sort((a, b) => a.name.localeCompare(b.name, "ko-KR", { numeric: true }));
 }
 
-function renderEquipmentReportTable(report, options = {}) {
-  const rows = report.days
-    .map((day) => `
-      <tr class="${day.actualMs > 0 ? "has-operation" : ""}">
-        <td>${escapeHtml(formatDate(day.dateKey))}</td>
-        <td>${escapeHtml(getKoreanWeekday(day.dateKey))}</td>
-        <td>08:00:00</td>
-        <td>${formatElapsedMs(day.actualMs)}</td>
-        <td><strong>${day.percent}%</strong></td>
-        <td>${day.jobCount.toLocaleString()}건</td>
-        <td>${escapeHtml(day.workers.join(", ") || "-")}</td>
-      </tr>
-    `)
-    .join("");
+function getEquipmentRatePercent(actualMs, plannedMs) {
+  return plannedMs > 0 ? Math.min(100, (Math.max(0, actualMs) / plannedMs) * 100) : 0;
+}
+
+function formatEquipmentRatePercent(percent) {
+  return `${Number(percent || 0).toFixed(1)}%`;
+}
+
+function getEquipmentMatrixRateClass(percent) {
+  if (percent >= 80) return "rate-high";
+  if (percent >= 50) return "rate-medium";
+  if (percent > 0) return "rate-low";
+  return "rate-zero";
+}
+
+function renderEquipmentReportMatrix(reports, options = {}) {
+  const monthKey = reports[0]?.monthKey || getEquipmentReportMonthKey();
+  const workdayKeys = reports[0]?.days.map((day) => day.dateKey) || [];
+  const dailyMaps = new Map(reports.map((report) => [report.name, new Map(report.days.map((day) => [day.dateKey, day]))]));
+  const totalActualMs = reports.reduce((sum, report) => sum + report.actualMs, 0);
+  const totalCountedMs = reports.reduce((sum, report) => sum + report.countedMs, 0);
+  const totalPlannedMs = reports.reduce((sum, report) => sum + report.plannedMs, 0);
+  const totalRate = getEquipmentRatePercent(totalCountedMs, totalPlannedMs);
+  const headerCells = reports.map((report) => `<th>${escapeHtml(report.name)}</th>`).join("");
+  const bodyRows = workdayKeys.map((dateKey) => {
+    let dayCountedMs = 0;
+    const machineCells = reports.map((report) => {
+      const day = dailyMaps.get(report.name)?.get(dateKey) || { actualMs: 0, countedMs: 0, standardMs: 8 * 60 * 60 * 1000 };
+      dayCountedMs += day.countedMs;
+      const rate = getEquipmentRatePercent(day.countedMs, day.standardMs);
+      return `<td class="${getEquipmentMatrixRateClass(rate)}" title="실제 가동 ${escapeHtml(formatElapsedMs(day.actualMs))} / 기준 08:00:00">${formatEquipmentRatePercent(rate)}</td>`;
+    }).join("");
+    const dayPlannedMs = reports.length * 8 * 60 * 60 * 1000;
+    const dayRate = getEquipmentRatePercent(dayCountedMs, dayPlannedMs);
+    return `<tr><th><strong>${escapeHtml(formatDate(dateKey))}</strong><small>${escapeHtml(getKoreanWeekday(dateKey))}</small></th>${machineCells}<td class="matrix-total ${getEquipmentMatrixRateClass(dayRate)}">${formatEquipmentRatePercent(dayRate)}</td></tr>`;
+  }).join("");
+  const monthlyCells = reports.map((report) => `<td class="matrix-month-rate ${getEquipmentMatrixRateClass(report.percent)}">${formatEquipmentRatePercent(report.percent)}</td>`).join("");
 
   return `
-    <section class="equipment-report-sheet${options.print ? " is-print" : ""}">
+    <section class="equipment-report-sheet equipment-report-matrix-sheet${options.print ? " is-print" : ""}">
       <div class="equipment-report-title-row">
         <div>
-          <span>${escapeHtml(getEquipmentReportMonthLabel(report.monthKey))}</span>
-          <h5>${escapeHtml(report.name)} 가동률 보고서</h5>
+          <span>${escapeHtml(getEquipmentReportMonthLabel(monthKey))}</span>
+          <h5>전체 장비 가동률 현황표</h5>
         </div>
-        <strong class="equipment-report-rate">${report.percent}%</strong>
+        <strong class="equipment-report-rate">${formatEquipmentRatePercent(totalRate)}</strong>
       </div>
       <div class="equipment-report-summary">
-        <span><em>월 기준시간</em><strong>${formatElapsedMs(report.plannedMs)}</strong></span>
-        <span><em>실제 가동시간</em><strong>${formatElapsedMs(report.actualMs)}</strong></span>
-        <span><em>가동일</em><strong>${report.activeDayCount} / ${report.days.length}일</strong></span>
-        <span><em>월 가동률</em><strong>${report.percent}%</strong></span>
+        <span><em>대상 장비</em><strong>${reports.length}대</strong></span>
+        <span><em>근무일</em><strong>${workdayKeys.length}일</strong></span>
+        <span><em>전체 기준시간</em><strong>${formatElapsedMs(totalPlannedMs)}</strong></span>
+        <span><em>실제 가동시간</em><strong>${formatElapsedMs(totalActualMs)}</strong></span>
       </div>
-      <div class="equipment-report-table-wrap">
-        <table class="equipment-report-table">
-          <thead><tr><th>날짜</th><th>요일</th><th>기준시간</th><th>실제 가동시간</th><th>가동률</th><th>작업건수</th><th>작업자</th></tr></thead>
-          <tbody>${rows}</tbody>
+      <div class="equipment-report-table-wrap equipment-matrix-wrap">
+        <table class="equipment-report-table equipment-matrix-table">
+          <thead><tr><th>일자</th>${headerCells}<th>전체</th></tr></thead>
+          <tbody>${bodyRows}</tbody>
+          <tfoot><tr><th>월 가동률</th>${monthlyCells}<td class="matrix-grand-total">${formatEquipmentRatePercent(totalRate)}</td></tr></tfoot>
         </table>
       </div>
-      <p class="equipment-report-note">가동률은 주말 및 공휴일을 제외하고 근무일 하루 8시간을 기준으로 산정하며, 하루 및 월 표시값은 최대 100%로 제한합니다.</p>
+      <p class="equipment-report-note">각 일자의 장비별 가동률은 근무일 하루 8시간 기준입니다. 주말과 공휴일은 제외하며 모든 표시값은 최대 100%로 제한합니다.</p>
     </section>
   `;
 }
 
 function renderEquipmentMonthlyReport() {
-  if (!equipmentReportContent || !equipmentReportMachineSelect) return;
+  if (!equipmentReportContent) return;
   const reports = buildEquipmentDailyReport();
-  if (!reports.length) {
-    equipmentReportMachineSelect.innerHTML = `<option value="">장비 데이터 없음</option>`;
-    equipmentReportMachineSelect.disabled = true;
+  const hasWorkdays = reports.some((report) => report.days.length > 0);
+  if (!reports.length || !hasWorkdays) {
     if (equipmentReportPrintBtn) equipmentReportPrintBtn.disabled = true;
     equipmentReportContent.innerHTML = `<div class="empty-state">선택한 월의 장비 가동 데이터가 없습니다.</div>`;
     return;
   }
 
-  equipmentReportMachineSelect.disabled = false;
   if (equipmentReportPrintBtn) equipmentReportPrintBtn.disabled = false;
-  if (!reports.some((item) => item.name === adminEquipmentReportMachine)) {
-    adminEquipmentReportMachine = reports[0].name;
-  }
-  equipmentReportMachineSelect.innerHTML = reports
-    .map((item) => `<option value="${escapeHtml(item.name)}"${item.name === adminEquipmentReportMachine ? " selected" : ""}>${escapeHtml(item.name)}</option>`)
-    .join("");
-  const selected = reports.find((item) => item.name === adminEquipmentReportMachine) || reports[0];
-  equipmentReportContent.innerHTML = renderEquipmentReportTable(selected);
+  equipmentReportContent.innerHTML = renderEquipmentReportMatrix(reports);
 }
 
 function printEquipmentMonthlyReport() {
-  const report = buildEquipmentDailyReport().find((item) => item.name === adminEquipmentReportMachine);
-  if (!report) {
+  const reports = buildEquipmentDailyReport();
+  if (!reports.length || !reports.some((report) => report.days.length > 0)) {
     showAppAlert("출력할 장비 가동률 데이터가 없습니다.");
     return;
   }
@@ -10631,10 +10649,10 @@ function printEquipmentMonthlyReport() {
   }
 
   printWindow.document.open();
-  printWindow.document.write(`<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>${escapeHtml(report.name)} 가동률 보고서</title>
+  printWindow.document.write(`<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>${escapeHtml(getEquipmentReportMonthLabel(getEquipmentReportMonthKey()))} 전체 장비 가동률표</title>
     <style>
-      @page{size:A4 landscape;margin:10mm}*{box-sizing:border-box}body{margin:0;color:#14233b;font-family:"Malgun Gothic",sans-serif}h1,h2,h3,h4,h5,p{margin:0}.print-header{display:flex;justify-content:space-between;align-items:end;border-bottom:2px solid #0f766e;padding-bottom:8px;margin-bottom:10px}.print-header h1{font-size:22px}.print-header p{font-size:11px;color:#60708a}.equipment-report-title-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}.equipment-report-title-row span{font-size:11px;color:#60708a}.equipment-report-title-row h5{font-size:19px}.equipment-report-rate{font-size:24px;color:#0f766e}.equipment-report-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:8px}.equipment-report-summary span{border:1px solid #cbd8e8;background:#edf5ff;padding:6px 8px}.equipment-report-summary em{display:block;color:#60708a;font-size:9px;font-style:normal}.equipment-report-summary strong{font-size:13px}.equipment-report-table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:9.5px}.equipment-report-table th,.equipment-report-table td{border:1px solid #b8c7d9;padding:4px 6px;text-align:center}.equipment-report-table th{background:#dceafb}.equipment-report-table th:last-child,.equipment-report-table td:last-child{text-align:left}.equipment-report-table tr.has-operation td{background:#f2fbf8}.equipment-report-note{margin-top:6px;font-size:9px;color:#60708a}.print-footer{display:flex;justify-content:space-between;margin-top:8px;padding-top:6px;border-top:1px solid #b8c7d9;font-size:9px;color:#60708a}
-    </style></head><body><header class="print-header"><div><h1>월간 장비 가동률 보고서</h1><p>근무일 하루 8시간 기준 장비 운영 현황</p></div><strong>진흥무역(주)</strong></header>${renderEquipmentReportTable(report, { print: true })}<footer class="print-footer"><span>생산일정 관리 시스템 출력</span><span>출력일시 ${escapeHtml(formatDateTime(new Date().toISOString()))}</span></footer><script>window.addEventListener("load",()=>setTimeout(()=>{window.focus();window.print()},200));<\/script></body></html>`);
+      @page{size:A4 landscape;margin:8mm}*{box-sizing:border-box}body{margin:0;color:#14233b;font-family:"Malgun Gothic",sans-serif}h1,h2,h3,h4,h5,p{margin:0}.print-header{display:flex;justify-content:space-between;align-items:end;border-bottom:2px solid #0f766e;padding-bottom:6px;margin-bottom:7px}.print-header h1{font-size:20px}.print-header p{font-size:9px;color:#60708a}.equipment-report-title-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}.equipment-report-title-row span{font-size:9px;color:#60708a}.equipment-report-title-row h5{font-size:17px}.equipment-report-rate{font-size:20px;color:#0f766e}.equipment-report-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin-bottom:6px}.equipment-report-summary span{border:1px solid #cbd8e8;background:#edf5ff;padding:4px 6px}.equipment-report-summary em{display:block;color:#60708a;font-size:8px;font-style:normal}.equipment-report-summary strong{font-size:11px}.equipment-report-table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:7px}.equipment-report-table th,.equipment-report-table td{border:1px solid #8fa4bc;padding:2.5px 2px;text-align:center;white-space:normal;word-break:keep-all}.equipment-report-table thead th{background:#91b4d8;font-weight:800}.equipment-report-table tbody th{background:#eef4fb}.equipment-report-table tbody th small{display:block;font-size:6px;color:#60708a}.equipment-report-table tfoot th,.equipment-report-table tfoot td{background:#fff59d;font-weight:800}.rate-high{background:#d9f1e7}.rate-medium{background:#fff2c9}.rate-low{background:#ffe2dc}.rate-zero{color:#94a3b8}.matrix-total{font-weight:800}.matrix-grand-total{background:#ffd84d!important}.equipment-report-note{margin-top:4px;font-size:7px;color:#60708a}.print-footer{display:flex;justify-content:space-between;margin-top:5px;padding-top:4px;border-top:1px solid #b8c7d9;font-size:7px;color:#60708a}
+    </style></head><body><header class="print-header"><div><h1>전체 장비 월간 가동률 현황표</h1><p>근무일 하루 8시간 기준 장비 운영 현황</p></div><strong>진흥무역(주)</strong></header>${renderEquipmentReportMatrix(reports, { print: true })}<footer class="print-footer"><span>생산일정 관리 시스템 출력</span><span>출력일시 ${escapeHtml(formatDateTime(new Date().toISOString()))}</span></footer><script>window.addEventListener("load",()=>setTimeout(()=>{window.focus();window.print()},200));<\/script></body></html>`);
   printWindow.document.close();
 }
 
