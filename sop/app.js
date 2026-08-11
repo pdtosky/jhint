@@ -37,6 +37,7 @@ let adminSearchTerm = "";
 let adminWorkRecords = [];
 let workerSearchResults = [];
 let workerSearchTerm = "";
+let workerCatalogLoading = false;
 let pendingConfirm = null;
 let isAdminLoggedIn = Boolean(window.SOP_BRIDGE?.isAdminLoggedIn?.());
 const ADMIN_ID = "tape@jhint.net";
@@ -798,17 +799,34 @@ async function deleteAdminSop(id, name) {
 async function searchWorker() {
   const q = document.getElementById("workerSearch").value.trim();
   workerSearchTerm = q;
-  const res = await fetch(`/api/worker/sops?q=${encodeURIComponent(q)}`);
-  const data = await res.json();
-  workerSearchResults = data.sops || [];
+  await loadWorkerCatalog();
+}
+
+async function loadWorkerCatalog() {
+  workerCatalogLoading = true;
   renderWorkerSearchResults(workerSearchResults);
+  try {
+    const res = await fetch(`/api/worker/sops?q=${encodeURIComponent(workerSearchTerm)}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "작업표준서를 불러오지 못했습니다.");
+    workerSearchResults = data.sops || [];
+  } catch (error) {
+    workerSearchResults = [];
+    showToast(error.message || "작업표준서를 불러오지 못했습니다.", "error");
+  } finally {
+    workerCatalogLoading = false;
+    renderWorkerSearchResults(workerSearchResults);
+  }
 }
 
 function renderWorker(sops = [], { detail = false } = {}) {
   workerView.innerHTML = `<div class="panel"><h2>작업자 조회 전용 페이지</h2><p class="role">작업자 전용: 배포완료된 표준서만 조회할 수 있습니다.</p><input id="workerSearch" value="${escapeHtml(workerSearchTerm)}" placeholder="업체명, 제품명, 공정명, 관리번호로 검색"><div class="actions"><button id="workerSearchButton" class="primary">검색</button></div></div><div id="workerResults"></div>`;
   document.getElementById("workerSearchButton").addEventListener("click", searchWorker);
+  document.getElementById("workerSearch").addEventListener("keydown", (event) => {
+    if (event.key === "Enter") searchWorker();
+  });
   if (detail) {
-    document.getElementById("workerResults").innerHTML = `<div class="worker-result-toolbar"><strong>선택한 작업표준서</strong>${workerSearchTerm ? '<button type="button" data-action="back-worker-search">검색 결과로 돌아가기</button>' : ""}</div>${sops.length ? sops.map(renderWorkerSop).join("") : `<div class="panel">조회할 작업표준서가 없습니다.</div>`}`;
+    document.getElementById("workerResults").innerHTML = `<div class="worker-result-toolbar"><strong>선택한 작업표준서</strong><button type="button" data-action="back-worker-search">${workerSearchTerm ? "검색 결과로 돌아가기" : "전체 목록으로 돌아가기"}</button></div>${sops.length ? sops.map(renderWorkerSop).join("") : `<div class="panel">조회할 작업표준서가 없습니다.</div>`}`;
   } else {
     renderWorkerSearchResults(sops);
   }
@@ -817,13 +835,29 @@ function renderWorker(sops = [], { detail = false } = {}) {
 function renderWorkerSearchResults(sops = []) {
   const results = document.getElementById("workerResults");
   if (!results) return;
+  if (workerCatalogLoading) {
+    results.innerHTML = `<div class="panel worker-search-empty">배포된 작업표준서를 불러오는 중입니다.</div>`;
+    return;
+  }
   if (!workerSearchTerm) {
-    results.innerHTML = `<div class="panel worker-search-empty">업체명이나 제품명을 검색하면 관련 품목만 먼저 표시됩니다. 품목을 누르면 상세 작업표준서를 확인할 수 있습니다.</div>`;
+    results.innerHTML = sops.length
+      ? `<div class="worker-result-toolbar"><strong>작성된 작업표준서 ${sops.length}건</strong><span>제품명 카드를 누르면 상세 내용을 확인할 수 있습니다.</span></div><div class="worker-catalog-grid">${sops.map(renderWorkerCatalogCard).join("")}</div>`
+      : `<div class="panel worker-search-empty">배포 완료된 작업표준서가 없습니다.</div>`;
     return;
   }
   results.innerHTML = sops.length
     ? `<div class="worker-result-toolbar"><strong>관련 품목 ${sops.length}건</strong><span>확인할 품목을 선택해 주세요.</span></div>${sops.map(renderWorkerSearchCandidate).join("")}`
     : `<div class="panel worker-search-empty">검색 조건에 맞는 작업표준서가 없습니다.</div>`;
+}
+
+function renderWorkerCatalogCard(sop) {
+  const normalized = hydrateSop(sop);
+  return `<button type="button" class="worker-catalog-card" data-action="select-worker-sop" data-sop-id="${escapeHtml(normalized.id)}">
+    <span class="worker-catalog-vendor">${escapeHtml(normalized.basic.vendor || "업체명 미입력")}</span>
+    <strong class="worker-catalog-product">${escapeHtml(normalized.basic.product || "제품명 미입력")}</strong>
+    <span class="worker-catalog-meta"><span>${escapeHtml(normalized.basic.process || "공정명 미입력")}</span><span>${escapeHtml(normalized.document.managementNo || "관리번호 미입력")}</span></span>
+    <b class="worker-catalog-open">상세 보기</b>
+  </button>`;
 }
 
 function renderWorkerSearchCandidate(sop) {
@@ -1063,4 +1097,5 @@ document.addEventListener("click", (event) => {
 });
 
 renderWorker();
+void loadWorkerCatalog();
 showView("worker");

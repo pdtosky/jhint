@@ -68,6 +68,14 @@ textarea { min-height: 64px; resize: vertical; }
 .worker-search-candidate-meta { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px; color: #566575; font-size: 12px; white-space: nowrap; }
 .worker-search-candidate-meta span, .worker-search-candidate-meta b { padding: 4px 7px; border-radius: 999px; background: #e9f4ff; }
 .worker-search-candidate-meta b { color: #0b74de; }
+.worker-catalog-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+.worker-catalog-card { position: relative; display: grid; align-content: start; min-width: 0; min-height: 132px; padding: 14px; border: 1px solid #c9d6e2; border-radius: 12px; background: linear-gradient(145deg, #fff 0%, #f5faff 100%); color: #1f2933; text-align: left; box-shadow: 0 4px 14px rgba(41, 65, 91, 0.06); }
+.worker-catalog-card:hover, .worker-catalog-card:focus-visible { border-color: #0b74de; box-shadow: 0 7px 20px rgba(11, 116, 222, 0.12); outline: none; transform: translateY(-1px); }
+.worker-catalog-vendor { margin-bottom: 6px; color: #0b6b61; font-size: 12px; font-weight: 800; overflow-wrap: anywhere; }
+.worker-catalog-product { min-width: 0; margin-bottom: 10px; font-size: 15px; line-height: 1.35; overflow-wrap: anywhere; }
+.worker-catalog-meta { display: flex; flex-wrap: wrap; gap: 5px; padding-right: 58px; color: #566575; font-size: 11px; }
+.worker-catalog-meta span { padding: 4px 6px; border-radius: 999px; background: #e9f4ff; overflow-wrap: anywhere; }
+.worker-catalog-open { position: absolute; right: 12px; bottom: 12px; color: #0b74de; font-size: 11px; }
 .worker-card h3 { margin: 0; padding: 10px; background: #f7f9fb; border-bottom: 1px solid #d8e0e7; }
 .worker-section-title { border-left: 5px solid #5f7184; color: #17212b; }
 .section-attachment { border-left-color: #64748b; background: #f1f5f9 !important; }
@@ -287,6 +295,10 @@ body.print-preview-open .print-document { width: min(980px, 100%); margin: 0 aut
   .worker-result-toolbar button { width: 100%; }
   .worker-search-candidate { align-items: stretch; flex-direction: column; gap: 9px; }
   .worker-search-candidate-meta { justify-content: flex-start; white-space: normal; }
+  .worker-catalog-grid { grid-template-columns: 1fr; gap: 7px; }
+  .worker-catalog-card { min-height: 112px; padding: 11px; }
+  .worker-catalog-product { margin-bottom: 7px; font-size: 14px; }
+  .worker-catalog-open { right: 10px; bottom: 10px; }
   .actions { gap: 6px; margin-top: 6px; }
   .actions button { flex: 1 1 100%; min-height: 42px; }
   .row-actions { display: grid; grid-template-columns: 1fr 1fr; }

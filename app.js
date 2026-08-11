@@ -61,6 +61,13 @@ const HOLIDAY_POLL_INTERVAL_MS = Number(
 const BACKEND_MODE = APP_CONFIG.backend || "api";
 const CODEX_RELEASE_NOTES = [
   {
+    version: "2026-08-11-01",
+    timestamp: "2026-08-11T14:57:00+09:00",
+    title: "작업표준서 기본 카드 목록 추가",
+    summary: "작업자 조회 화면을 열면 검색 전에도 배포 완료된 작업표준서가 제품명 중심의 카드로 표시되고, 카드를 눌러 상세 내용을 바로 확인할 수 있도록 개선했습니다.",
+    files: ["app.js", "sop/app.js", "sop/styles.css", "sw.js", "tests/sop-worker-search.test.js"]
+  },
+  {
     version: "2026-08-07-04",
     timestamp: "2026-08-07T18:10:00+09:00",
     title: "장비 가동률 엑셀 손상 오류 수정",
