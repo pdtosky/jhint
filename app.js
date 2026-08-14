@@ -61,6 +61,13 @@ const HOLIDAY_POLL_INTERVAL_MS = Number(
 const BACKEND_MODE = APP_CONFIG.backend || "api";
 const CODEX_RELEASE_NOTES = [
   {
+    version: "2026-08-14-01",
+    timestamp: "2026-08-14T13:04:15+09:00",
+    title: "관리자 작업 중지 및 완료 처리 추가",
+    summary: "관리자 계정이 작업자 입력의 진행 카드에서 다른 작업자의 작업을 중지하거나 완료할 수 있도록 개선했습니다. 기존 작업자명과 장비는 유지하고 관리자 처리자는 운영 로그에 별도로 기록합니다.",
+    files: ["app.js", "style.css", "sw.js", "package.json", "tests/admin-work-control.test.js"]
+  },
+  {
     version: "2026-08-11-01",
     timestamp: "2026-08-11T14:57:00+09:00",
     title: "작업표준서 기본 카드 목록 추가",
@@ -1221,11 +1228,27 @@ function setWorkStartConfirmationLocked(isLocked) {
 }
 
 function canCurrentWorkerControlActiveOrder(order, workerName, actionLabel) {
+  if (canAdministratorControlWork() && ["작업중지", "작업종료"].includes(actionLabel)) return true;
   if (!order?.workerName || order.workerName === workerName) return true;
   const message = `${order.workerName} 작업자가 진행 중인 작업입니다.\n${actionLabel}은 현재 작업자만 할 수 있습니다.`;
   showWorkerAlert(message);
   showAppAlert(message);
   return false;
+}
+
+function canAdministratorControlWork() {
+  return isAdminLoggedIn && currentAdminRole === "admin" && canAccessView("workerView");
+}
+
+function getAdministrativeWorkActionActor() {
+  if (!canAdministratorControlWork()) return "";
+  return currentAdminDisplayName || currentAdminEmail || "관리자";
+}
+
+function canCompleteWorkOrder(order) {
+  if (!order) return false;
+  if (order.status === "working") return true;
+  return canAdministratorControlWork() && ["paused", "break"].includes(order.status);
 }
 
 function preparePause() {
@@ -1346,6 +1369,7 @@ async function finalizePause() {
 
   const rollbackState = normalizeAppState(state);
   const now = new Date();
+  const administrativeActor = getAdministrativeWorkActionActor();
   order.elapsedMs = getAccumulatedElapsedMs(order, now.toISOString());
   order.status = "paused";
   order.workerName = pendingPauseWorkerName;
@@ -1363,7 +1387,9 @@ async function finalizePause() {
     machineName: order.machineName || "",
     orderId: pendingPauseOrderId,
     timestamp: now.toISOString(),
-    message: `작업을 중지했습니다. / 사유 ${pauseReason}${workQty ? ` / 작업수량 ${workQty}` : ""}${workHitQty ? ` / 작업타수 ${workHitQty}` : ""}`
+    performedBy: administrativeActor || pendingPauseWorkerName,
+    performedByRole: administrativeActor ? "admin" : currentAdminRole,
+    message: `작업을 중지했습니다. / 사유 ${pauseReason}${workQty ? ` / 작업수량 ${workQty}` : ""}${workHitQty ? ` / 작업타수 ${workHitQty}` : ""}${administrativeActor ? ` / 관리자 처리 ${administrativeActor}` : ""}`
   });
 
   try {
@@ -1393,9 +1419,9 @@ function prepareCompletion() {
   if (!workerName || !machineName || !orderId) return;
 
   const order = state.orders.find((item) => item.id === orderId);
-  if (!order || order.status !== "working") {
-    showWorkerAlert("작업종료는 작업 중인 작업에서만 사용할 수 있습니다.");
-    showAppAlert("작업종료는 작업 중인 작업에서만 사용할 수 있습니다.");
+  if (!canCompleteWorkOrder(order)) {
+    showWorkerAlert("작업종료는 작업 중인 작업에서만 사용할 수 있습니다. 관리자는 작업 중지·일시정지 상태도 완료 처리할 수 있습니다.");
+    showAppAlert("작업종료는 작업 중인 작업에서만 사용할 수 있습니다. 관리자는 작업 중지·일시정지 상태도 완료 처리할 수 있습니다.");
     return;
   }
   if (!canCurrentWorkerControlActiveOrder(order, workerName, "작업종료")) return;
@@ -1423,12 +1449,13 @@ async function finalizeCompletion() {
     resetCompletionInputs();
     return;
   }
-  if (order.status !== "working" || !canCurrentWorkerControlActiveOrder(order, pendingCompletionWorkerName, "작업종료")) {
+  if (!canCompleteWorkOrder(order) || !canCurrentWorkerControlActiveOrder(order, pendingCompletionWorkerName, "작업종료")) {
     resetCompletionInputs();
     return;
   }
 
   const rollbackState = normalizeAppState(state);
+  const administrativeActor = getAdministrativeWorkActionActor();
   order.status = "complete";
   order.workerName = pendingCompletionWorkerName;
   const finishedAt = new Date().toISOString();
@@ -1448,7 +1475,9 @@ async function finalizeCompletion() {
     machineName: order.machineName || "",
     orderId: pendingCompletionOrderId,
     timestamp: new Date().toISOString(),
-    message: `${TEXT.endMessage} / 오늘 작업수량 ${productionQty}${totalHitQty ? ` / 오늘 작업타수 ${totalHitQty}` : ""} / ${TEXT.productionQty} ${order.productionQty}${order.totalHitQty ? ` / ${TEXT.totalHitQty} ${order.totalHitQty}` : ""}`
+    performedBy: administrativeActor || pendingCompletionWorkerName,
+    performedByRole: administrativeActor ? "admin" : currentAdminRole,
+    message: `${TEXT.endMessage} / 오늘 작업수량 ${productionQty}${totalHitQty ? ` / 오늘 작업타수 ${totalHitQty}` : ""} / ${TEXT.productionQty} ${order.productionQty}${order.totalHitQty ? ` / ${TEXT.totalHitQty} ${order.totalHitQty}` : ""}${administrativeActor ? ` / 관리자 처리 ${administrativeActor}` : ""}`
   });
 
   try {
@@ -4777,6 +4806,23 @@ function syncWorkerAccountIdentity() {
   if (!workerNameInput) return;
 
   const canUseWorkerInput = isAdminLoggedIn && canAccessView("workerView");
+  const selectedOrder = state.orders.find((order) => order.id === String(orderSelect?.value || ""));
+  const isAdministratorHandlingAssignedWork = Boolean(
+    canAdministratorControlWork() &&
+    selectedOrder?.workerName &&
+    ["working", "paused", "break"].includes(selectedOrder.status)
+  );
+  if (isAdministratorHandlingAssignedWork) {
+    workerNameInput.value = selectedOrder.workerName;
+    workerNameInput.readOnly = true;
+    workerNameInput.classList.add("account-identity-input");
+    if (workerAccountNameHelp) {
+      workerAccountNameHelp.hidden = false;
+      workerAccountNameHelp.textContent = `관리자 처리 중: 기존 작업자 ${selectedOrder.workerName}의 기록을 유지합니다.`;
+      workerAccountNameHelp.dataset.tone = "admin";
+    }
+    return;
+  }
   const shouldLockWorkerName = canUseWorkerInput && Boolean(currentAdminDisplayName);
   if (canUseWorkerInput) {
     if (currentAdminDisplayName) {
@@ -13342,6 +13388,7 @@ function renderWorkerLiveStatus() {
     .map((order) => {
       const isPaused = order.status === "paused";
       const isBreak = order.status === "break";
+      const isAdministratorControl = canAdministratorControlWork();
       const badgeClass = isBreak ? "status-break" : isPaused ? "status-warning" : "status-working";
       const badgeLabel = isBreak ? "일시정지" : isPaused ? "작업 중지" : "작업 중";
       return `
@@ -13359,9 +13406,9 @@ function renderWorkerLiveStatus() {
           ${getCleanDisplayText(order.pauseReason, "") ? `<p class="progress-meta">중지 사유 ${escapeHtml(getCleanDisplayText(order.pauseReason, ""))}${order.workQty ? ` / 작업수량 ${escapeHtml(order.workQty)}` : ""}${order.workHitQty ? ` / 작업타수 ${escapeHtml(order.workHitQty)}` : ""}</p>` : ""}
           <div class="feed-actions">
             ${order.status === "working" ? `<button type="button" class="tab-btn live-action-btn" data-order-id="${order.id}" data-action="temporaryPause">일시정지</button>` : ""}
-            ${order.status === "working" ? `<button type="button" class="tab-btn live-action-btn" data-order-id="${order.id}" data-action="pause">작업중지</button>` : ""}
+            ${order.status === "working" ? `<button type="button" class="tab-btn live-action-btn ${isAdministratorControl ? "admin-work-control-btn" : ""}" data-order-id="${order.id}" data-action="pause">${isAdministratorControl ? "관리자 작업중지" : "작업중지"}</button>` : ""}
             ${isBreak ? `<button type="button" class="tab-btn live-action-btn" data-order-id="${order.id}" data-action="resume">작업재개</button>` : ""}
-            ${!isBreak ? `<button type="button" class="tab-btn live-action-btn" data-order-id="${order.id}" data-action="complete">작업종료</button>` : ""}
+            ${!isBreak || isAdministratorControl ? `<button type="button" class="tab-btn live-action-btn ${isAdministratorControl ? "admin-work-control-btn complete" : ""}" data-order-id="${order.id}" data-action="complete">${isAdministratorControl ? "관리자 완료처리" : "작업종료"}</button>` : ""}
           </div>
         </article>
       `;

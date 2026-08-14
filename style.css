@@ -1525,6 +1525,19 @@ tbody tr:last-child td {
   flex-wrap: wrap;
 }
 
+.admin-work-control-btn {
+  border-color: #c77b18;
+  background: #fff4df;
+  color: #8a4d00;
+  font-weight: 800;
+}
+
+.admin-work-control-btn.complete {
+  border-color: #167768;
+  background: #e7f6f2;
+  color: #075f53;
+}
+
 .feed-item {
   border: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.78);
