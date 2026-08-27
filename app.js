@@ -61,6 +61,13 @@ const HOLIDAY_POLL_INTERVAL_MS = Number(
 const BACKEND_MODE = APP_CONFIG.backend || "api";
 const CODEX_RELEASE_NOTES = [
   {
+    version: "2026-08-27-01",
+    timestamp: "2026-08-27T11:36:09+09:00",
+    title: "생산일정 관리 중복 창 실행 방지",
+    summary: "설치된 생산일정 관리 앱을 다시 실행할 때 새 창을 계속 만들지 않고 이미 열린 앱 창을 찾아 앞으로 가져오도록 변경했습니다.",
+    files: ["manifest.webmanifest", "index.html", "app.js", "sw.js", "package.json", "tests/pwa-single-instance.test.js"]
+  },
+  {
     version: "2026-08-14-01",
     timestamp: "2026-08-14T13:04:15+09:00",
     title: "관리자 작업 중지 및 완료 처리 추가",
