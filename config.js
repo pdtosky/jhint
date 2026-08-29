@@ -6,6 +6,7 @@ window.APP_CONFIG = {
   supabaseAnonKey: "sb_publishable_gh-Sk00ag9txoBF5Y5u5sQ_ybAY3jL-",
   supabaseTable: "app_state",
   supabaseRowId: "main",
+  supabaseSopMediaBucket: "sop-media",
   adminEmails: ["tape@jhint.net"],
   requisitionEmails: [],
   pollIntervalMs: 60000,

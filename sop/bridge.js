@@ -34,6 +34,16 @@
   window.SOP_BRIDGE = {
     isAdminLoggedIn() {
       return Boolean(getBridge()?.isAdminLoggedIn?.());
+    },
+    uploadAttachment(options) {
+      const bridge = getBridge();
+      if (!bridge?.uploadAttachment) return Promise.reject(new Error("영상 업로드 연결을 찾을 수 없습니다."));
+      return bridge.uploadAttachment(options);
+    },
+    resolveAttachmentUrl(file) {
+      const bridge = getBridge();
+      if (!bridge?.resolveAttachmentUrl) return Promise.reject(new Error("첨부영상 조회 연결을 찾을 수 없습니다."));
+      return bridge.resolveAttachmentUrl(file);
     }
   };
 

@@ -59,7 +59,17 @@ const HOLIDAY_POLL_INTERVAL_MS = Number(
   APP_CONFIG.holidayPollIntervalMs || APP_CONFIG.weekendPollIntervalMs || 300000
 );
 const BACKEND_MODE = APP_CONFIG.backend || "api";
+const SOP_MEDIA_BUCKET = APP_CONFIG.supabaseSopMediaBucket || "sop-media";
+const SOP_VIDEO_MAX_BYTES = 50 * 1024 * 1024;
+const SOP_VIDEO_MIME_TYPES = new Set(["video/mp4", "video/webm", "video/quicktime"]);
 const CODEX_RELEASE_NOTES = [
+  {
+    version: "2026-08-29-02",
+    timestamp: "2026-08-29T15:04:41+09:00",
+    title: "작업표준서 영상 첨부 추가",
+    summary: "작업표준서 첨부자료에서 MP4, WebM, MOV 영상을 최대 50MB까지 올리고 관리자·작업자 화면에서 바로 재생할 수 있도록 추가했습니다. 영상은 운영 JSON이 아닌 비공개 Supabase Storage에 저장하며 인증된 사용자만 임시 재생 주소로 조회합니다.",
+    files: ["app.js", "config.js", "package.json", "sop/index.html", "sop/bridge.js", "sop/app.js", "sop/styles.css", "sw.js", "supabase-sop-media-storage.sql", "tests/sop-video-attachment.test.js"]
+  },
   {
     version: "2026-08-29-01",
     timestamp: "2026-08-29T12:33:16+09:00",
@@ -1832,6 +1842,92 @@ function canAccessView(targetId) {
 
 function canManageSopDocuments() {
   return isAdminLoggedIn && ["admin", "office", "quality"].includes(currentAdminRole);
+}
+
+function getSopStorageAttachments(sop = {}) {
+  return (Array.isArray(sop?.attachments?.files) ? sop.attachments.files : [])
+    .filter((file) => String(file?.storagePath || "").trim());
+}
+
+function getRemovedSopStorageAttachments(previousSop = {}, nextSop = {}) {
+  const nextPaths = new Set(getSopStorageAttachments(nextSop).map((file) => String(file.storagePath)));
+  return getSopStorageAttachments(previousSop).filter((file) => !nextPaths.has(String(file.storagePath)));
+}
+
+function sanitizeSopMediaName(value) {
+  const safe = String(value || "video")
+    .normalize("NFKC")
+    .replace(/[^0-9A-Za-z가-힣._-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^[-.]+|[-.]+$/g, "")
+    .slice(0, 90);
+  return safe || "video";
+}
+
+function isSupportedSopVideo(file) {
+  const mimeType = String(file?.type || "").toLowerCase();
+  const extension = String(file?.name || "").split(".").pop()?.toLowerCase();
+  return SOP_VIDEO_MIME_TYPES.has(mimeType) || ["mp4", "webm", "mov"].includes(extension);
+}
+
+async function getSopMediaUser() {
+  if (!supabaseAuthClient) throw makeSmartSopError("영상 저장소에 연결할 수 없습니다.", 503);
+  const { data, error } = await supabaseAuthClient.auth.getUser();
+  if (error || !data?.user?.id) throw makeSmartSopError("로그인 정보를 확인한 뒤 다시 시도해 주세요.", 401);
+  return data.user;
+}
+
+async function uploadSmartSopAttachment({ sopId = "", file } = {}) {
+  if (!canManageSopDocuments()) throw makeSmartSopError("작업표준서 영상 첨부 권한이 없습니다.", 403);
+  if (!String(sopId).trim()) throw makeSmartSopError("작업표준서를 먼저 임시저장한 후 영상을 추가해 주세요.", 400);
+  if (!file || !isSupportedSopVideo(file)) throw makeSmartSopError("MP4, WebM, MOV 영상만 등록할 수 있습니다.", 400);
+  if (Number(file.size || 0) > SOP_VIDEO_MAX_BYTES) throw makeSmartSopError("영상은 파일당 최대 50MB까지 등록할 수 있습니다.", 413);
+
+  const user = await getSopMediaUser();
+  const storagePath = `${user.id}/${sanitizeSopMediaName(sopId)}/${crypto.randomUUID()}-${sanitizeSopMediaName(file.name)}`;
+  const { error } = await supabaseAuthClient.storage.from(SOP_MEDIA_BUCKET).upload(storagePath, file, {
+    cacheControl: "3600",
+    contentType: file.type || undefined,
+    upsert: false
+  });
+  if (error) throw makeSmartSopError(`영상 업로드에 실패했습니다. ${error.message || ""}`.trim(), 500);
+
+  const attachment = {
+    kind: "video",
+    name: String(file.name || "첨부영상"),
+    description: "",
+    mimeType: String(file.type || "video/mp4"),
+    size: Number(file.size || 0),
+    storageBucket: SOP_MEDIA_BUCKET,
+    storagePath
+  };
+  const signedUrl = await resolveSmartSopAttachmentUrl(attachment);
+  return { attachment, signedUrl };
+}
+
+async function resolveSmartSopAttachmentUrl(file = {}) {
+  if (file.dataUrl) return String(file.dataUrl);
+  const storagePath = String(file.storagePath || "").trim();
+  if (!storagePath) return "";
+  await getSopMediaUser();
+  const bucket = String(file.storageBucket || SOP_MEDIA_BUCKET);
+  const { data, error } = await supabaseAuthClient.storage.from(bucket).createSignedUrl(storagePath, 3600);
+  if (error || !data?.signedUrl) throw makeSmartSopError("첨부영상을 불러오지 못했습니다.", 500);
+  return data.signedUrl;
+}
+
+async function removeSmartSopStorageAttachments(files = []) {
+  if (!supabaseAuthClient || !files.length) return;
+  const groups = new Map();
+  files.forEach((file) => {
+    const bucket = String(file.storageBucket || SOP_MEDIA_BUCKET);
+    if (!groups.has(bucket)) groups.set(bucket, []);
+    groups.get(bucket).push(String(file.storagePath));
+  });
+  for (const [bucket, paths] of groups.entries()) {
+    const { error } = await supabaseAuthClient.storage.from(bucket).remove(Array.from(new Set(paths)));
+    if (error) console.warn("SOP media cleanup failed", error.message || error);
+  }
 }
 
 function canAccessAdminSection(section) {
@@ -4935,7 +5031,7 @@ function renderSopPage() {
         </div>
         <span class="status-badge done" data-sop-module-count>${escapeHtml(countText)}</span>
       </div>
-      <iframe class="sop-module-frame" title="작업표준서 Smart SOP" src="sop/index.html?v=20260701-03"></iframe>
+      <iframe class="sop-module-frame" title="작업표준서 Smart SOP" src="sop/index.html?v=20260829-02"></iframe>
     </div>
   `;
 }
@@ -5652,7 +5748,9 @@ async function importSeedSops() {
 function createSmartSopBridge() {
   return {
     isAdminLoggedIn: () => canManageSopDocuments(),
-    request: handleSmartSopBridgeRequest
+    request: handleSmartSopBridgeRequest,
+    uploadAttachment: uploadSmartSopAttachment,
+    resolveAttachmentUrl: resolveSmartSopAttachmentUrl
   };
 }
 
@@ -5722,6 +5820,7 @@ async function saveSmartSopRecord(input) {
     throw makeSmartSopError("이미 사용 중인 관리번호입니다. 다음 관리번호를 사용해 주세요.", 409);
   }
 
+  const previousSop = input?.id ? getSmartSopRecord(input.id) : null;
   const nextSop = normalizeSopRecord({
     ...input,
     id: input?.id || crypto.randomUUID(),
@@ -5744,6 +5843,8 @@ async function saveSmartSopRecord(input) {
 
   try {
     await persist({ throwOnError: true });
+    const removedAttachments = getRemovedSopStorageAttachments(previousSop, nextSop);
+    if (removedAttachments.length) void removeSmartSopStorageAttachments(removedAttachments);
     return nextSop;
   } catch (error) {
     state.sops = rollbackSops;
@@ -5758,6 +5859,7 @@ async function deleteSmartSopRecord(id) {
   }
 
   const targetId = String(id || "");
+  const targetSop = getSmartSopRecord(targetId);
   const rollbackSops = [...(state.sops || [])];
   const rollbackDeleted = [...(state.sopDeletedIds || [])];
 
@@ -5766,6 +5868,8 @@ async function deleteSmartSopRecord(id) {
 
   try {
     await persist({ throwOnError: true });
+    const storedAttachments = getSopStorageAttachments(targetSop);
+    if (storedAttachments.length) void removeSmartSopStorageAttachments(storedAttachments);
     return true;
   } catch (error) {
     state.sops = rollbackSops;

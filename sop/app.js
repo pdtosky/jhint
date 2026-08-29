@@ -40,6 +40,8 @@ let workerSearchTerm = "";
 let workerCatalogLoading = false;
 let pendingConfirm = null;
 let excelImportState = null;
+let isAttachmentUploading = false;
+const attachmentUrlCache = new Map();
 let isAdminLoggedIn = Boolean(window.SOP_BRIDGE?.isAdminLoggedIn?.());
 const ADMIN_ID = "tape@jhint.net";
 const ADMIN_PASSWORD = "jhint2233!!";
@@ -118,6 +120,44 @@ function createNewSopDraft(managementNo = "") {
   adminWorkRecords = [];
   adminSearchTerm = "";
   excelImportState = null;
+}
+
+function getAttachmentKind(file = {}) {
+  if (String(file.kind || "").toLowerCase() === "video") return "video";
+  if (String(file.mimeType || "").toLowerCase().startsWith("video/")) return "video";
+  return "image";
+}
+
+function getAttachmentCacheKey(file = {}) {
+  return `${file.storageBucket || ""}|${file.storagePath || ""}`;
+}
+
+function getAttachmentSource(file = {}) {
+  if (file.dataUrl) return String(file.dataUrl);
+  return attachmentUrlCache.get(getAttachmentCacheKey(file)) || "";
+}
+
+function formatAttachmentSize(value) {
+  const bytes = Number(value || 0);
+  if (!bytes) return "";
+  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
+  return `${Math.max(1, Math.round(bytes / 1024))}KB`;
+}
+
+async function resolveAttachmentUrls(files = []) {
+  const pending = files.filter((file) => file?.storagePath && !attachmentUrlCache.has(getAttachmentCacheKey(file)));
+  await Promise.all(pending.map(async (file) => {
+    try {
+      const url = await window.SOP_BRIDGE?.resolveAttachmentUrl?.(file);
+      if (url) attachmentUrlCache.set(getAttachmentCacheKey(file), url);
+    } catch (error) {
+      console.warn("Attachment URL resolution failed", error);
+    }
+  }));
+}
+
+async function resolveSopAttachmentUrls(sops = []) {
+  await resolveAttachmentUrls(sops.flatMap((sop) => sop?.attachments?.files || []));
 }
 
 async function startNewSopDocument({ confirmDiscard = true } = {}) {
@@ -447,7 +487,11 @@ function renderPrintDocument(sop) {
     ${printRows(sop.bom, [{ key: "no", label: "No." }, { key: "material", label: "원단명" }, { key: "width", label: "재단폭" }, { key: "note", label: "비고" }], "print-bom-table")}
 
     <h2>첨부자료</h2>
-    <div class="print-attachments">${attachments.length ? attachments.map((file) => `<figure><img src="${escapeHtml(file.dataUrl)}" alt="${escapeHtml(file.description || file.name || "첨부사진")}"><figcaption>${printValue(file.description || file.name || "첨부사진")}</figcaption></figure>`).join("") : `<p>등록된 첨부자료가 없습니다.</p>`}</div>
+    <div class="print-attachments">${attachments.length ? attachments.map((file) => {
+      const label = file.description || file.name || (getAttachmentKind(file) === "video" ? "첨부영상" : "첨부사진");
+      if (getAttachmentKind(file) === "video") return `<figure class="print-video"><div>영상 첨부<br>${printValue(file.name || "첨부영상")}<br><small>프로그램에서 재생</small></div><figcaption>${printValue(label)}</figcaption></figure>`;
+      return `<figure><img src="${escapeHtml(getAttachmentSource(file))}" alt="${escapeHtml(label)}"><figcaption>${printValue(label)}</figcaption></figure>`;
+    }).join("") : `<p>등록된 첨부자료가 없습니다.</p>`}</div>
 
     <h2>생산체크시트 기준항목</h2>
     ${printRows(sop.productionChecklist, [{ key: "no", label: "No." }, { key: "item", label: "체크항목" }, { key: "standard", label: "판정기준" }, { key: "checkMethod", label: "확인방법" }, { key: "record", label: "기록" }], "print-checklist-table")}
@@ -487,19 +531,27 @@ function printCurrentSop() {
 function renderAttachmentSection() {
   const files = currentSop.attachments.files || [];
   const items = files.length
-    ? files.map((file, index) => `<div class="attachment-item">
-        <button class="thumb-button" type="button" data-action="open-image" data-image-src="${escapeHtml(file.dataUrl)}" data-image-title="${escapeHtml(file.description || file.name || "첨부사진")}"><img src="${escapeHtml(file.dataUrl)}" alt="${escapeHtml(file.description || file.name || "첨부사진")}"></button>
-        <input data-path="attachments.files.${index}.description" value="${escapeHtml(file.description)}" placeholder="사진 설명 예: 도면, 칼 정면, 불량 예시">
-        <div class="attachment-meta"><span>${escapeHtml(file.name || "사진")}</span><button type="button" data-action="remove-attachment" data-index="${index}">삭제</button></div>
-      </div>`).join("")
-    : `<div class="empty-attachments">아직 첨부된 사진이 없습니다.</div>`;
+    ? files.map((file, index) => {
+      const kind = getAttachmentKind(file);
+      const source = getAttachmentSource(file);
+      const label = file.description || file.name || (kind === "video" ? "첨부영상" : "첨부사진");
+      const preview = kind === "video"
+        ? (source ? `<video class="attachment-video" src="${escapeHtml(source)}" controls preload="metadata" playsinline></video>` : `<div class="media-loading">영상을 불러오는 중입니다.</div>`)
+        : `<button class="thumb-button" type="button" data-action="open-image" data-image-src="${escapeHtml(source)}" data-image-title="${escapeHtml(label)}"><img src="${escapeHtml(source)}" alt="${escapeHtml(label)}"></button>`;
+      return `<div class="attachment-item attachment-${kind}">
+        ${preview}
+        <input data-path="attachments.files.${index}.description" value="${escapeHtml(file.description)}" placeholder="설명 예: 도면, 금형 정면, 작업 영상">
+        <div class="attachment-meta"><span>${escapeHtml(file.name || label)}${file.size ? ` · ${escapeHtml(formatAttachmentSize(file.size))}` : ""}</span><button type="button" data-action="remove-attachment" data-index="${index}">삭제</button></div>
+      </div>`;
+    }).join("")
+    : `<div class="empty-attachments">아직 첨부된 사진이나 영상이 없습니다.</div>`;
   return `<section class="panel"><h3>첨부자료</h3>
     <div class="attachment-toolbar">
-      <label class="file-button">사진 선택<input id="attachmentInput" type="file" accept="image/*" multiple></label>
-      <span>최대 8장까지 저장됩니다.</span>
+      <label class="file-button ${isAttachmentUploading ? "is-disabled" : ""}">${isAttachmentUploading ? "영상 업로드 중…" : "사진·영상 선택"}<input id="attachmentInput" type="file" accept="image/*,video/mp4,video/webm,video/quicktime,.mov" multiple ${isAttachmentUploading ? "disabled" : ""}></label>
+      <span>전체 최대 8개 · 영상 MP4/WebM/MOV · 파일당 최대 50MB</span>
     </div>
     <div class="attachment-list">${items}</div>
-    <div class="actions"><button data-action="save-all">첨부자료 임시저장</button></div>
+    <div class="actions"><button data-action="save-all" ${isAttachmentUploading ? "disabled" : ""}>첨부자료 임시저장</button></div>
   </section>`;
 }
 
@@ -539,21 +591,39 @@ async function compressImageFile(file) {
 }
 
 async function addAttachmentFiles(fileList) {
-  const selectedFiles = Array.from(fileList || []).filter((file) => file.type.startsWith("image/"));
-  const currentFiles = currentSop.attachments.files || [];
+  const selectedFiles = Array.from(fileList || []).filter((file) => file.type.startsWith("image/") || file.type.startsWith("video/") || /[.](mp4|webm|mov)$/i.test(file.name || ""));
+  const currentFiles = [...(currentSop.attachments.files || [])];
   const remainingSlots = 8 - currentFiles.length;
   if (remainingSlots <= 0) {
-    showToast("첨부자료는 최대 8장까지 등록할 수 있습니다.", "error");
+    showToast("첨부자료는 사진과 영상을 합쳐 최대 8개까지 등록할 수 있습니다.", "error");
     return;
   }
   const filesToAdd = selectedFiles.slice(0, remainingSlots);
-  const compressed = [];
-  for (const file of filesToAdd) {
-    compressed.push(await compressImageFile(file));
+  isAttachmentUploading = filesToAdd.some((file) => file.type.startsWith("video/") || /[.](mp4|webm|mov)$/i.test(file.name || ""));
+  if (isAttachmentUploading) renderAdmin();
+  try {
+    for (const file of filesToAdd) {
+      const isVideo = file.type.startsWith("video/") || /[.](mp4|webm|mov)$/i.test(file.name || "");
+      try {
+        if (!isVideo) {
+          currentFiles.push(await compressImageFile(file));
+          continue;
+        }
+        if (!currentSop.id) throw new Error("작업표준서를 먼저 임시저장한 후 영상을 추가해 주세요.");
+        const result = await window.SOP_BRIDGE?.uploadAttachment?.({ sopId: currentSop.id, file });
+        if (!result?.attachment) throw new Error("영상 업로드 결과가 없습니다.");
+        currentFiles.push(result.attachment);
+        if (result.signedUrl) attachmentUrlCache.set(getAttachmentCacheKey(result.attachment), result.signedUrl);
+      } catch (error) {
+        showToast(error.message || `${isVideo ? "영상" : "사진"}을 추가하지 못했습니다.`, "error");
+      }
+    }
+  } finally {
+    currentSop.attachments.files = currentFiles;
+    isAttachmentUploading = false;
+    if (selectedFiles.length > remainingSlots) showToast("최대 8개까지만 추가했습니다.", "error");
+    renderAdmin();
   }
-  currentSop.attachments.files = currentFiles.concat(compressed);
-  if (selectedFiles.length > remainingSlots) showToast("최대 8장까지만 추가했습니다.", "error");
-  renderAdmin();
 }
 
 function openImageModal(src, title) {
@@ -790,6 +860,7 @@ async function loadAdminSop(id) {
   const data = await res.json();
   if (!res.ok) return showToast(data.error, "error");
   currentSop = hydrateSop(data.sop);
+  await resolveAttachmentUrls(currentSop.attachments.files || []);
   excelImportState = null;
   adminSearchTerm = currentSop.basic.product || currentSop.basic.process || currentSop.document.managementNo || "";
   await refreshAdminSearch();
@@ -884,6 +955,7 @@ async function loadWorkerCatalog() {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || "작업표준서를 불러오지 못했습니다.");
     workerSearchResults = data.sops || [];
+    await resolveSopAttachmentUrls(workerSearchResults);
   } catch (error) {
     workerSearchResults = [];
     showToast(error.message || "작업표준서를 불러오지 못했습니다.", "error");
@@ -968,11 +1040,14 @@ function renderKv(label, value) {
 
 function renderWorkerAttachments(sop) {
   const files = (sop.attachments && sop.attachments.files) || [];
-  if (!files.length) return `<div class="kv"><strong>사진/도면</strong><span>등록된 사진이 없습니다.</span></div>`;
-  return `<div class="worker-attachments">${files.map((file) => `<button class="worker-thumb" type="button" data-action="open-image" data-image-src="${escapeHtml(file.dataUrl)}" data-image-title="${escapeHtml(file.description || file.name || "첨부사진")}">
-    <img src="${escapeHtml(file.dataUrl)}" alt="${escapeHtml(file.description || file.name || "첨부사진")}">
-    <span>${escapeHtml(file.description || file.name || "첨부사진")}</span>
-  </button>`).join("")}</div>`;
+  if (!files.length) return `<div class="kv"><strong>사진/영상</strong><span>등록된 첨부자료가 없습니다.</span></div>`;
+  return `<div class="worker-attachments">${files.map((file) => {
+    const kind = getAttachmentKind(file);
+    const source = getAttachmentSource(file);
+    const label = file.description || file.name || (kind === "video" ? "첨부영상" : "첨부사진");
+    if (kind === "video") return `<div class="worker-media worker-video"><video src="${escapeHtml(source)}" controls preload="metadata" playsinline></video><span>${escapeHtml(label)}</span></div>`;
+    return `<button class="worker-thumb" type="button" data-action="open-image" data-image-src="${escapeHtml(source)}" data-image-title="${escapeHtml(label)}"><img src="${escapeHtml(source)}" alt="${escapeHtml(label)}"><span>${escapeHtml(label)}</span></button>`;
+  }).join("")}</div>`;
 }
 
 function renderWorkerTable(rows, columns, className = "") {
@@ -1073,12 +1148,15 @@ function renderWorkerSop(sop) {
   </article>`;
 }
 
-workerView.addEventListener("click", (event) => {
+workerView.addEventListener("click", async (event) => {
   const button = event.target.closest("button");
   if (!button) return;
   if (button.dataset.action === "select-worker-sop") {
     const sop = workerSearchResults.find((item) => String(item.id) === String(button.dataset.sopId));
-    if (sop) renderWorker([sop], { detail: true });
+    if (sop) {
+      await resolveAttachmentUrls(sop.attachments?.files || []);
+      renderWorker([sop], { detail: true });
+    }
     return;
   }
   if (button.dataset.action === "back-worker-search") {
