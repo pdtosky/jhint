@@ -64,6 +64,13 @@ const SOP_VIDEO_MAX_BYTES = 50 * 1024 * 1024;
 const SOP_VIDEO_MIME_TYPES = new Set(["video/mp4", "video/webm", "video/quicktime"]);
 const CODEX_RELEASE_NOTES = [
   {
+    version: "2026-08-29-03",
+    timestamp: "2026-08-29T15:10:32+09:00",
+    title: "한글 영상 파일명 업로드 오류 수정",
+    summary: "한글이 포함된 영상 파일명이 Supabase Storage의 허용 경로 문자를 벗어나 업로드가 실패하던 문제를 수정했습니다. 저장 경로는 영문 UUID와 확장자만 사용하고 화면에는 원래 파일명을 그대로 표시합니다.",
+    files: ["app.js", "index.html", "sw.js", "tests/sop-video-attachment.test.js", "docs/sop-video-attachment-2026-08-29.md"]
+  },
+  {
     version: "2026-08-29-02",
     timestamp: "2026-08-29T15:04:41+09:00",
     title: "작업표준서 영상 첨부 추가",
@@ -1854,20 +1861,36 @@ function getRemovedSopStorageAttachments(previousSop = {}, nextSop = {}) {
   return getSopStorageAttachments(previousSop).filter((file) => !nextPaths.has(String(file.storagePath)));
 }
 
-function sanitizeSopMediaName(value) {
+function sanitizeSopStorageSegment(value) {
   const safe = String(value || "video")
     .normalize("NFKC")
-    .replace(/[^0-9A-Za-z가-힣._-]+/g, "-")
+    .replace(/[^0-9A-Za-z_-]+/g, "-")
     .replace(/-+/g, "-")
-    .replace(/^[-.]+|[-.]+$/g, "")
+    .replace(/^-+|-+$/g, "")
     .slice(0, 90);
-  return safe || "video";
+  return safe || "sop";
+}
+
+function getSopVideoExtension(file) {
+  const mimeType = String(file?.type || "").toLowerCase();
+  const extension = String(file?.name || "").split(".").pop()?.toLowerCase();
+  if (["mp4", "webm", "mov"].includes(extension)) return extension;
+  if (mimeType === "video/mp4") return "mp4";
+  if (mimeType === "video/webm") return "webm";
+  if (mimeType === "video/quicktime") return "mov";
+  return "";
+}
+
+function getSopVideoMimeType(file) {
+  const extension = getSopVideoExtension(file);
+  if (extension === "mp4") return "video/mp4";
+  if (extension === "webm") return "video/webm";
+  if (extension === "mov") return "video/quicktime";
+  return "";
 }
 
 function isSupportedSopVideo(file) {
-  const mimeType = String(file?.type || "").toLowerCase();
-  const extension = String(file?.name || "").split(".").pop()?.toLowerCase();
-  return SOP_VIDEO_MIME_TYPES.has(mimeType) || ["mp4", "webm", "mov"].includes(extension);
+  return Boolean(getSopVideoExtension(file) && SOP_VIDEO_MIME_TYPES.has(getSopVideoMimeType(file)));
 }
 
 async function getSopMediaUser() {
@@ -1884,10 +1907,12 @@ async function uploadSmartSopAttachment({ sopId = "", file } = {}) {
   if (Number(file.size || 0) > SOP_VIDEO_MAX_BYTES) throw makeSmartSopError("영상은 파일당 최대 50MB까지 등록할 수 있습니다.", 413);
 
   const user = await getSopMediaUser();
-  const storagePath = `${user.id}/${sanitizeSopMediaName(sopId)}/${crypto.randomUUID()}-${sanitizeSopMediaName(file.name)}`;
+  const videoExtension = getSopVideoExtension(file);
+  const videoMimeType = getSopVideoMimeType(file);
+  const storagePath = `${user.id}/${sanitizeSopStorageSegment(sopId)}/${crypto.randomUUID()}.${videoExtension}`;
   const { error } = await supabaseAuthClient.storage.from(SOP_MEDIA_BUCKET).upload(storagePath, file, {
     cacheControl: "3600",
-    contentType: file.type || undefined,
+    contentType: videoMimeType,
     upsert: false
   });
   if (error) throw makeSmartSopError(`영상 업로드에 실패했습니다. ${error.message || ""}`.trim(), 500);
@@ -1896,7 +1921,7 @@ async function uploadSmartSopAttachment({ sopId = "", file } = {}) {
     kind: "video",
     name: String(file.name || "첨부영상"),
     description: "",
-    mimeType: String(file.type || "video/mp4"),
+    mimeType: videoMimeType,
     size: Number(file.size || 0),
     storageBucket: SOP_MEDIA_BUCKET,
     storagePath
@@ -5031,7 +5056,7 @@ function renderSopPage() {
         </div>
         <span class="status-badge done" data-sop-module-count>${escapeHtml(countText)}</span>
       </div>
-      <iframe class="sop-module-frame" title="작업표준서 Smart SOP" src="sop/index.html?v=20260829-02"></iframe>
+      <iframe class="sop-module-frame" title="작업표준서 Smart SOP" src="sop/index.html?v=20260829-03"></iframe>
     </div>
   `;
 }
