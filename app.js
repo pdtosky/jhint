@@ -61,6 +61,13 @@ const HOLIDAY_POLL_INTERVAL_MS = Number(
 const BACKEND_MODE = APP_CONFIG.backend || "api";
 const CODEX_RELEASE_NOTES = [
   {
+    version: "2026-08-29-01",
+    timestamp: "2026-08-29T12:33:16+09:00",
+    title: "작업표준서 엑셀 등록 추가",
+    summary: "관리자 작업표준서에서 지정 XLSX 양식을 읽어 기본정보, 작업순서, 공정조건, BOM, 수정이력을 새 관리번호의 임시저장 문서로 미리 불러오고, 확인 후에만 서버에 등록하도록 추가했습니다.",
+    files: ["app.js", "package.json", "sop/index.html", "sop/app.js", "sop/xlsx-import.js", "sop/styles.css", "sw.js", "tests/sop-excel-import.test.js", "tests/sop-copy.test.js", "tests/sop-new-document.test.js", "tests/admin-equipment-monthly-report.test.js", "tests/admin-work-control.test.js", "tests/global-auth-login-log.test.js", "tests/global-auth-remember-login.test.js", "tests/global-auth-rollout-ready.test.js", "tests/pwa-single-instance.test.js", "tests/worker-account-session.test.js"]
+  },
+  {
     version: "2026-08-27-01",
     timestamp: "2026-08-27T11:36:09+09:00",
     title: "생산일정 관리 중복 창 실행 방지",

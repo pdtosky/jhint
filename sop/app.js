@@ -39,6 +39,7 @@ let workerSearchResults = [];
 let workerSearchTerm = "";
 let workerCatalogLoading = false;
 let pendingConfirm = null;
+let excelImportState = null;
 let isAdminLoggedIn = Boolean(window.SOP_BRIDGE?.isAdminLoggedIn?.());
 const ADMIN_ID = "tape@jhint.net";
 const ADMIN_PASSWORD = "jhint2233!!";
@@ -116,6 +117,7 @@ function createNewSopDraft(managementNo = "") {
   currentSop.document.author = previousAuthor;
   adminWorkRecords = [];
   adminSearchTerm = "";
+  excelImportState = null;
 }
 
 async function startNewSopDocument({ confirmDiscard = true } = {}) {
@@ -236,6 +238,7 @@ function renderAdmin() {
   syncRelatedRecordsFromProcessConditions();
   adminView.innerHTML = `
     <div class="panel"><div class="admin-heading"><div><h2>관리자 입력/저장 페이지</h2><p class="role">관리자 전용: 입력, 수정, 임시저장, 배포가 가능합니다.</p></div><div class="actions">${currentSop.id ? '<button data-action="copy-current-sop">현재 문서 복사</button>' : ''}<button class="primary" data-action="new-sop">새 작업표준서 등록</button><button data-action="logout">로그아웃</button></div></div></div>
+    ${renderExcelImportSection()}
     ${renderAdminSearchSection()}
     ${renderDocumentSection()}
     ${renderBasicSection()}
@@ -248,6 +251,21 @@ function renderAdmin() {
     ${renderAdminWorkRecordsSection()}
     ${renderRevisionHistorySection()}
     <div class="panel"><div class="actions"><button class="primary" data-action="save-all">전체 임시저장</button><button class="primary" data-action="publish">배포하기</button><button data-action="preview">미리보기</button><button data-action="print-document">문서 출력</button></div></div>`;
+}
+
+function renderExcelImportSection() {
+  const result = excelImportState;
+  const status = result
+    ? `<div class="excel-import-result ${result.saved ? "is-saved" : ""}">
+        <strong>${escapeHtml(result.saved ? "임시저장 등록 완료" : "엑셀 내용 불러오기 완료")}</strong>
+        <span>${escapeHtml(result.fileName)} · 작업순서 ${escapeHtml(result.counts.workSequence)}건 · 공정조건 ${escapeHtml(result.counts.processConditions)}건 · BOM ${escapeHtml(result.counts.bom)}건</span>
+        ${result.warnings.length ? `<p>${result.warnings.map(escapeHtml).join("<br>")}</p>` : ""}
+      </div>`
+    : `<p class="auto-note">지정 양식의 기본정보, 작업순서, 공정조건, BOM, 수정이력을 새 문서로 불러옵니다. 파일을 선택해도 즉시 서버에 저장되지는 않습니다.</p>`;
+  return `<section class="panel excel-import-panel">
+    <input id="sopExcelImportInput" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
+    <div class="excel-import-heading"><div><h3>엑셀 작업표준서 등록</h3>${status}</div><div class="actions"><button type="button" data-action="select-excel-import">엑셀 불러오기</button>${result && !result.saved ? '<button type="button" class="primary" data-action="save-all">내용 확인 후 임시저장 등록</button>' : ""}</div></div>
+  </section>`;
 }
 
 function renderAdminSearchSection() {
@@ -551,7 +569,57 @@ function openImageModal(src, title) {
   </div>`);
 }
 
+async function importSopExcelFile(file) {
+  if (!window.SOP_XLSX_IMPORTER?.parseSopWorkbook) {
+    throw new Error("엑셀 등록 기능을 불러오지 못했습니다. 새로고침 후 다시 시도해 주세요.");
+  }
+  if (hasSopDraftContent()) {
+    const ok = await showConfirmDialog({
+      title: "엑셀 내용을 불러올까요?",
+      message: "현재 화면의 입력 내용은 엑셀 내용으로 교체됩니다. 저장된 기존 문서는 삭제되거나 덮어써지지 않습니다.",
+      confirmText: "엑셀 불러오기",
+      cancelText: "취소"
+    });
+    if (!ok) return false;
+  }
+
+  const parsed = await window.SOP_XLSX_IMPORTER.parseSopWorkbook(file, { today: todayInputValue() });
+  const sops = await fetchSopsForManagementNo();
+  currentSop = hydrateSop(parsed.sop);
+  currentSop.id = "";
+  currentSop.createdAt = "";
+  currentSop.document.managementNo = getNextManagementNo(sops);
+  currentSop.document.registeredDate = todayInputValue();
+  currentSop.document.status = "임시저장";
+  currentSop.document.updatedAt = "";
+  adminSearchTerm = "";
+  adminSearchResults = [];
+  adminWorkRecords = [];
+  excelImportState = {
+    fileName: file.name || "작업표준서.xlsx",
+    counts: parsed.counts,
+    warnings: parsed.warnings || [],
+    saved: false
+  };
+  syncRelatedRecordsFromProcessConditions();
+  renderAdmin();
+  requestAnimationFrame(() => document.querySelector(".excel-import-panel")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  showToast(`${currentSop.document.managementNo} 새 문서로 불러왔습니다. 내용을 확인한 뒤 임시저장해 주세요.`);
+  return true;
+}
+
 adminView.addEventListener("change", async (event) => {
+  if (event.target.id === "sopExcelImportInput") {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    try {
+      await importSopExcelFile(file);
+    } catch (error) {
+      showToast(error.message || "엑셀 작업표준서를 불러오지 못했습니다.", "error");
+    }
+    return;
+  }
   if (event.target.id === "attachmentInput") {
     syncInputs();
     syncRelatedRecordsFromProcessConditions();
@@ -569,6 +637,10 @@ adminView.addEventListener("click", async (event) => {
   const button = event.target.closest("button");
   if (!button) return;
   syncInputs();
+  if (button.dataset.action === "select-excel-import") {
+    document.getElementById("sopExcelImportInput")?.click();
+    return;
+  }
   if (button.dataset.action === "remove-attachment") {
     currentSop.attachments.files.splice(Number(button.dataset.index), 1);
     renderAdmin();
@@ -690,6 +762,7 @@ adminView.addEventListener("click", async (event) => {
     const data = await res.json();
     if (!res.ok) return showToast(data.error, "error");
     currentSop = hydrateSop(data.sop);
+    if (excelImportState) excelImportState.saved = true;
     adminSearchTerm = currentSop.basic.product || currentSop.basic.process || currentSop.document.managementNo || "";
     await refreshAdminSearch();
     await refreshAdminWorkRecords();
@@ -717,6 +790,7 @@ async function loadAdminSop(id) {
   const data = await res.json();
   if (!res.ok) return showToast(data.error, "error");
   currentSop = hydrateSop(data.sop);
+  excelImportState = null;
   adminSearchTerm = currentSop.basic.product || currentSop.basic.process || currentSop.document.managementNo || "";
   await refreshAdminSearch();
   await refreshAdminWorkRecords();

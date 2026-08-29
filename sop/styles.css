@@ -362,6 +362,24 @@ body.print-preview-open .print-document { width: min(980px, 100%); margin: 0 aut
   .kv strong, .kv span { padding: 6px 8px; line-height: 1.25; }
   .auto-note { margin-bottom: 6px; padding: 6px 8px; font-size: 12px; line-height: 1.35; }
 }
+.excel-import-panel {
+  border-color: #9dc8bf;
+  background: linear-gradient(135deg, #f5fbfa 0%, #eef6ff 100%);
+}
+.excel-import-heading { display: flex; align-items: center; justify-content: space-between; gap: 18px; }
+.excel-import-heading h3 { margin-bottom: 6px; color: #0b5f56; }
+.excel-import-result { display: grid; gap: 4px; padding: 10px 12px; border: 1px solid #9fc9c1; border-radius: 10px; background: #fff; }
+.excel-import-result strong { color: #0b6a5d; }
+.excel-import-result span { color: #344c63; font-size: 13px; font-weight: 700; }
+.excel-import-result p { margin: 2px 0 0; color: #9a5b00; font-size: 12px; line-height: 1.45; }
+.excel-import-result.is-saved { border-color: #7bb7e7; background: #f2f8ff; }
+.excel-import-result.is-saved strong { color: #145da0; }
+
+@media (max-width: 760px) {
+  .excel-import-heading { align-items: stretch; flex-direction: column; }
+  .excel-import-heading .actions { width: 100%; }
+}
+
 @media print {
   @page { size: A4; margin: 12mm; }
   body { background: #fff; }
