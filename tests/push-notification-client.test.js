@@ -11,7 +11,7 @@ const sql = fs.readFileSync(path.join(root, "supabase-push-notifications.sql"), 
 const packageJson = require(path.join(root, "package.json"));
 
 assert(html.includes('id="pushNotificationBtn"'), "production push settings button should exist");
-assert(app.includes('currentAdminRole === "production"'), "push settings should be limited to production accounts");
+assert(app.includes('new Set(["production", "admin"])'), "push settings should allow production and administrator accounts");
 assert(app.includes('Notification.requestPermission()'), "client should request device notification permission");
 assert(app.includes('registration.pushManager.subscribe'), "client should create a Web Push subscription");
 assert(app.includes('PUSH_SUBSCRIPTIONS_API_URL'), "client should store subscriptions through the protected API");
@@ -22,10 +22,12 @@ assert(serviceWorker.includes('self.addEventListener("notificationclick"'), "not
 assert(serviceWorker.includes('type: "JHINT_OPEN_VIEW"'), "notification click should focus the worker input view");
 assert(sql.includes("alter table public.push_subscriptions enable row level security"), "subscription table should enable RLS");
 assert(sql.includes("revoke all on table public.push_subscriptions from anon, authenticated"), "browser roles must not access subscriptions directly");
+assert(sql.includes("role in ('production', 'admin')"), "subscription records should allow production and administrator roles");
 assert.strictEqual(packageJson.dependencies["web-push"], "3.6.7", "web-push dependency should be pinned");
 
 const subscriptionApi = fs.readFileSync(path.join(root, "api", "push-subscriptions.js"), "utf8");
 assert(subscriptionApi.includes("currentSubscriptions.length >= 5"), "each production account should have a device limit");
+assert(subscriptionApi.includes("role: user.role"), "subscription records should retain the authenticated account role");
 assert(subscriptionApi.includes('"fcm.googleapis.com"'), "subscription endpoints should be restricted to known push services");
 
 console.log("push notification client test passed");

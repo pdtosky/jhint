@@ -1,4 +1,4 @@
--- Production work push subscriptions and delivery history are intentionally
+-- Production and administrator work push subscriptions and delivery history are intentionally
 -- separated from public.app_state so they cannot be overwritten with app data.
 create extension if not exists pg_cron with schema pg_catalog;
 create extension if not exists pg_net with schema extensions;
@@ -9,7 +9,7 @@ create table if not exists public.push_subscriptions (
   user_id uuid not null references auth.users(id) on delete cascade,
   email text not null default '',
   display_name text not null,
-  role text not null check (role = 'production'),
+  role text not null check (role in ('production', 'admin')),
   endpoint text not null unique,
   p256dh text not null,
   auth text not null,
@@ -21,6 +21,11 @@ create table if not exists public.push_subscriptions (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+alter table public.push_subscriptions
+  drop constraint if exists push_subscriptions_role_check;
+alter table public.push_subscriptions
+  add constraint push_subscriptions_role_check check (role in ('production', 'admin'));
 
 create index if not exists push_subscriptions_user_enabled_idx
   on public.push_subscriptions (user_id, enabled);

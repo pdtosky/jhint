@@ -1,4 +1,4 @@
-const CACHE_NAME = "jhint-production-app-v20260831-01";
+const CACHE_NAME = "jhint-production-app-v20260901-01";
 const CORE_ASSETS = [
   "/",
   "/index.html",
@@ -70,6 +70,7 @@ self.addEventListener("push", (event) => {
       renotify: false,
       data: {
         url: payload.url || "/",
+        view: payload.view || "workerView",
         kind: payload.kind || ""
       }
     })
@@ -79,11 +80,12 @@ self.addEventListener("push", (event) => {
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   const targetUrl = new URL(event.notification.data?.url || "/", self.location.origin).href;
+  const targetView = event.notification.data?.view || "workerView";
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
       const existing = clients.find((client) => client.url.startsWith(self.location.origin));
       if (existing) {
-        existing.postMessage({ type: "JHINT_OPEN_VIEW", view: "workerView" });
+        existing.postMessage({ type: "JHINT_OPEN_VIEW", view: targetView });
         return existing.focus();
       }
       return self.clients.openWindow(targetUrl);

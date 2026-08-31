@@ -2,7 +2,7 @@ const {
   readJsonBody,
   sendJson,
   supabaseRequest,
-  verifyProductionUser
+  verifyPushNotificationUser
 } = require("../lib/push-server");
 
 function normalizeSubscription(value = {}) {
@@ -45,7 +45,7 @@ module.exports = async function pushSubscriptionsHandler(request, response) {
   }
 
   try {
-    const user = await verifyProductionUser(request);
+    const user = await verifyPushNotificationUser(request);
     if (!user.ok) {
       sendJson(response, user.status, { message: user.message });
       return;
@@ -81,7 +81,7 @@ module.exports = async function pushSubscriptionsHandler(request, response) {
         user_id: user.userId,
         email: user.email,
         display_name: user.displayName,
-        role: "production",
+        role: user.role,
         endpoint: subscription.endpoint,
         p256dh: subscription.p256dh,
         auth: subscription.auth,

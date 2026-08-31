@@ -4,6 +4,7 @@ const DUE_ALARM_KEY = "production-due-alarm-date-v1";
 const API_STATE_URL = "/api/state";
 const ADMIN_USERS_API_URL = "/api/admin-users";
 const PUSH_SUBSCRIPTIONS_API_URL = "/api/push-subscriptions";
+const PUSH_NOTIFICATION_ROLES = new Set(["production", "admin"]);
 const ADMIN_ACCOUNT_ROLES = [
   { value: "admin", label: "관리자" },
   { value: "production", label: "생산" },
@@ -64,6 +65,13 @@ const SOP_MEDIA_BUCKET = APP_CONFIG.supabaseSopMediaBucket || "sop-media";
 const SOP_VIDEO_MAX_BYTES = 50 * 1024 * 1024;
 const SOP_VIDEO_MIME_TYPES = new Set(["video/mp4", "video/webm", "video/quicktime"]);
 const CODEX_RELEASE_NOTES = [
+  {
+    version: "2026-09-01-01",
+    timestamp: "2026-09-01T08:23:32+09:00",
+    title: "관리자 생산 작업 알림 추가",
+    summary: "관리자 계정에서도 기기 알림을 설정할 수 있도록 확대했습니다. 관리자는 평일 오전 9시에 시작되지 않은 생산 작업을, 오후 9시에 작업 중 또는 일시정지 상태로 남은 전체 생산 작업을 건수와 함께 확인할 수 있습니다.",
+    files: ["app.js", "sw.js", "api/push-subscriptions.js", "api/push-reminders.js", "lib/push-server.js", "supabase-push-notifications.sql", "tests/push-notification-client.test.js", "tests/push-reminder-server.test.js", "tests/pwa-single-instance.test.js", "tests/sop-copy.test.js", "tests/sop-new-document.test.js", "tests/sop-video-attachment.test.js", "tests/admin-work-control.test.js", "tests/admin-equipment-monthly-report.test.js", "tests/global-auth-rollout-ready.test.js", "tests/global-auth-remember-login.test.js", "tests/global-auth-login-log.test.js", "tests/worker-account-session.test.js"]
+  },
   {
     version: "2026-08-31-01",
     timestamp: "2026-08-31T09:00:00+09:00",
@@ -684,8 +692,9 @@ function bindEvents() {
   });
 
   navigator.serviceWorker?.addEventListener("message", (event) => {
-    if (event.data?.type === "JHINT_OPEN_VIEW" && event.data?.view === "workerView" && canAccessView("workerView")) {
-      switchView("workerView");
+    const requestedView = String(event.data?.view || "");
+    if (event.data?.type === "JHINT_OPEN_VIEW" && requestedView && canAccessView(requestedView)) {
+      switchView(requestedView);
     }
   });
 
@@ -4916,7 +4925,7 @@ function getSortedOrders(orders) {
 
 function isProductionPushSupported() {
   return Boolean(
-    currentAdminRole === "production" &&
+    PUSH_NOTIFICATION_ROLES.has(currentAdminRole) &&
     location.protocol === "https:" &&
     "serviceWorker" in navigator &&
     "PushManager" in window &&
@@ -4962,7 +4971,7 @@ async function saveProductionPushSubscription(subscription, method) {
 
 async function syncProductionPushButton(force = false) {
   if (!pushNotificationBtn) return;
-  const visible = isAdminLoggedIn && currentAdminRole === "production";
+  const visible = isAdminLoggedIn && PUSH_NOTIFICATION_ROLES.has(currentAdminRole);
   pushNotificationBtn.hidden = !visible;
   if (!visible) {
     pushNotificationBtn.classList.remove("is-enabled");
@@ -5002,7 +5011,7 @@ function openRequestedPushView() {
   if (!isAdminLoggedIn) return;
   const url = new URL(location.href);
   const requestedView = String(url.searchParams.get("view") || "");
-  if (requestedView !== "workerView" || !canAccessView(requestedView)) return;
+  if (!requestedView || !canAccessView(requestedView)) return;
   url.searchParams.delete("view");
   history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
   switchView(requestedView);
@@ -5035,7 +5044,8 @@ async function toggleProductionPushNotifications() {
         await subscription.unsubscribe().catch(() => {});
         throw error;
       }
-      showAppAlert("생산 작업 알림을 설정했습니다. 평일 오전 9시와 오후 9시에 조건을 확인합니다.");
+      const accountLabel = currentAdminRole === "admin" ? "관리자 생산 현황" : "생산 작업";
+      showAppAlert(`${accountLabel} 알림을 설정했습니다. 평일 오전 9시와 오후 9시에 조건을 확인합니다.`);
     }
   } catch (error) {
     showAppAlert(error.message || "알림 설정을 변경하지 못했습니다.");

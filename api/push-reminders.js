@@ -8,6 +8,7 @@ const {
 
 const ACTIVE_STATUSES = new Set(["working", "break"]);
 const WAITING_STATUSES = new Set(["ready", "paused"]);
+const PUSH_NOTIFICATION_ROLES = new Set(["production", "admin"]);
 
 function getKstDateParts(date = new Date()) {
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -37,9 +38,11 @@ function normalizeWorkerName(value) {
 }
 
 function getDisplayName(user = {}) {
-  return String(
+  const registeredName = String(
     user.user_metadata?.display_name || user.user_metadata?.name || user.user_metadata?.full_name || ""
   ).trim();
+  const role = String(user.app_metadata?.jhint_role || "").trim().toLowerCase();
+  return registeredName || (role === "admin" ? "관리자" : "");
 }
 
 function isUserWorkRecord(record, userId, workerName) {
@@ -73,10 +76,31 @@ function shouldSendMorningReminder({ orders = [], activities = [], workerName = 
   return Boolean(workerKey && hasWaitingWork && !hasActiveWork && !startedToday);
 }
 
-async function listProductionUsers() {
+function getAdminPendingOrders({ orders = [], activities = [], dateKey = "" } = {}) {
+  const sourceOrders = Array.isArray(orders) ? orders : [];
+  const sourceActivities = Array.isArray(activities) ? activities : [];
+  return sourceOrders.filter((order) => {
+    if (!WAITING_STATUSES.has(order.status)) return false;
+    const assignedUserId = String(order.workerUserId || order.worker_user_id || "").trim();
+    const assignedName = String(order.workerName || "").trim();
+    if (!assignedUserId && !normalizeWorkerName(assignedName)) return true;
+
+    const assignedWorkerIsActive = sourceOrders.some(
+      (candidate) => ACTIVE_STATUSES.has(candidate.status) && isUserWorkRecord(candidate, assignedUserId, assignedName)
+    );
+    const assignedWorkerStartedToday = sourceActivities.some(
+      (activity) => activity.type === "start" &&
+        isUserWorkRecord(activity, assignedUserId, assignedName) &&
+        getKstDateKey(activity.timestamp) === dateKey
+    );
+    return !assignedWorkerIsActive && !assignedWorkerStartedToday;
+  });
+}
+
+async function listReminderUsers() {
   const payload = await supabaseRequest("/auth/v1/admin/users?page=1&per_page=100", { method: "GET" });
   return (Array.isArray(payload.users) ? payload.users : []).filter(
-    (user) => String(user.app_metadata?.jhint_role || "").trim().toLowerCase() === "production" && getDisplayName(user)
+    (user) => PUSH_NOTIFICATION_ROLES.has(String(user.app_metadata?.jhint_role || "").trim().toLowerCase()) && getDisplayName(user)
   );
 }
 
@@ -87,7 +111,7 @@ async function loadState() {
 
 async function listSubscriptions() {
   const rows = await supabaseRequest(
-    "/rest/v1/push_subscriptions?enabled=eq.true&role=eq.production&select=id,user_id,endpoint,p256dh,auth",
+    "/rest/v1/push_subscriptions?enabled=eq.true&role=in.(production,admin)&select=id,user_id,role,endpoint,p256dh,auth",
     { method: "GET" }
   );
   return Array.isArray(rows) ? rows : [];
@@ -137,13 +161,23 @@ async function disableSubscription(id, statusCode) {
 
 async function sendToUser({ user, subscriptions, kind, dateKey, orders, config }) {
   const displayName = getDisplayName(user);
+  const role = String(user.app_metadata?.jhint_role || "").trim().toLowerCase();
+  const isAdmin = role === "admin";
   const isMorning = kind === "morning";
-  const title = isMorning ? "작업 시작 확인" : "작업 종료 확인";
-  const body = isMorning
-    ? `${displayName}님, 오늘 작업 시작이 확인되지 않았습니다. 작업자 입력에서 작업을 시작해 주세요.`
-    : `${displayName}님, 작업 중인 항목이 ${orders.length}건 남아 있습니다. 작업 완료 또는 작업중지 처리를 해 주세요.`;
+  const title = isAdmin
+    ? (isMorning ? "생산 작업 시작 확인" : "생산 작업 종료 확인")
+    : (isMorning ? "작업 시작 확인" : "작업 종료 확인");
+  const body = isAdmin
+    ? (isMorning
+      ? `아직 시작되지 않은 생산 작업이 ${orders.length}건 있습니다. 생산 현황을 확인해 주세요.`
+      : `작업 중 또는 일시정지 상태가 ${orders.length}건 남아 있습니다. 생산 현황을 확인해 주세요.`)
+    : (isMorning
+      ? `${displayName}님, 오늘 작업 시작이 확인되지 않았습니다. 작업자 입력에서 작업을 시작해 주세요.`
+      : `${displayName}님, 작업 중인 항목이 ${orders.length}건 남아 있습니다. 작업 완료 또는 작업중지 처리를 해 주세요.`);
+  const targetView = isAdmin ? "dashboardView" : "workerView";
   const detail = {
     displayName,
+    role,
     orderIds: orders.map((order) => order.id).filter(Boolean),
     subscriptionCount: subscriptions.length
   };
@@ -162,10 +196,11 @@ async function sendToUser({ user, subscriptions, kind, dateKey, orders, config }
         {
           title,
           body,
-          tag: `jhint-production-${kind}-${dateKey}`,
+          tag: `jhint-${role}-${kind}-${dateKey}`,
           icon: "/app-icon.png",
           badge: "/app-icon.png",
-          url: "/?view=workerView",
+          url: `/?view=${targetView}`,
+          view: targetView,
           kind
         },
         config
@@ -215,45 +250,57 @@ module.exports = async function pushRemindersHandler(request, response) {
       return;
     }
 
-    const [state, productionUsers, allSubscriptions] = await Promise.all([
+    const [state, reminderUsers, allSubscriptions] = await Promise.all([
       loadState(),
-      listProductionUsers(),
+      listReminderUsers(),
       listSubscriptions()
     ]);
     const orders = Array.isArray(state.orders) ? state.orders : [];
     const activities = Array.isArray(state.activities) ? state.activities : [];
     const results = [];
 
-    for (const user of productionUsers) {
+    for (const user of reminderUsers) {
       const displayName = getDisplayName(user);
+      const role = String(user.app_metadata?.jhint_role || "").trim().toLowerCase();
+      const isAdmin = role === "admin";
       const subscriptions = allSubscriptions.filter((item) => item.user_id === user.id);
       if (!subscriptions.length) continue;
 
-      const activeOrders = getUserActiveOrders(orders, displayName, user.id);
+      const activeOrders = isAdmin
+        ? orders.filter((order) => ACTIVE_STATUSES.has(order.status))
+        : getUserActiveOrders(orders, displayName, user.id);
+      const pendingOrders = isAdmin
+        ? getAdminPendingOrders({ orders, activities, dateKey })
+        : [];
       if (kind === "evening" && !activeOrders.length) continue;
-
-      if (kind === "morning") {
-        if (!shouldSendMorningReminder({ orders, activities, workerName: displayName, userId: user.id, dateKey })) continue;
-      }
+      if (kind === "morning" && isAdmin && !pendingOrders.length) continue;
+      if (kind === "morning" && !isAdmin && !shouldSendMorningReminder({
+        orders,
+        activities,
+        workerName: displayName,
+        userId: user.id,
+        dateKey
+      })) continue;
 
       const result = await sendToUser({
         user,
         subscriptions,
         kind,
         dateKey,
-        orders: kind === "evening" ? activeOrders : [],
+        orders: kind === "evening" ? activeOrders : pendingOrders,
         config
       });
       results.push({ userId: user.id, displayName, ...result });
     }
 
-    sendJson(response, 200, { ok: true, kind, dateKey, checkedUsers: productionUsers.length, results });
+    sendJson(response, 200, { ok: true, kind, dateKey, checkedUsers: reminderUsers.length, results });
   } catch (error) {
     sendJson(response, error.status || 500, { message: error.message || "작업 알림 발송에 실패했습니다." });
   }
 };
 
 module.exports._test = {
+  getAdminPendingOrders,
   getKstDateKey,
   getKstDateParts,
   getUserActiveOrders,

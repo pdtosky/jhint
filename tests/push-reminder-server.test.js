@@ -2,6 +2,7 @@ const assert = require("assert");
 const reminderHandler = require("../api/push-reminders");
 
 const {
+  getAdminPendingOrders,
   getKstDateParts,
   getUserActiveOrders,
   shouldSendMorningReminder
@@ -16,6 +17,22 @@ assert.strictEqual(
   shouldSendMorningReminder({ orders: waitingOrders, activities: [], workerName: "김생산", dateKey: "2026-08-31" }),
   true,
   "a production worker with no start record should receive the morning reminder when work is waiting"
+);
+
+const adminPendingOrders = getAdminPendingOrders({
+  orders: [
+    { id: "unassigned-ready", status: "ready", workerName: "" },
+    { id: "assigned-not-started", status: "paused", workerName: "이생산", workerUserId: "user-2" },
+    { id: "assigned-active", status: "ready", workerName: "김생산", workerUserId: "user-1" },
+    { id: "active-work", status: "working", workerName: "김생산", workerUserId: "user-1" }
+  ],
+  activities: [],
+  dateKey: "2026-08-31"
+});
+assert.deepStrictEqual(
+  adminPendingOrders.map((order) => order.id),
+  ["unassigned-ready", "assigned-not-started"],
+  "administrator morning reminders should report unstarted work across production without duplicating active workers"
 );
 
 assert.strictEqual(
