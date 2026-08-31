@@ -3,6 +3,7 @@ const AUTH_REMEMBER_KEY = "production-auth-remember-v1";
 const DUE_ALARM_KEY = "production-due-alarm-date-v1";
 const API_STATE_URL = "/api/state";
 const ADMIN_USERS_API_URL = "/api/admin-users";
+const PUSH_SUBSCRIPTIONS_API_URL = "/api/push-subscriptions";
 const ADMIN_ACCOUNT_ROLES = [
   { value: "admin", label: "관리자" },
   { value: "production", label: "생산" },
@@ -63,6 +64,13 @@ const SOP_MEDIA_BUCKET = APP_CONFIG.supabaseSopMediaBucket || "sop-media";
 const SOP_VIDEO_MAX_BYTES = 50 * 1024 * 1024;
 const SOP_VIDEO_MIME_TYPES = new Set(["video/mp4", "video/webm", "video/quicktime"]);
 const CODEX_RELEASE_NOTES = [
+  {
+    version: "2026-08-31-01",
+    timestamp: "2026-08-31T09:00:00+09:00",
+    title: "생산 작업 시작·종료 푸시 알림 추가",
+    summary: "생산 계정이 기기 알림을 설정하면 평일 오전 9시에 당일 작업 시작 기록이 없을 때 시작 안내를, 오후 9시에 작업 중 또는 일시정지 상태가 남아 있을 때 종료 안내를 받도록 추가했습니다. 구독 정보와 발송 이력은 생산 데이터와 분리해 저장합니다.",
+    files: ["app.js", "config.js", "index.html", "style.css", "sw.js", "package.json", "package-lock.json", "api/push-subscriptions.js", "api/push-reminders.js", "lib/push-server.js", "supabase-push-notifications.sql", "tests/push-notification-client.test.js", "tests/push-reminder-server.test.js", "tests/admin-equipment-monthly-report.test.js", "tests/admin-work-control.test.js", "tests/global-auth-login-log.test.js", "tests/global-auth-remember-login.test.js", "tests/global-auth-rollout-ready.test.js", "tests/pwa-single-instance.test.js", "tests/sop-copy.test.js", "tests/sop-new-document.test.js", "tests/sop-video-attachment.test.js", "tests/worker-account-session.test.js"]
+  },
   {
     version: "2026-08-29-03",
     timestamp: "2026-08-29T15:10:32+09:00",
@@ -498,6 +506,8 @@ let currentAdminRole = "";
 let currentAdminDisplayName = "";
 let currentRequisitionEmail = "";
 let pendingRequisitionOrderSource = null;
+let pushButtonSyncTimer = null;
+let lastPushButtonSyncAt = 0;
 
 const securityLoginGate = document.getElementById("securityLoginGate");
 const globalLoginForm = document.getElementById("globalLoginForm");
@@ -509,6 +519,7 @@ const securityAuthTabs = document.querySelectorAll("[data-security-auth-tab]");
 const securityAuthPanels = document.querySelectorAll("[data-security-auth-panel]");
 const globalSessionBar = document.getElementById("globalSessionBar");
 const globalSessionUser = document.getElementById("globalSessionUser");
+const pushNotificationBtn = document.getElementById("pushNotificationBtn");
 const globalLogoutBtn = document.getElementById("globalLogoutBtn");
 const adminLoginForm = document.getElementById("adminLoginForm");
 const adminPageLoginForm = document.getElementById("adminPageLoginForm");
@@ -666,6 +677,16 @@ function bindEvents() {
 
   globalLogoutBtn?.addEventListener("click", () => {
     handleAdminLogout();
+  });
+
+  pushNotificationBtn?.addEventListener("click", () => {
+    void toggleProductionPushNotifications();
+  });
+
+  navigator.serviceWorker?.addEventListener("message", (event) => {
+    if (event.data?.type === "JHINT_OPEN_VIEW" && event.data?.view === "workerView" && canAccessView("workerView")) {
+      switchView("workerView");
+    }
   });
 
   requisitionLoginForm?.addEventListener("submit", (event) => {
@@ -1155,6 +1176,11 @@ async function updateWorkState(nextStatus, lockedInput = {}) {
 
   const order = state.orders.find((item) => item.id === orderId);
   if (!order) return;
+  let workerUserId = String(order.workerUserId || "").trim();
+  if (nextStatus === "working" && currentAdminRole === "production" && supabaseAuthClient) {
+    const { data } = await supabaseAuthClient.auth.getSession();
+    workerUserId = String(data?.session?.user?.id || "").trim();
+  }
 
   if (nextStatus === "working" && !["ready", "paused", "break"].includes(order.status)) {
     showWorkerAlert("선택한 작업은 현재 시작할 수 없는 상태입니다. 화면을 새로 확인해 주세요.");
@@ -1179,6 +1205,7 @@ async function updateWorkState(nextStatus, lockedInput = {}) {
   order.machineName = machineName;
 
   if (nextStatus === "working") {
+    order.workerUserId = workerUserId;
     order.startTime = new Date().toISOString();
     order.endTime = "";
     if (previousStatus !== "paused" && previousStatus !== "break") {
@@ -1203,6 +1230,7 @@ async function updateWorkState(nextStatus, lockedInput = {}) {
     id: crypto.randomUUID(),
     type: nextStatus === "working" ? "start" : "end",
     workerName,
+    workerUserId,
     machineName,
     orderId,
     timestamp: new Date().toISOString(),
@@ -4886,12 +4914,145 @@ function getSortedOrders(orders) {
   });
 }
 
+function isProductionPushSupported() {
+  return Boolean(
+    currentAdminRole === "production" &&
+    location.protocol === "https:" &&
+    "serviceWorker" in navigator &&
+    "PushManager" in window &&
+    "Notification" in window &&
+    APP_CONFIG.pushVapidPublicKey
+  );
+}
+
+function base64UrlToUint8Array(value) {
+  const padding = "=".repeat((4 - (value.length % 4)) % 4);
+  const base64 = `${value}${padding}`.replace(/-/g, "+").replace(/_/g, "/");
+  const raw = atob(base64);
+  return Uint8Array.from([...raw].map((character) => character.charCodeAt(0)));
+}
+
+async function getProductionPushRegistration() {
+  const registration = await navigator.serviceWorker.register("/sw.js");
+  await navigator.serviceWorker.ready;
+  return registration;
+}
+
+async function getGlobalAccessToken() {
+  const { data } = await supabaseAuthClient?.auth.getSession() || {};
+  const token = String(data?.session?.access_token || "").trim();
+  if (!token) throw new Error("로그인 정보를 다시 확인해 주세요.");
+  return token;
+}
+
+async function saveProductionPushSubscription(subscription, method) {
+  const token = await getGlobalAccessToken();
+  const response = await fetch(PUSH_SUBSCRIPTIONS_API_URL, {
+    method,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ subscription: subscription.toJSON() })
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(payload.message || "알림 설정을 저장하지 못했습니다.");
+  return payload;
+}
+
+async function syncProductionPushButton(force = false) {
+  if (!pushNotificationBtn) return;
+  const visible = isAdminLoggedIn && currentAdminRole === "production";
+  pushNotificationBtn.hidden = !visible;
+  if (!visible) {
+    pushNotificationBtn.classList.remove("is-enabled");
+    pushNotificationBtn.textContent = "알림 설정";
+    return;
+  }
+
+  if (!isProductionPushSupported()) {
+    pushNotificationBtn.disabled = true;
+    pushNotificationBtn.textContent = "알림 미지원";
+    return;
+  }
+
+  if (!force && Date.now() - lastPushButtonSyncAt < 60 * 1000) return;
+  lastPushButtonSyncAt = Date.now();
+  try {
+    const registration = await getProductionPushRegistration();
+    const subscription = await registration.pushManager.getSubscription();
+    const enabled = Boolean(subscription && Notification.permission === "granted");
+    pushNotificationBtn.disabled = false;
+    pushNotificationBtn.classList.toggle("is-enabled", enabled);
+    pushNotificationBtn.textContent = enabled ? "알림 받는 중" : "알림 설정";
+    pushNotificationBtn.setAttribute("aria-pressed", enabled ? "true" : "false");
+  } catch (error) {
+    pushNotificationBtn.disabled = false;
+    pushNotificationBtn.classList.remove("is-enabled");
+    pushNotificationBtn.textContent = "알림 설정";
+  }
+}
+
+function scheduleProductionPushButtonSync(force = false) {
+  clearTimeout(pushButtonSyncTimer);
+  pushButtonSyncTimer = setTimeout(() => void syncProductionPushButton(force), 80);
+}
+
+function openRequestedPushView() {
+  if (!isAdminLoggedIn) return;
+  const url = new URL(location.href);
+  const requestedView = String(url.searchParams.get("view") || "");
+  if (requestedView !== "workerView" || !canAccessView(requestedView)) return;
+  url.searchParams.delete("view");
+  history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+  switchView(requestedView);
+}
+
+async function toggleProductionPushNotifications() {
+  if (!isProductionPushSupported()) {
+    showAppAlert("이 기기 또는 브라우저에서는 백그라운드 알림을 사용할 수 없습니다.");
+    return;
+  }
+
+  pushNotificationBtn.disabled = true;
+  try {
+    const registration = await getProductionPushRegistration();
+    const currentSubscription = await registration.pushManager.getSubscription();
+    if (currentSubscription) {
+      await saveProductionPushSubscription(currentSubscription, "DELETE");
+      await currentSubscription.unsubscribe();
+      showAppAlert("이 기기의 생산 작업 알림을 껐습니다.");
+    } else {
+      const permission = await Notification.requestPermission();
+      if (permission !== "granted") throw new Error("기기 알림 권한이 허용되지 않았습니다.");
+      const subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: base64UrlToUint8Array(APP_CONFIG.pushVapidPublicKey)
+      });
+      try {
+        await saveProductionPushSubscription(subscription, "POST");
+      } catch (error) {
+        await subscription.unsubscribe().catch(() => {});
+        throw error;
+      }
+      showAppAlert("생산 작업 알림을 설정했습니다. 평일 오전 9시와 오후 9시에 조건을 확인합니다.");
+    }
+  } catch (error) {
+    showAppAlert(error.message || "알림 설정을 변경하지 못했습니다.");
+  } finally {
+    lastPushButtonSyncAt = 0;
+    await syncProductionPushButton(true);
+  }
+}
+
 function renderAdminSession() {
   const sessionLabel = currentAdminDisplayName || currentAdminEmail || "-";
   if (globalSessionBar) globalSessionBar.hidden = !isAdminLoggedIn;
   if (globalSessionUser) {
     globalSessionUser.textContent = isAdminLoggedIn ? `${sessionLabel} · ${getCurrentRoleLabel()}` : "-";
   }
+  scheduleProductionPushButtonSync();
+  openRequestedPushView();
   adminLoginPanel.hidden = isAdminLoggedIn;
   adminSessionPanel.hidden = !isAdminLoggedIn;
   adminSessionUser.textContent = currentAdminEmail ? `${currentAdminEmail} · ${getCurrentRoleLabel()}` : "admin";

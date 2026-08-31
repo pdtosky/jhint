@@ -233,6 +233,27 @@ body.security-auth-required .page-shell {
   font-weight: 800;
 }
 
+.push-notification-btn {
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid rgba(13, 107, 95, 0.28);
+  border-radius: 11px;
+  background: #e8f5f2;
+  color: #0d6b5f;
+  font-weight: 800;
+}
+
+.push-notification-btn.is-enabled {
+  border-color: #0d6b5f;
+  background: #0d6b5f;
+  color: #fff;
+}
+
+.push-notification-btn:disabled {
+  cursor: wait;
+  opacity: 0.64;
+}
+
 .company-logo {
   display: block;
   width: min(420px, 72vw);
@@ -2328,6 +2349,12 @@ tbody tr:last-child td {
     width: 100%;
     justify-content: space-between;
     margin-top: 10px;
+  }
+
+  .push-notification-btn,
+  .global-logout-btn {
+    flex: 0 0 auto;
+    padding: 0 11px;
   }
 
   .global-session-identity strong {

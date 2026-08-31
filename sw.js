@@ -1,4 +1,4 @@
-const CACHE_NAME = "jhint-production-app-v20260829-03";
+const CACHE_NAME = "jhint-production-app-v20260831-01";
 const CORE_ASSETS = [
   "/",
   "/index.html",
@@ -50,5 +50,43 @@ self.addEventListener("fetch", (event) => {
         return response;
       })
       .catch(() => caches.match(event.request).then((cached) => cached || caches.match("/index.html")))
+  );
+});
+
+self.addEventListener("push", (event) => {
+  let payload = {};
+  try {
+    payload = event.data?.json() || {};
+  } catch (error) {
+    payload = { body: event.data?.text() || "생산 작업을 확인해 주세요." };
+  }
+
+  event.waitUntil(
+    self.registration.showNotification(payload.title || "생산일정 관리", {
+      body: payload.body || "생산 작업을 확인해 주세요.",
+      icon: payload.icon || "/app-icon.png",
+      badge: payload.badge || "/app-icon.png",
+      tag: payload.tag || "jhint-production-reminder",
+      renotify: false,
+      data: {
+        url: payload.url || "/",
+        kind: payload.kind || ""
+      }
+    })
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const targetUrl = new URL(event.notification.data?.url || "/", self.location.origin).href;
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
+      const existing = clients.find((client) => client.url.startsWith(self.location.origin));
+      if (existing) {
+        existing.postMessage({ type: "JHINT_OPEN_VIEW", view: "workerView" });
+        return existing.focus();
+      }
+      return self.clients.openWindow(targetUrl);
+    })
   );
 });

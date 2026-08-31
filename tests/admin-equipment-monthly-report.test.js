@@ -35,7 +35,7 @@ assert(styleCss.includes(".equipment-matrix-table"), "all-machine matrix should 
 assert(styleCss.includes("position: sticky"), "date column should remain visible while scrolling across machines");
 assert(styleCss.includes(".equipment-report-summary"), "equipment report should show monthly summary metrics");
 assert(styleCss.includes("overflow-x: auto"), "the report table should stay usable on narrow screens");
-assert(swJs.includes("v20260829-03"), "service worker cache should refresh for the latest release");
+assert(swJs.includes("v20260831-01"), "service worker cache should refresh for the latest release");
 assert(swJs.includes('/xlsx-export.js'), "service worker should cache the Excel workbook generator");
 
 console.log("admin equipment monthly report test passed");

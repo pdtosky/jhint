@@ -7,6 +7,7 @@ window.APP_CONFIG = {
   supabaseTable: "app_state",
   supabaseRowId: "main",
   supabaseSopMediaBucket: "sop-media",
+  pushVapidPublicKey: "BIeEL96lCqkX3PFIhqENrvS_Skh1qwoja4C5KmV97bKhKebDB7E3JU3NRoMUBRehk1R_H7hz43qbvg4t7zjQK68",
   adminEmails: ["tape@jhint.net"],
   requisitionEmails: [],
   pollIntervalMs: 60000,
