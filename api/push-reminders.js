@@ -111,7 +111,7 @@ async function loadState() {
 
 async function listSubscriptions() {
   const rows = await supabaseRequest(
-    "/rest/v1/push_subscriptions?enabled=eq.true&role=in.(production,admin)&select=id,user_id,role,endpoint,p256dh,auth",
+    "/rest/v1/push_subscriptions?enabled=eq.true&role=in.(production,admin)&select=id,user_id,role,endpoint,p256dh,auth,updated_at&order=updated_at.desc",
     { method: "GET" }
   );
   return Array.isArray(rows) ? rows : [];
@@ -206,6 +206,41 @@ async function sendToUser({ user, subscriptions, kind, dateKey, orders, config }
         config
       );
       successCount += 1;
+    } catch (error) {
+      const statusCode = Number(error.statusCode || error.status || 0);
+      failures.push({ id: subscriptionRow.id, statusCode, message: String(error.message || "push failed").slice(0, 240) });
+      if (statusCode === 404 || statusCode === 410) await disableSubscription(subscriptionRow.id, statusCode);
+    }
+  }
+
+  const status = successCount > 0 ? "success" : "failed";
+  await finishDelivery(user.id, kind, dateKey, status, { ...detail, successCount, failures });
+  return { successCount, failureCount: failures.length };
+}
+
+async function sendAdminTestNotification({ user, subscriptions, config }) {
+  let successCount = 0;
+  const failures = [];
+  for (const subscriptionRow of subscriptions) {
+    try {
+      await sendWebPush(
+        {
+          endpoint: subscriptionRow.endpoint,
+          keys: { p256dh: subscriptionRow.p256dh, auth: subscriptionRow.auth }
+        },
+        {
+          title: "관리자 알림 소리 테스트",
+          body: "생산일정 관리의 알림 소리와 진동을 확인해 주세요.",
+          tag: `jhint-admin-test-${Date.now()}`,
+          icon: "/app-icon.png",
+          badge: "/app-icon.png",
+          url: "/?view=dashboardView",
+          view: "dashboardView",
+          kind: "admin-test"
+        },
+        config
+      );
+      successCount += 1;
       await supabaseRequest(`/rest/v1/push_subscriptions?id=eq.${encodeURIComponent(subscriptionRow.id)}`, {
         method: "PATCH",
         headers: { Prefer: "return=minimal" },
@@ -217,9 +252,6 @@ async function sendToUser({ user, subscriptions, kind, dateKey, orders, config }
       if (statusCode === 404 || statusCode === 410) await disableSubscription(subscriptionRow.id, statusCode);
     }
   }
-
-  const status = successCount > 0 ? "success" : "failed";
-  await finishDelivery(user.id, kind, dateKey, status, { ...detail, successCount, failures });
   return { successCount, failureCount: failures.length };
 }
 
@@ -233,7 +265,7 @@ module.exports = async function pushRemindersHandler(request, response) {
   try {
     const url = new URL(request.url, "https://jhint.vercel.app");
     const kind = String(url.searchParams.get("kind") || "").trim().toLowerCase();
-    if (!['morning', 'evening'].includes(kind)) {
+    if (!['morning', 'evening', 'admin-test'].includes(kind)) {
       sendJson(response, 400, { message: "알림 종류가 올바르지 않습니다." });
       return;
     }
@@ -241,6 +273,33 @@ module.exports = async function pushRemindersHandler(request, response) {
     const config = await getPushServerConfig();
     if (getBearerToken(request) !== config.cronSecret) {
       sendJson(response, 401, { message: "예약 실행 인증에 실패했습니다." });
+      return;
+    }
+
+    if (kind === "admin-test") {
+      const [reminderUsers, allSubscriptions] = await Promise.all([
+        listReminderUsers(),
+        listSubscriptions()
+      ]);
+      const administrators = reminderUsers.filter(
+        (user) => String(user.app_metadata?.jhint_role || "").trim().toLowerCase() === "admin"
+      );
+      const results = [];
+      for (const user of administrators) {
+        const subscriptions = allSubscriptions.filter(
+          (item) => item.user_id === user.id && item.role === "admin"
+        ).slice(0, 1);
+        if (!subscriptions.length) continue;
+        results.push(await sendAdminTestNotification({ user, subscriptions, config }));
+      }
+      sendJson(response, 200, {
+        ok: true,
+        kind,
+        checkedAdmins: administrators.length,
+        successCount: results.reduce((sum, item) => sum + item.successCount, 0),
+        failureCount: results.reduce((sum, item) => sum + item.failureCount, 0),
+        results
+      });
       return;
     }
 

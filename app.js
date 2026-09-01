@@ -66,6 +66,13 @@ const SOP_VIDEO_MAX_BYTES = 50 * 1024 * 1024;
 const SOP_VIDEO_MIME_TYPES = new Set(["video/mp4", "video/webm", "video/quicktime"]);
 const CODEX_RELEASE_NOTES = [
   {
+    version: "2026-09-01-03",
+    timestamp: "2026-09-01T09:18:00+09:00",
+    title: "관리자 알림 소리 테스트 발송 추가",
+    summary: "정식 오전·오후 알림 기록이나 생산 작업 상태에 영향을 주지 않고, 등록된 관리자 기기에만 알림 소리와 진동을 점검할 수 있는 보안된 테스트 발송 경로를 추가했습니다.",
+    files: ["app.js", "sw.js", "api/push-reminders.js", "tests/push-reminder-server.test.js", "tests/admin-equipment-monthly-report.test.js", "tests/admin-work-control.test.js", "tests/global-auth-login-log.test.js", "tests/global-auth-remember-login.test.js", "tests/global-auth-rollout-ready.test.js", "tests/pwa-single-instance.test.js", "tests/sop-copy.test.js", "tests/sop-new-document.test.js", "tests/sop-video-attachment.test.js", "tests/worker-account-session.test.js"]
+  },
+  {
     version: "2026-09-01-02",
     timestamp: "2026-09-01T09:11:57+09:00",
     title: "생산 작업 알림 소리·진동 강화",

@@ -1,5 +1,8 @@
 const assert = require("assert");
+const fs = require("fs");
+const path = require("path");
 const reminderHandler = require("../api/push-reminders");
+const reminderSource = fs.readFileSync(path.join(__dirname, "..", "api", "push-reminders.js"), "utf8");
 
 const {
   getAdminPendingOrders,
@@ -9,6 +12,10 @@ const {
 } = reminderHandler._test;
 
 const kstMorning = getKstDateParts(new Date("2026-08-31T00:00:00.000Z"));
+assert(reminderSource.includes("'admin-test'"), "the protected reminder endpoint should support administrator-only test delivery");
+assert(reminderSource.includes('item.role === "admin"'), "test delivery must exclude production subscriptions");
+assert(reminderSource.includes(").slice(0, 1);"), "administrator tests should target only the most recently registered device");
+assert(reminderSource.includes('kind: "admin-test"'), "test notifications should use a separate non-production kind");
 assert.strictEqual(kstMorning.dateKey, "2026-08-31", "00:00 UTC should be 09:00 KST on the same date");
 assert.strictEqual(kstMorning.weekday, "Mon", "2026-08-31 should be Monday in Korea");
 

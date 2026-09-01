@@ -17,6 +17,6 @@ assert(
   indexHtml.includes('manifest.webmanifest?v=20260827-01'),
   "the page should request the updated manifest instead of a cached copy"
 );
-assert(swJs.includes("jhint-production-app-v20260901-02"), "the service worker cache should refresh for this release");
+assert(swJs.includes("jhint-production-app-v20260901-03"), "the service worker cache should refresh for this release");
 
 console.log("pwa single-instance test passed");
