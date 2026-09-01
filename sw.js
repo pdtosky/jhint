@@ -1,4 +1,4 @@
-const CACHE_NAME = "jhint-production-app-v20260901-01";
+const CACHE_NAME = "jhint-production-app-v20260901-02";
 const CORE_ASSETS = [
   "/",
   "/index.html",
@@ -67,7 +67,10 @@ self.addEventListener("push", (event) => {
       icon: payload.icon || "/app-icon.png",
       badge: payload.badge || "/app-icon.png",
       tag: payload.tag || "jhint-production-reminder",
-      renotify: false,
+      renotify: true,
+      requireInteraction: true,
+      silent: false,
+      vibrate: [300, 150, 300, 150, 500],
       data: {
         url: payload.url || "/",
         view: payload.view || "workerView",

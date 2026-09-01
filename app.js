@@ -66,6 +66,13 @@ const SOP_VIDEO_MAX_BYTES = 50 * 1024 * 1024;
 const SOP_VIDEO_MIME_TYPES = new Set(["video/mp4", "video/webm", "video/quicktime"]);
 const CODEX_RELEASE_NOTES = [
   {
+    version: "2026-09-01-02",
+    timestamp: "2026-09-01T09:11:57+09:00",
+    title: "생산 작업 알림 소리·진동 강화",
+    summary: "생산 및 관리자 작업 알림을 무음이 아닌 중요 알림으로 요청하고, 지원 기기에서는 진동 패턴과 재알림을 사용하며 사용자가 확인할 때까지 알림이 유지되도록 개선했습니다. 실제 소리 크기와 무음 여부는 휴대폰·PC 알림 설정을 따릅니다.",
+    files: ["app.js", "sw.js", "tests/push-notification-client.test.js", "tests/admin-equipment-monthly-report.test.js", "tests/admin-work-control.test.js", "tests/global-auth-login-log.test.js", "tests/global-auth-remember-login.test.js", "tests/global-auth-rollout-ready.test.js", "tests/pwa-single-instance.test.js", "tests/sop-copy.test.js", "tests/sop-new-document.test.js", "tests/sop-video-attachment.test.js", "tests/worker-account-session.test.js"]
+  },
+  {
     version: "2026-09-01-01",
     timestamp: "2026-09-01T08:23:32+09:00",
     title: "관리자 생산 작업 알림 추가",

@@ -42,6 +42,6 @@ assert.match(sql, /'sop-media'[\s\S]*false[\s\S]*52428800/, "bucket must be priv
 assert.match(sql, /for select\s+to authenticated/i, "only authenticated users may read videos");
 assert.match(sql, /storage\.foldername\(name\)\)\[1\].*auth\.uid/s, "uploads must be scoped to the user's folder");
 assert.match(sql, /for delete\s+to authenticated[\s\S]*owner_id = \(select auth\.uid\(\)\)::text/i, "users may only delete their own videos");
-assert(sw.includes("jhint-production-app-v20260901-01"), "service worker cache must be bumped");
+assert(sw.includes("jhint-production-app-v20260901-02"), "service worker cache must be bumped");
 
 console.log("sop video attachment test passed");

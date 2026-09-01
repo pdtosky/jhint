@@ -24,6 +24,6 @@ assert.match(
   "worker status cards should calculate administrator controls in their own render scope"
 );
 assert(styleCss.includes(".admin-work-control-btn"), "administrator work controls should be visually distinct");
-assert(swJs.includes("v20260901-01"), "service worker cache should include the latest release");
+assert(swJs.includes("v20260901-02"), "service worker cache should include the latest release");
 
 console.log("admin work control test passed");

@@ -19,6 +19,10 @@ assert(app.includes('order.workerUserId = workerUserId'), "new work starts shoul
 assert(config.includes("pushVapidPublicKey"), "public VAPID key should be available to the browser");
 assert(serviceWorker.includes('self.addEventListener("push"'), "service worker should receive background pushes");
 assert(serviceWorker.includes('self.addEventListener("notificationclick"'), "notification click should reopen the app");
+assert(serviceWorker.includes("silent: false"), "work reminders should explicitly request a non-silent notification");
+assert(serviceWorker.includes("vibrate: [300, 150, 300, 150, 500]"), "supported devices should use a noticeable vibration pattern");
+assert(serviceWorker.includes("requireInteraction: true"), "desktop reminders should remain visible until acknowledged when supported");
+assert(serviceWorker.includes("renotify: true"), "replacement reminders should alert the user again");
 assert(serviceWorker.includes('type: "JHINT_OPEN_VIEW"'), "notification click should focus the worker input view");
 assert(sql.includes("alter table public.push_subscriptions enable row level security"), "subscription table should enable RLS");
 assert(sql.includes("revoke all on table public.push_subscriptions from anon, authenticated"), "browser roles must not access subscriptions directly");
