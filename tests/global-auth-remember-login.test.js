@@ -14,12 +14,13 @@ assert(indexHtml.includes("개인 휴대폰이나 개인 컴퓨터에서만 선�
 
 assert(appJs.includes('const AUTH_REMEMBER_KEY = "production-auth-remember-v1"'), "remember-login preference should have a stable key");
 assert(appJs.includes("function createSupabaseAuthStorage"), "Supabase auth should use a selectable storage adapter");
-assert(appJs.includes("shouldRememberLogin() ? window.localStorage : window.sessionStorage"), "persistent and current-tab storage should be selected explicitly");
+assert(appJs.includes('shouldRememberLogin() ? "localStorage" : "sessionStorage"'), "persistent and current-tab storage should be selected explicitly");
 assert(appJs.includes("setAuthPersistencePreference(rememberLogin)"), "login should apply the selected persistence before signing in");
-assert(appJs.includes("window.localStorage.removeItem(key)"), "logout should be able to remove persistent sessions");
-assert(appJs.includes("window.sessionStorage.removeItem(key)"), "logout should be able to remove current-tab sessions");
+assert(appJs.includes('removeBrowserStorage("localStorage", key)'), "logout should be able to remove persistent sessions safely");
+assert(appJs.includes('removeBrowserStorage("sessionStorage", key)'), "logout should be able to remove current-tab sessions safely");
+assert(appJs.includes("authMemoryStorage.set(key, value)"), "blocked browser storage should fall back to current-memory auth");
 
 assert(styleCss.includes(".security-remember-option"), "remember-login option should have a dedicated compact layout");
-assert(swJs.includes("v20260901-04"), "service worker cache should include the latest update");
+assert(swJs.includes("v20260901-05"), "service worker cache should include the latest update");
 
 console.log("global auth remember-login test passed");

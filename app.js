@@ -1,4 +1,4 @@
-﻿const ADMIN_SESSION_KEY = "production-admin-session-v1";
+const ADMIN_SESSION_KEY = "production-admin-session-v1";
 const AUTH_REMEMBER_KEY = "production-auth-remember-v1";
 const DUE_ALARM_KEY = "production-due-alarm-date-v1";
 const API_STATE_URL = "/api/state";
@@ -64,7 +64,34 @@ const BACKEND_MODE = APP_CONFIG.backend || "api";
 const SOP_MEDIA_BUCKET = APP_CONFIG.supabaseSopMediaBucket || "sop-media";
 const SOP_VIDEO_MAX_BYTES = 50 * 1024 * 1024;
 const SOP_VIDEO_MIME_TYPES = new Set(["video/mp4", "video/webm", "video/quicktime"]);
+const authMemoryStorage = new Map();
+let authRememberFallback = false;
+
+function createCompatibleRandomId() {
+  if (window.crypto && typeof window.crypto.randomUUID === "function") {
+    return window.crypto.randomUUID();
+  }
+
+  if (window.crypto && typeof window.crypto.getRandomValues === "function") {
+    const bytes = new Uint8Array(16);
+    window.crypto.getRandomValues(bytes);
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    const hex = Array.from(bytes, (value) => value.toString(16).padStart(2, "0"));
+    return `${hex.slice(0, 4).join("")}-${hex.slice(4, 6).join("")}-${hex.slice(6, 8).join("")}-${hex.slice(8, 10).join("")}-${hex.slice(10).join("")}`;
+  }
+
+  return `legacy-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
 const CODEX_RELEASE_NOTES = [
+  {
+    version: "2026-09-01-05",
+    timestamp: "2026-09-01T10:27:00+09:00",
+    title: "아이폰 로그인 호환성 강화",
+    summary: "일부 iPhone Safari에서 개인정보 보호 설정이나 저장공간 제한으로 로그인이 멈추던 문제를 보완했습니다. 로그인 세션은 사용 가능한 저장공간으로 자동 전환하고, 구형 iOS의 식별번호 기능을 대체하며, 외부 인증 파일과 앱 캐시 버전을 고정했습니다.",
+    files: ["app.js", "index.html", "sw.js", "tests/ios-auth-compatibility.test.js", "tests/global-auth-remember-login.test.js"]
+  },
   {
     version: "2026-09-01-04",
     timestamp: "2026-09-01T09:55:41+09:00",
@@ -442,7 +469,7 @@ const TEXT = {
 
 const seedOrders = [
   {
-    id: crypto.randomUUID(),
+    id: createCompatibleRandomId(),
     orderDate: "2026-04-20",
     company: "\uD55C\uBE5B\uC0B0\uC5C5",
     product: "\uC54C\uB8E8\uBBF8\uB284 \uD504\uB808\uC784",
@@ -467,7 +494,7 @@ const seedOrders = [
     shippingNoteLocked: false
   },
   {
-    id: crypto.randomUUID(),
+    id: createCompatibleRandomId(),
     orderDate: "2026-04-21",
     company: "\uB300\uC131\uD14C\uD06C",
     product: "\uCEE4\uBC84 \uD50C\uB808\uC774\uD2B8",
@@ -877,7 +904,7 @@ function bindEvents() {
     }
     const formData = new FormData(orderForm);
     const nextOrder = {
-      id: crypto.randomUUID(),
+      id: createCompatibleRandomId(),
       orderDate: String(formData.get("orderDate") || ""),
       company: String(formData.get("company") || "").trim(),
       product: String(formData.get("product") || "").trim(),
@@ -910,7 +937,7 @@ function bindEvents() {
 
     state.orders.unshift(nextOrder);
     state.activities.unshift({
-      id: crypto.randomUUID(),
+      id: createCompatibleRandomId(),
       type: "register",
       workerName: TEXT.admin,
       orderId: nextOrder.id,
@@ -943,7 +970,7 @@ function bindEvents() {
     order.orderNote = String(new FormData(orderEditForm).get("editOrderNote") || "").trim();
 
     state.activities.unshift({
-      id: crypto.randomUUID(),
+      id: createCompatibleRandomId(),
       type: "register",
       workerName: TEXT.admin,
       orderId: order.id,
@@ -1257,7 +1284,7 @@ async function updateWorkState(nextStatus, lockedInput = {}) {
   }
 
   state.activities.unshift({
-    id: crypto.randomUUID(),
+    id: createCompatibleRandomId(),
     type: nextStatus === "working" ? "start" : "end",
     workerName,
     workerUserId,
@@ -1412,7 +1439,7 @@ async function pauseTemporarily() {
   order.endTime = "";
 
   state.activities.unshift({
-    id: crypto.randomUUID(),
+    id: createCompatibleRandomId(),
     type: "temporaryPause",
     workerName,
     machineName,
@@ -1470,7 +1497,7 @@ async function finalizePause() {
   order.totalHitQty = addNumericStrings(order.totalHitQty, workHitQty);
 
   state.activities.unshift({
-    id: crypto.randomUUID(),
+    id: createCompatibleRandomId(),
     type: "pause",
     workerName: pendingPauseWorkerName,
     machineName: order.machineName || "",
@@ -1558,7 +1585,7 @@ async function finalizeCompletion() {
   order.pauseReason = "";
 
   state.activities.unshift({
-    id: crypto.randomUUID(),
+    id: createCompatibleRandomId(),
     type: "end",
     workerName: pendingCompletionWorkerName,
     machineName: order.machineName || "",
@@ -1614,7 +1641,7 @@ function createEmptyState() {
     sopDeletedIds: [],
     activities: [
       {
-        id: crypto.randomUUID(),
+        id: createCompatibleRandomId(),
         type: "start",
         workerName: "\uC774\uBBFC\uC218",
         orderId: seedOrders[1].id,
@@ -1967,7 +1994,7 @@ async function uploadSmartSopAttachment({ sopId = "", file } = {}) {
   const user = await getSopMediaUser();
   const videoExtension = getSopVideoExtension(file);
   const videoMimeType = getSopVideoMimeType(file);
-  const storagePath = `${user.id}/${sanitizeSopStorageSegment(sopId)}/${crypto.randomUUID()}.${videoExtension}`;
+  const storagePath = `${user.id}/${sanitizeSopStorageSegment(sopId)}/${createCompatibleRandomId()}.${videoExtension}`;
   const { error } = await supabaseAuthClient.storage.from(SOP_MEDIA_BUCKET).upload(storagePath, file, {
     cacheControl: "3600",
     contentType: videoMimeType,
@@ -2069,16 +2096,21 @@ function setAdminSession(email, role = "", displayName = "") {
 
 async function restoreAdminSession() {
   if (!supabaseAuthClient) return;
-  const { data } = await supabaseAuthClient.auth.getSession();
-  const sessionUser = await getFreshSessionUser(data?.session?.user || {});
-  const sessionEmail = sessionUser.email || "";
-  const sessionRole = getSessionRole(sessionUser, sessionEmail);
-  if (sessionEmail && !sessionRole) {
-    await supabaseAuthClient.auth.signOut({ scope: "local" });
+  try {
+    const { data } = await supabaseAuthClient.auth.getSession();
+    const sessionUser = await getFreshSessionUser(data?.session?.user || {});
+    const sessionEmail = sessionUser.email || "";
+    const sessionRole = getSessionRole(sessionUser, sessionEmail);
+    if (sessionEmail && !sessionRole) {
+      await supabaseAuthClient.auth.signOut({ scope: "local" });
+      setAdminSession("");
+      return;
+    }
+    setAdminSession(sessionEmail, sessionRole, getSessionDisplayName(sessionUser, sessionEmail));
+  } catch (error) {
     setAdminSession("");
-    return;
+    console.warn("브라우저 로그인 세션을 복원하지 못했습니다.", error);
   }
-  setAdminSession(sessionEmail, sessionRole, getSessionDisplayName(sessionUser, sessionEmail));
 }
 
 function bindAdminAuthListener() {
@@ -2458,7 +2490,7 @@ function normalizeOrderRecord(order) {
 function normalizeRequisitionRecord(request) {
   const items = Array.isArray(request.items) ? request.items : [];
   return {
-    id: request.id || crypto.randomUUID(),
+    id: request.id || createCompatibleRandomId(),
     requestNo: request.requestNo || generateRequisitionNo(),
     company: request.company || "",
     orderDate: request.orderDate || "",
@@ -2475,7 +2507,7 @@ function normalizeRequisitionRecord(request) {
     updatedAt: request.updatedAt || "",
     adminMemo: request.adminMemo || "",
     items: items.map((item) => ({
-      id: item.id || crypto.randomUUID(),
+      id: item.id || createCompatibleRandomId(),
       name: item.name || "",
       spec: item.spec || "",
       quantity: item.quantity || "",
@@ -2576,7 +2608,7 @@ function normalizeSopRecord(sop = {}) {
   return {
     ...base,
     ...sop,
-    id: sop.id || crypto.randomUUID(),
+    id: sop.id || createCompatibleRandomId(),
     createdAt: sop.createdAt || new Date().toISOString(),
     document,
     basic,
@@ -2858,7 +2890,7 @@ function collectRequisitionItems() {
     .map((row) => {
       const getValue = (selector) => String(row.querySelector(selector)?.value || "").trim();
       return {
-        id: row.dataset.itemId || crypto.randomUUID(),
+        id: row.dataset.itemId || createCompatibleRandomId(),
         name: getValue('[name="requestItemName"]'),
         spec: getValue('[name="requestItemSpec"]'),
         quantity: getValue('[name="requestItemQty"]'),
@@ -2941,7 +2973,7 @@ function handleRequisitionSubmit() {
       items
     }));
     state.activities.unshift({
-      id: crypto.randomUUID(),
+      id: createCompatibleRandomId(),
       type: "requisitionEdit",
       workerName: existingRequest.requesterName || "영업 담당자",
       orderId: "",
@@ -2957,7 +2989,7 @@ function handleRequisitionSubmit() {
   }
 
   const request = normalizeRequisitionRecord({
-    id: crypto.randomUUID(),
+    id: createCompatibleRandomId(),
     requestNo: generateRequisitionNo(),
     company: String(formData.get("requestCompany") || "").trim(),
     orderDate: String(formData.get("requestOrderDate") || ""),
@@ -2973,7 +3005,7 @@ function handleRequisitionSubmit() {
 
   state.requisitions.unshift(request);
   state.activities.unshift({
-    id: crypto.randomUUID(),
+    id: createCompatibleRandomId(),
     type: "requisition",
     workerName: request.requesterName || "영업 담당자",
     orderId: "",
@@ -3748,7 +3780,7 @@ function getRequisitionRepairOrderId(request, item) {
   return `REQ-ORDER-${request.id}-${item.id}`;
 }
 
-function buildOrderFromRequisitionItem(request, item, orderId = crypto.randomUUID()) {
+function buildOrderFromRequisitionItem(request, item, orderId = createCompatibleRandomId()) {
   return normalizeOrderRecord({
     id: orderId,
     orderDate: request.orderDate || getTodayKey(),
@@ -3881,7 +3913,7 @@ function createOrderFromRequisitionItem(request, item) {
 
   state.orders.unshift(nextOrder);
   state.activities.unshift({
-    id: crypto.randomUUID(),
+    id: createCompatibleRandomId(),
     type: "register",
     workerName: TEXT.admin,
     orderId: nextOrder.id,
@@ -4622,33 +4654,41 @@ async function handleGlobalLogin() {
     return;
   }
 
-  setAuthPersistencePreference(rememberLogin);
+  setSecurityAuthSubmitBusy(globalLoginForm, true);
+  try {
+    setAuthPersistencePreference(rememberLogin);
 
-  const { data, error } = await supabaseAuthClient.auth.signInWithPassword({ email, password });
-  if (error) {
-    setSecurityAuthMessage("로그인에 실패했습니다. 이메일, 비밀번호 또는 관리자 승인 상태를 확인해 주세요.", "error");
-    return;
+    const { data, error } = await supabaseAuthClient.auth.signInWithPassword({ email, password });
+    if (error) {
+      setSecurityAuthMessage("로그인에 실패했습니다. 이메일, 비밀번호 또는 관리자 승인 상태를 확인해 주세요.", "error");
+      return;
+    }
+
+    const sessionUser = await getFreshSessionUser(data?.user || data?.session?.user || {});
+    const sessionEmail = sessionUser.email || email;
+    const sessionRole = getSessionRole(sessionUser, sessionEmail);
+    if (!sessionRole) {
+      await supabaseAuthClient.auth.signOut({ scope: "local" });
+      setAdminSession("");
+      renderSecurityLoginGate("관리자 승인이 아직 없습니다. 관리자 승인 후 다시 로그인해 주세요.");
+      return;
+    }
+
+    setAdminSession(sessionEmail, sessionRole, getSessionDisplayName(sessionUser, sessionEmail));
+    globalLoginForm.reset();
+    renderSecurityLoginGate();
+    await initializeAppData();
+    await recordSuccessfulLogin({
+      email: sessionEmail,
+      role: sessionRole,
+      rememberLogin
+    });
+  } catch (error) {
+    console.error("로그인 처리 중 브라우저 오류가 발생했습니다.", error);
+    setSecurityAuthMessage("아이폰 브라우저 또는 네트워크에서 로그인을 완료하지 못했습니다. Safari 일반 탭에서 다시 열거나 개인정보 보호·콘텐츠 차단 설정을 확인해 주세요.", "error");
+  } finally {
+    setSecurityAuthSubmitBusy(globalLoginForm, false);
   }
-
-  const sessionUser = await getFreshSessionUser(data?.user || data?.session?.user || {});
-  const sessionEmail = sessionUser.email || email;
-  const sessionRole = getSessionRole(sessionUser, sessionEmail);
-  if (!sessionRole) {
-    await supabaseAuthClient.auth.signOut({ scope: "local" });
-    setAdminSession("");
-    renderSecurityLoginGate("관리자 승인이 아직 없습니다. 관리자 승인 후 다시 로그인해 주세요.");
-    return;
-  }
-
-  setAdminSession(sessionEmail, sessionRole, getSessionDisplayName(sessionUser, sessionEmail));
-  globalLoginForm.reset();
-  renderSecurityLoginGate();
-  await initializeAppData();
-  await recordSuccessfulLogin({
-    email: sessionEmail,
-    role: sessionRole,
-    rememberLogin
-  });
 }
 
 async function recordSuccessfulLogin({ email = "", role = "", rememberLogin = false } = {}) {
@@ -4661,7 +4701,7 @@ async function recordSuccessfulLogin({ email = "", role = "", rememberLogin = fa
   }
 
   state.activities.unshift({
-    id: crypto.randomUUID(),
+    id: createCompatibleRandomId(),
     type: "login",
     adminEmail: normalizedEmail,
     target: "생산일정관리",
@@ -5611,7 +5651,7 @@ async function handleSopSubmit() {
   const formData = new FormData(sopForm);
   const existing = getExistingSop(formData.get("sopId") || editingSopId);
   const sop = normalizeSopRecord({
-    id: String(formData.get("sopId") || "").trim() || editingSopId || crypto.randomUUID(),
+    id: String(formData.get("sopId") || "").trim() || editingSopId || createCompatibleRandomId(),
     managementNo: String(formData.get("managementNo") || "").trim(),
     vendor: String(formData.get("vendor") || "").trim(),
     product: String(formData.get("product") || "").trim(),
@@ -5860,7 +5900,7 @@ async function saveSopDraft(forceStatus = "") {
   syncSopDraftFromPage();
   const nextSop = normalizeSopRecord({
     ...currentSopDraft,
-    id: editingSopId || currentSopDraft.id || crypto.randomUUID(),
+    id: editingSopId || currentSopDraft.id || createCompatibleRandomId(),
     createdAt: currentSopDraft.createdAt || new Date().toISOString()
   });
   if (forceStatus) nextSop.document.status = forceStatus;
@@ -6040,7 +6080,7 @@ async function saveSmartSopRecord(input) {
   const previousSop = input?.id ? getSmartSopRecord(input.id) : null;
   const nextSop = normalizeSopRecord({
     ...input,
-    id: input?.id || crypto.randomUUID(),
+    id: input?.id || createCompatibleRandomId(),
     createdAt: input?.createdAt || new Date().toISOString()
   });
   nextSop.document.updatedAt = new Date().toISOString();
@@ -6124,7 +6164,7 @@ async function saveSmartSopWorkRecord(input) {
   const rollback = [...(state.sopWorkRecords || [])];
   const dailyShots = Math.max(0, toNumber(input?.moldUse?.dailyShots));
   const record = {
-    id: crypto.randomUUID(),
+    id: createCompatibleRandomId(),
     sopId,
     workDate,
     workerName,
@@ -6669,7 +6709,7 @@ async function createAdminUser(formElement) {
   try {
     await requestAdminUsersApi("POST", { email, password, role: "production" });
     state.activities.unshift({
-      id: crypto.randomUUID(),
+      id: createCompatibleRandomId(),
       type: "accountCreate",
       adminEmail: currentAdminEmail,
       targetEmail: email,
@@ -6708,7 +6748,7 @@ async function updateAdminUserProfile(userId, userEmail, displayName, role) {
       role: selectedRole
     });
     state.activities.unshift({
-      id: crypto.randomUUID(),
+      id: createCompatibleRandomId(),
       type: "accountUpdate",
       adminEmail: currentAdminEmail,
       targetEmail: userEmail,
@@ -6750,7 +6790,7 @@ async function deleteAdminUser(userId, userEmail) {
   try {
     await requestAdminUsersApi("DELETE", null, `?id=${encodeURIComponent(userId)}`);
     state.activities.unshift({
-      id: crypto.randomUUID(),
+      id: createCompatibleRandomId(),
       type: "accountDelete",
       adminEmail: currentAdminEmail,
       targetEmail: userEmail,
@@ -7063,7 +7103,7 @@ function renderShippingPage() {
         order.shippedDate = new Date().toISOString().slice(0, 10);
         order.shippingNoteLocked = true;
         state.activities.unshift({
-          id: crypto.randomUUID(),
+          id: createCompatibleRandomId(),
           type: "shipping",
           workerName: TEXT.admin,
           orderId: order.id,
@@ -7074,7 +7114,7 @@ function renderShippingPage() {
         order.shipped = false;
         order.shippedDate = "";
         state.activities.unshift({
-          id: crypto.randomUUID(),
+          id: createCompatibleRandomId(),
           type: "shipping",
           workerName: TEXT.admin,
           orderId: order.id,
@@ -7714,7 +7754,7 @@ function renderShippingPageCardOverride() {
     }
 
     const shipment = {
-      id: crypto.randomUUID(),
+      id: createCompatibleRandomId(),
       qty: shipQty,
       date: shipDate,
       note: String(order.shippingNote || "").trim()
@@ -7726,7 +7766,7 @@ function renderShippingPageCardOverride() {
     order.shippingNoteLocked = Boolean(order.shipped);
 
     state.activities.unshift({
-      id: crypto.randomUUID(),
+      id: createCompatibleRandomId(),
       type: "ship",
       workerName: "출하",
       orderId: order.id,
@@ -8161,7 +8201,7 @@ function saveShippingRecordFinal(order, shipQty, shipDate, replaceExisting = fal
   }
 
   const shipment = {
-    id: crypto.randomUUID(),
+    id: createCompatibleRandomId(),
     qty: shipQty,
     date: shipDate,
     note: String(order.shippingNote || "").trim()
@@ -8173,7 +8213,7 @@ function saveShippingRecordFinal(order, shipQty, shipDate, replaceExisting = fal
   order.shippingNoteLocked = Boolean(order.shipped);
 
   state.activities.unshift({
-    id: crypto.randomUUID(),
+    id: createCompatibleRandomId(),
     type: "ship",
     workerName: "출하",
     orderId: order.id,
@@ -8353,7 +8393,7 @@ function saveShippingRecord(order, shipQty, shipDate, replaceExisting = false) {
   }
 
   const shipment = {
-    id: crypto.randomUUID(),
+    id: createCompatibleRandomId(),
     qty: shipQty,
     date: shipDate,
     note: String(order.shippingNote || "").trim()
@@ -8372,7 +8412,7 @@ function saveShippingRecord(order, shipQty, shipDate, replaceExisting = false) {
       : `${shipQty.toLocaleString()}개 부분 출하`;
 
   state.activities.unshift({
-    id: crypto.randomUUID(),
+    id: createCompatibleRandomId(),
     type: "ship",
     workerName: "출하",
     orderId: order.id,
@@ -8638,7 +8678,7 @@ function renderShippingPage() {
 
     const shipments = getShipmentRecords(order);
     shipments.push({
-      id: crypto.randomUUID(),
+      id: createCompatibleRandomId(),
       qty: shipQty,
       date: shipDate,
       note: String(order.shippingNote || "").trim()
@@ -8649,7 +8689,7 @@ function renderShippingPage() {
     order.shippingNoteLocked = order.shipped ? true : order.shippingNoteLocked;
 
     state.activities.unshift({
-      id: crypto.randomUUID(),
+      id: createCompatibleRandomId(),
       type: "ship",
       workerName: "출하",
       orderId: order.id,
@@ -9797,7 +9837,7 @@ function renderShippingPage() {
       order.shippedDate = new Date().toISOString().slice(0, 10);
       order.shippingNoteLocked = true;
       state.activities.unshift({
-        id: crypto.randomUUID(),
+        id: createCompatibleRandomId(),
         type: "shipping",
         workerName: TEXT.admin,
         orderId: order.id,
@@ -10089,7 +10129,7 @@ function getWorkTimeLabel(order) {
 
 function normalizeShipmentRecord(record) {
   return {
-    id: record?.id || crypto.randomUUID(),
+    id: record?.id || createCompatibleRandomId(),
     qty: Number(record?.qty || 0),
     date: record?.date || "",
     note: String(record?.note || "").trim()
@@ -10109,7 +10149,7 @@ function getShipmentRecords(order) {
   if (order?.shipped) {
     return [
       {
-        id: crypto.randomUUID(),
+        id: createCompatibleRandomId(),
         qty: getOrderQuantity(order),
         date: order.shippedDate || "",
         note: String(order.shippingNote || "").trim()
@@ -10319,7 +10359,7 @@ function renderShippingPage() {
 
       order.shipments = getShipmentRecords(order);
       order.shipments.push({
-        id: crypto.randomUUID(),
+        id: createCompatibleRandomId(),
         qty: shipQty,
         date: shipDate,
         note: String(order.shippingNote || "").trim()
@@ -10328,7 +10368,7 @@ function renderShippingPage() {
       order.shippingNoteLocked = order.shipped ? true : order.shippingNoteLocked;
 
       state.activities.unshift({
-        id: crypto.randomUUID(),
+        id: createCompatibleRandomId(),
         type: "shipping",
         workerName: TEXT.admin,
         orderId: order.id,
@@ -12709,7 +12749,7 @@ function renderShippingPage() {
     }
 
     const shipment = {
-      id: crypto.randomUUID(),
+      id: createCompatibleRandomId(),
       qty: shipQty,
       date: shipDate,
       note: String(order.shippingNote || "").trim()
@@ -12721,7 +12761,7 @@ function renderShippingPage() {
     order.shippingNoteLocked = Boolean(order.shipped);
 
     state.activities.unshift({
-      id: crypto.randomUUID(),
+      id: createCompatibleRandomId(),
       type: "ship",
       workerName: "출하",
       orderId: order.id,
@@ -12890,23 +12930,59 @@ function clearSupabaseAuthStorage(storage) {
   }
 }
 
-function shouldRememberLogin() {
+function getBrowserStorage(storageName) {
   try {
-    return localStorage.getItem(AUTH_REMEMBER_KEY) === "true";
+    return window[storageName] || null;
+  } catch (error) {
+    return null;
+  }
+}
+
+function readBrowserStorage(storageName, key) {
+  const storage = getBrowserStorage(storageName);
+  if (!storage) return { available: false, value: null };
+  try {
+    return { available: true, value: storage.getItem(key) };
+  } catch (error) {
+    return { available: false, value: null };
+  }
+}
+
+function writeBrowserStorage(storageName, key, value) {
+  const storage = getBrowserStorage(storageName);
+  if (!storage) return false;
+  try {
+    storage.setItem(key, value);
+    return true;
   } catch (error) {
     return false;
   }
 }
 
+function removeBrowserStorage(storageName, key) {
+  const storage = getBrowserStorage(storageName);
+  if (!storage) return false;
+  try {
+    storage.removeItem(key);
+    return true;
+  } catch (error) {
+    return false;
+  }
+}
+
+function shouldRememberLogin() {
+  const storedPreference = readBrowserStorage("localStorage", AUTH_REMEMBER_KEY);
+  return storedPreference.available && storedPreference.value !== null
+    ? storedPreference.value === "true"
+    : authRememberFallback;
+}
+
 function setAuthPersistencePreference(rememberLogin) {
   const shouldRemember = Boolean(rememberLogin);
-  try {
-    localStorage.setItem(AUTH_REMEMBER_KEY, shouldRemember ? "true" : "false");
-  } catch (error) {
-    // The current-tab session still works when localStorage is unavailable.
-  }
+  authRememberFallback = shouldRemember;
+  writeBrowserStorage("localStorage", AUTH_REMEMBER_KEY, shouldRemember ? "true" : "false");
 
-  clearSupabaseAuthStorage(shouldRemember ? window.sessionStorage : window.localStorage);
+  clearSupabaseAuthStorage(getBrowserStorage(shouldRemember ? "sessionStorage" : "localStorage"));
 }
 
 function syncLoginPersistenceControl() {
@@ -12918,18 +12994,27 @@ function syncLoginPersistenceControl() {
 function createSupabaseAuthStorage() {
   return {
     getItem(key) {
-      const storage = shouldRememberLogin() ? window.localStorage : window.sessionStorage;
-      return storage.getItem(key);
+      const primaryName = shouldRememberLogin() ? "localStorage" : "sessionStorage";
+      const secondaryName = primaryName === "localStorage" ? "sessionStorage" : "localStorage";
+      const primary = readBrowserStorage(primaryName, key);
+      if (primary.available && primary.value !== null) return primary.value;
+      const secondary = readBrowserStorage(secondaryName, key);
+      if (secondary.available && secondary.value !== null) return secondary.value;
+      return authMemoryStorage.get(key) || null;
     },
     setItem(key, value) {
-      const primaryStorage = shouldRememberLogin() ? window.localStorage : window.sessionStorage;
-      const inactiveStorage = shouldRememberLogin() ? window.sessionStorage : window.localStorage;
-      primaryStorage.setItem(key, value);
-      inactiveStorage.removeItem(key);
+      const primaryName = shouldRememberLogin() ? "localStorage" : "sessionStorage";
+      const secondaryName = primaryName === "localStorage" ? "sessionStorage" : "localStorage";
+      const storedInPrimary = writeBrowserStorage(primaryName, key, value);
+      const stored = storedInPrimary || writeBrowserStorage(secondaryName, key, value);
+      if (storedInPrimary) removeBrowserStorage(secondaryName, key);
+      if (stored) authMemoryStorage.delete(key);
+      else authMemoryStorage.set(key, value);
     },
     removeItem(key) {
-      window.localStorage.removeItem(key);
-      window.sessionStorage.removeItem(key);
+      removeBrowserStorage("localStorage", key);
+      removeBrowserStorage("sessionStorage", key);
+      authMemoryStorage.delete(key);
     }
   };
 }
@@ -12939,7 +13024,7 @@ function createSupabaseAuthClient() {
     return null;
   }
 
-  clearSupabaseAuthStorage(shouldRememberLogin() ? window.sessionStorage : window.localStorage);
+  clearSupabaseAuthStorage(getBrowserStorage(shouldRememberLogin() ? "sessionStorage" : "localStorage"));
 
   return window.supabase.createClient(APP_CONFIG.supabaseUrl, APP_CONFIG.supabaseAnonKey, {
     auth: {
@@ -13067,7 +13152,7 @@ async function deleteOrder(orderId) {
   state.orders = state.orders.filter((item) => item.id !== orderId);
   state.orderDeletedIds = Array.from(new Set([...(state.orderDeletedIds || []), orderId]));
   state.activities.unshift({
-    id: crypto.randomUUID(),
+    id: createCompatibleRandomId(),
     type: "orderDelete",
     workerName: currentAdminDisplayName || currentAdminEmail || TEXT.admin,
     actor: currentAdminEmail || TEXT.admin,
@@ -13137,7 +13222,7 @@ async function toggleOrderHold(orderId, shouldHold) {
   }
 
   state.activities.unshift({
-    id: crypto.randomUUID(),
+    id: createCompatibleRandomId(),
     type: shouldHold ? "hold" : "resumeHold",
     workerName: TEXT.admin,
     orderId: order.id,
@@ -13632,7 +13717,7 @@ function saveWorkerHistoryEdit(formData) {
   }
 
   state.activities.unshift({
-    id: crypto.randomUUID(),
+    id: createCompatibleRandomId(),
     type: "edit",
     workerName: order.workerName || "작업자",
     orderId: order.id,

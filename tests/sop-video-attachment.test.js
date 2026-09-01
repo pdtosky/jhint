@@ -15,8 +15,8 @@ assert(app.includes("SOP_VIDEO_MIME_TYPES"), "video MIME types must be allowlist
 assert(app.includes("supabaseAuthClient.storage.from(SOP_MEDIA_BUCKET).upload"), "videos must upload to Supabase Storage");
 assert(app.includes("createSignedUrl(storagePath, 3600)"), "private videos must use expiring signed URLs");
 assert(app.includes("getSopMediaUser"), "storage actions must require an authenticated user");
-assert(app.includes("${user.id}/${sanitizeSopStorageSegment(sopId)}/${crypto.randomUUID()}.${videoExtension}"), "storage paths must use an authenticated-user prefix and an ASCII-only generated filename");
-assert(!app.includes("crypto.randomUUID()}-${sanitizeSopMediaName(file.name)}"), "original filenames must never be copied into storage keys");
+assert(app.includes("${user.id}/${sanitizeSopStorageSegment(sopId)}/${createCompatibleRandomId()}.${videoExtension}"), "storage paths must use an authenticated-user prefix and an ASCII-only generated filename");
+assert(!app.includes("createCompatibleRandomId()}-${sanitizeSopMediaName(file.name)}"), "original filenames must never be copied into storage keys");
 assert(app.includes('name: String(file.name || "첨부영상")'), "the original filename must remain available as display metadata");
 assert(app.includes("contentType: videoMimeType"), "the upload content type must be normalized from the supported extension");
 assert(!app.includes("service_role"), "frontend code must never expose the service role key");
@@ -42,6 +42,6 @@ assert.match(sql, /'sop-media'[\s\S]*false[\s\S]*52428800/, "bucket must be priv
 assert.match(sql, /for select\s+to authenticated/i, "only authenticated users may read videos");
 assert.match(sql, /storage\.foldername\(name\)\)\[1\].*auth\.uid/s, "uploads must be scoped to the user's folder");
 assert.match(sql, /for delete\s+to authenticated[\s\S]*owner_id = \(select auth\.uid\(\)\)::text/i, "users may only delete their own videos");
-assert(sw.includes("jhint-production-app-v20260901-04"), "service worker cache must be bumped");
+assert(sw.includes("jhint-production-app-v20260901-05"), "service worker cache must be bumped");
 
 console.log("sop video attachment test passed");
