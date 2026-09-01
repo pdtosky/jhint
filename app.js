@@ -66,6 +66,13 @@ const SOP_VIDEO_MAX_BYTES = 50 * 1024 * 1024;
 const SOP_VIDEO_MIME_TYPES = new Set(["video/mp4", "video/webm", "video/quicktime"]);
 const CODEX_RELEASE_NOTES = [
   {
+    version: "2026-09-01-04",
+    timestamp: "2026-09-01T09:55:41+09:00",
+    title: "관리자 알림 작업자 이름 표시",
+    summary: "관리자 오전 알림에 작업 시작 미확인 인원 이름과 개인별 대기 건수, 미배정 건수를 표시하고 오후 알림에는 작업 종료 미처리 인원별 작업 중·일시정지 건수를 표시하도록 개선했습니다. 작업 중지 상태는 오후 알림에서 계속 제외합니다.",
+    files: ["app.js", "sw.js", "api/push-reminders.js", "tests/push-reminder-server.test.js", "tests/admin-equipment-monthly-report.test.js", "tests/admin-work-control.test.js", "tests/global-auth-login-log.test.js", "tests/global-auth-remember-login.test.js", "tests/global-auth-rollout-ready.test.js", "tests/pwa-single-instance.test.js", "tests/sop-copy.test.js", "tests/sop-new-document.test.js", "tests/sop-video-attachment.test.js", "tests/worker-account-session.test.js"]
+  },
+  {
     version: "2026-09-01-03",
     timestamp: "2026-09-01T09:18:00+09:00",
     title: "관리자 알림 소리 테스트 발송 추가",
