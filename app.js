@@ -1,5 +1,6 @@
 const ADMIN_SESSION_KEY = "production-admin-session-v1";
 const AUTH_REMEMBER_KEY = "production-auth-remember-v1";
+const AUTH_RECOVERY_KEY = "production-auth-recovery-v1";
 const DUE_ALARM_KEY = "production-due-alarm-date-v1";
 const API_STATE_URL = "/api/state";
 const ADMIN_USERS_API_URL = "/api/admin-users";
@@ -85,6 +86,13 @@ function createCompatibleRandomId() {
 }
 
 const CODEX_RELEASE_NOTES = [
+  {
+    version: "2026-09-01-06",
+    timestamp: "2026-09-01T10:51:00+09:00",
+    title: "비밀번호 복구 링크 로그인 차단",
+    summary: "비밀번호 재설정 메일 링크의 임시 복구 세션이 일반 로그인처럼 생산 화면을 열던 문제를 수정했습니다. 복구 상태는 새로고침해도 유지되며, 새 비밀번호 변경 후 세션을 종료하고 정식 로그인 화면으로 이동합니다. 생산 데이터는 익명 접속을 차단하고 승인된 권한의 로그인 토큰으로만 읽고 저장하도록 강화했습니다.",
+    files: ["app.js", "index.html", "style.css", "sw.js", "supabase-app-state-auth-rls.sql", "tests/password-recovery-flow.test.js"]
+  },
   {
     version: "2026-09-01-05",
     timestamp: "2026-09-01T10:27:00+09:00",
@@ -557,6 +565,8 @@ let isStateSyncing = false;
 let isVisibilitySyncBound = false;
 let isAdminAuthListenerBound = false;
 let isAppDataInitialized = false;
+let isPasswordRecoveryMode = hasPasswordRecoveryRequest() || hasStoredPasswordRecoveryRequest();
+if (isPasswordRecoveryMode) setPasswordRecoveryMode(true);
 let currentAdminEmail = "";
 let currentAdminRole = "";
 let currentAdminDisplayName = "";
@@ -570,6 +580,8 @@ const globalLoginForm = document.getElementById("globalLoginForm");
 const globalRememberLogin = document.getElementById("globalRememberLogin");
 const globalSignupForm = document.getElementById("globalSignupForm");
 const globalPasswordResetForm = document.getElementById("globalPasswordResetForm");
+const globalPasswordUpdateForm = document.getElementById("globalPasswordUpdateForm");
+const globalPasswordRecoveryCancelBtn = document.getElementById("globalPasswordRecoveryCancelBtn");
 const securityAuthMessage = document.getElementById("securityAuthMessage");
 const securityAuthTabs = document.querySelectorAll("[data-security-auth-tab]");
 const securityAuthPanels = document.querySelectorAll("[data-security-auth-panel]");
@@ -1675,10 +1687,21 @@ function bindSecurityAuthEvents() {
     event.preventDefault();
     handleGlobalPasswordReset();
   });
+
+  globalPasswordUpdateForm?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    handleGlobalPasswordUpdate();
+  });
+
+  globalPasswordRecoveryCancelBtn?.addEventListener("click", () => {
+    cancelGlobalPasswordRecovery();
+  });
 }
 
 function switchSecurityAuthMode(mode = "login") {
-  const activeMode = ["login", "signup", "reset"].includes(mode) ? mode : "login";
+  const requestedMode = ["login", "signup", "reset", "update"].includes(mode) ? mode : "login";
+  const activeMode = isPasswordRecoveryMode ? "update" : requestedMode;
+  securityLoginGate?.classList.toggle("password-recovery-mode", activeMode === "update");
   securityAuthTabs.forEach((button) => {
     button.classList.toggle("active", button.dataset.securityAuthTab === activeMode);
   });
@@ -1700,6 +1723,26 @@ function getAuthRedirectUrl() {
   const configuredUrl = String(APP_CONFIG.authRedirectUrl || "").trim();
   if (configuredUrl) return configuredUrl;
   return `${window.location.origin}${window.location.pathname}`;
+}
+
+function hasPasswordRecoveryRequest() {
+  const hashParams = new URLSearchParams(String(window.location.hash || "").replace(/^#/, ""));
+  const queryParams = new URLSearchParams(window.location.search || "");
+  return hashParams.get("type") === "recovery" || queryParams.get("type") === "recovery";
+}
+
+function hasStoredPasswordRecoveryRequest() {
+  return readBrowserStorage("sessionStorage", AUTH_RECOVERY_KEY).value === "true";
+}
+
+function setPasswordRecoveryMode(active) {
+  isPasswordRecoveryMode = Boolean(active);
+  if (isPasswordRecoveryMode) writeBrowserStorage("sessionStorage", AUTH_RECOVERY_KEY, "true");
+  else removeBrowserStorage("sessionStorage", AUTH_RECOVERY_KEY);
+}
+
+function clearPasswordRecoveryUrl() {
+  window.history.replaceState(null, document.title, `${window.location.origin}${window.location.pathname}`);
 }
 
 function getSecurityAuthErrorMessage(error, fallback = "회원가입 요청에 실패했습니다. 이메일 형식이나 이미 가입된 계정인지 확인해 주세요.") {
@@ -1745,12 +1788,13 @@ function renderSecurityLoginGate(message = "") {
     return;
   }
 
-  const isApprovedSession = Boolean(currentAdminEmail && currentAdminRole);
+  const isApprovedSession = Boolean(!isPasswordRecoveryMode && currentAdminEmail && currentAdminRole);
   securityLoginGate.hidden = isApprovedSession;
   document.body.classList.toggle("security-auth-required", !isApprovedSession);
 
   if (!isApprovedSession) {
     syncLoginPersistenceControl();
+    if (isPasswordRecoveryMode) switchSecurityAuthMode("update");
   }
 
   if (message) {
@@ -2098,6 +2142,16 @@ async function restoreAdminSession() {
   if (!supabaseAuthClient) return;
   try {
     const { data } = await supabaseAuthClient.auth.getSession();
+    if (isPasswordRecoveryMode) {
+      setAdminSession("");
+      if (!data?.session) {
+        setPasswordRecoveryMode(false);
+        clearPasswordRecoveryUrl();
+        switchSecurityAuthMode("reset");
+        setSecurityAuthMessage("비밀번호 변경 링크가 만료되었습니다. 비밀번호 찾기에서 다시 요청해 주세요.", "error");
+      }
+      return;
+    }
     const sessionUser = await getFreshSessionUser(data?.session?.user || {});
     const sessionEmail = sessionUser.email || "";
     const sessionRole = getSessionRole(sessionUser, sessionEmail);
@@ -2117,6 +2171,19 @@ function bindAdminAuthListener() {
   if (!supabaseAuthClient || isAdminAuthListenerBound) return;
   isAdminAuthListenerBound = true;
   supabaseAuthClient.auth.onAuthStateChange(async (event, session) => {
+    if (event === "PASSWORD_RECOVERY") {
+      setPasswordRecoveryMode(true);
+      setAdminSession("");
+      renderSecurityLoginGate("새 비밀번호를 설정해야 접속할 수 있습니다.");
+      return;
+    }
+
+    if (isPasswordRecoveryMode && event !== "SIGNED_OUT") {
+      setAdminSession("");
+      renderSecurityLoginGate();
+      return;
+    }
+
     const sessionUser = session?.user || {};
     const sessionEmail = sessionUser.email || "";
     const sessionRole = getSessionRole(sessionUser, sessionEmail);
@@ -2178,10 +2245,18 @@ function getSupabaseTableUrl() {
   return `${baseUrl}/rest/v1/${table}`;
 }
 
-function getSupabaseHeaders(extra = {}) {
+async function getSupabaseHeaders(extra = {}) {
+  const { data, error } = supabaseAuthClient
+    ? await supabaseAuthClient.auth.getSession()
+    : { data: null, error: new Error("missing auth client") };
+  const accessToken = data?.session?.access_token || "";
+  if (REQUIRE_GLOBAL_LOGIN && (error || !accessToken)) {
+    throw new Error("authenticated Supabase session required");
+  }
+
   return {
     apikey: APP_CONFIG.supabaseAnonKey,
-    Authorization: `Bearer ${APP_CONFIG.supabaseAnonKey}`,
+    Authorization: `Bearer ${accessToken || APP_CONFIG.supabaseAnonKey}`,
     "Content-Type": "application/json",
     ...extra
   };
@@ -2193,7 +2268,7 @@ async function fetchSupabaseState() {
   }
 
   const response = await fetch(getSupabaseStateUrl(), {
-    headers: getSupabaseHeaders(),
+    headers: await getSupabaseHeaders(),
     cache: "no-store"
   });
   if (!response.ok) {
@@ -2445,7 +2520,7 @@ async function saveSupabaseState(nextState) {
   const stateToSave = await prepareSupabaseStateForSave(nextState);
   const response = await fetch(getSupabaseTableUrl(), {
     method: "POST",
-    headers: getSupabaseHeaders({
+    headers: await getSupabaseHeaders({
       Prefer: "resolution=merge-duplicates,return=representation"
     }),
     body: JSON.stringify([
@@ -4794,6 +4869,72 @@ async function handleGlobalPasswordReset() {
   globalPasswordResetForm.reset();
   switchSecurityAuthMode("login");
   setSecurityAuthMessage("비밀번호 재설정 메일을 보냈습니다. 메일의 안내 링크를 확인해 주세요.", "success");
+}
+
+async function handleGlobalPasswordUpdate() {
+  if (!supabaseAuthClient || !isPasswordRecoveryMode) {
+    setSecurityAuthMessage("비밀번호 변경 링크가 만료되었거나 올바르지 않습니다. 비밀번호 찾기에서 다시 요청해 주세요.", "error");
+    return;
+  }
+
+  const formData = new FormData(globalPasswordUpdateForm);
+  const newPassword = String(formData.get("newPassword") || "");
+  const confirmNewPassword = String(formData.get("confirmNewPassword") || "");
+
+  if (newPassword.length < 8) {
+    setSecurityAuthMessage("새 비밀번호는 8자 이상으로 입력해 주세요.", "error");
+    return;
+  }
+  if (newPassword !== confirmNewPassword) {
+    setSecurityAuthMessage("새 비밀번호와 확인값이 일치하지 않습니다.", "error");
+    return;
+  }
+
+  setSecurityAuthSubmitBusy(globalPasswordUpdateForm, true);
+  try {
+    const { data: sessionData } = await supabaseAuthClient.auth.getSession();
+    if (!sessionData?.session) {
+      setSecurityAuthMessage("비밀번호 변경 링크가 만료되었습니다. 비밀번호 찾기에서 다시 요청해 주세요.", "error");
+      return;
+    }
+
+    const { error } = await supabaseAuthClient.auth.updateUser({ password: newPassword });
+    if (error) {
+      setSecurityAuthMessage(getSecurityAuthErrorMessage(error, "비밀번호 변경에 실패했습니다. 새 링크를 요청해 다시 시도해 주세요."), "error");
+      return;
+    }
+
+    const { error: signOutError } = await supabaseAuthClient.auth.signOut({ scope: "global" });
+    if (signOutError) await supabaseAuthClient.auth.signOut({ scope: "local" });
+
+    setPasswordRecoveryMode(false);
+    setAdminSession("");
+    setAuthPersistencePreference(false);
+    clearPasswordRecoveryUrl();
+    globalPasswordUpdateForm.reset();
+    switchSecurityAuthMode("login");
+    renderSecurityLoginGate();
+    setSecurityAuthMessage("비밀번호가 변경되었습니다. 새 비밀번호로 로그인해 주세요.", "success");
+  } catch (error) {
+    console.error("비밀번호 변경 처리 중 오류가 발생했습니다.", error);
+    setSecurityAuthMessage("비밀번호 변경을 완료하지 못했습니다. 네트워크를 확인하고 다시 시도해 주세요.", "error");
+  } finally {
+    setSecurityAuthSubmitBusy(globalPasswordUpdateForm, false);
+  }
+}
+
+async function cancelGlobalPasswordRecovery() {
+  try {
+    if (supabaseAuthClient) await supabaseAuthClient.auth.signOut({ scope: "local" });
+  } finally {
+    setPasswordRecoveryMode(false);
+    setAdminSession("");
+    clearPasswordRecoveryUrl();
+    globalPasswordUpdateForm?.reset();
+    switchSecurityAuthMode("login");
+    renderSecurityLoginGate();
+    setSecurityAuthMessage("비밀번호 변경을 취소했습니다. 다시 로그인해 주세요.", "info");
+  }
 }
 
 async function handleAdminLogout() {

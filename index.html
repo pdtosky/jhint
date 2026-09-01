@@ -83,6 +83,24 @@
         <p class="security-helper-text">메일의 안내 링크에서 새 비밀번호를 설정합니다.</p>
       </form>
 
+      <form id="globalPasswordUpdateForm" class="security-auth-form" data-security-auth-panel="update" hidden>
+        <div class="security-recovery-heading">
+          <strong>새 비밀번호 설정</strong>
+          <span>메일 링크 확인이 완료되었습니다. 사용할 새 비밀번호를 입력해 주세요.</span>
+        </div>
+        <label>
+          새 비밀번호
+          <input type="password" name="newPassword" autocomplete="new-password" placeholder="8자 이상 입력" />
+        </label>
+        <label>
+          새 비밀번호 확인
+          <input type="password" name="confirmNewPassword" autocomplete="new-password" placeholder="한 번 더 입력" />
+        </label>
+        <button type="submit" class="primary-action">비밀번호 변경</button>
+        <button type="button" class="secondary-action" id="globalPasswordRecoveryCancelBtn">취소하고 로그인으로</button>
+        <p class="security-helper-text">변경 완료 후 복구 접속은 종료되고 로그인 화면으로 이동합니다.</p>
+      </form>
+
       <div id="securityAuthMessage" class="security-auth-message" hidden></div>
     </div>
   </section>
@@ -801,11 +819,11 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.4"></script>
-  <script src="config.js?v=20260901-05"></script>
+  <script src="config.js?v=20260901-06"></script>
   <script src="sop-seed.js?v=20260629-02"></script>
   <script src="sop/identity.js?v=20260721-02"></script>
 <script src="xlsx-export.js?v=20260807-04"></script>
-<script src="app.js?v=20260901-05"></script>
+<script src="app.js?v=20260901-06"></script>
 </body>
 </html>
 

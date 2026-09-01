@@ -21,6 +21,6 @@ assert(appJs.includes('removeBrowserStorage("sessionStorage", key)'), "logout sh
 assert(appJs.includes("authMemoryStorage.set(key, value)"), "blocked browser storage should fall back to current-memory auth");
 
 assert(styleCss.includes(".security-remember-option"), "remember-login option should have a dedicated compact layout");
-assert(swJs.includes("v20260901-05"), "service worker cache should include the latest update");
+assert(swJs.includes("v20260901-06"), "service worker cache should include the latest update");
 
 console.log("global auth remember-login test passed");
