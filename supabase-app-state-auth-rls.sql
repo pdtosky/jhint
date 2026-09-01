@@ -19,6 +19,11 @@ using (
   id = 'main'
   and (select auth.jwt() -> 'app_metadata' ->> 'jhint_role') in
     ('admin', 'production', 'sales', 'office', 'quality', 'shipping', 'worker')
+  and exists (
+    select 1
+    from jsonb_array_elements(coalesce(auth.jwt() -> 'amr', '[]'::jsonb)) as auth_method
+    where auth_method ->> 'method' = 'password'
+  )
 );
 
 create policy "approved app_state insert main"
@@ -29,6 +34,11 @@ with check (
   id = 'main'
   and (select auth.jwt() -> 'app_metadata' ->> 'jhint_role') in
     ('admin', 'production', 'sales', 'office', 'quality', 'shipping', 'worker')
+  and exists (
+    select 1
+    from jsonb_array_elements(coalesce(auth.jwt() -> 'amr', '[]'::jsonb)) as auth_method
+    where auth_method ->> 'method' = 'password'
+  )
 );
 
 create policy "approved app_state update main"
@@ -39,9 +49,19 @@ using (
   id = 'main'
   and (select auth.jwt() -> 'app_metadata' ->> 'jhint_role') in
     ('admin', 'production', 'sales', 'office', 'quality', 'shipping', 'worker')
+  and exists (
+    select 1
+    from jsonb_array_elements(coalesce(auth.jwt() -> 'amr', '[]'::jsonb)) as auth_method
+    where auth_method ->> 'method' = 'password'
+  )
 )
 with check (
   id = 'main'
   and (select auth.jwt() -> 'app_metadata' ->> 'jhint_role') in
     ('admin', 'production', 'sales', 'office', 'quality', 'shipping', 'worker')
+  and exists (
+    select 1
+    from jsonb_array_elements(coalesce(auth.jwt() -> 'amr', '[]'::jsonb)) as auth_method
+    where auth_method ->> 'method' = 'password'
+  )
 );

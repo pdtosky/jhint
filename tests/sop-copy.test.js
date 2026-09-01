@@ -17,7 +17,7 @@ assert(/managementNo,\s+rev: "0"/.test(sopApp), "Copied SOPs must receive a new 
 assert(sopApp.includes('status: "임시저장"'), "Copied SOPs must start as an editable temporary draft.");
 assert(sopApp.includes('copied.revisionHistory = [blankRow("revisionHistory")]'), "Copied SOPs must start a fresh revision history.");
 assert(appJs.includes('version: "2026-07-21-03"'), "Codex release notes should retain the SOP copy update.");
-assert(swJs.includes("jhint-production-app-v20260901-06"), "Service worker cache should be bumped for the latest update.");
+assert(swJs.includes("jhint-production-app-v20260901-07"), "Service worker cache should be bumped for the latest update.");
 assert(packageJson.includes("tests/sop-copy.test.js"), "The SOP copy regression test should run in the test suite.");
 
 console.log("sop copy test passed");

@@ -87,6 +87,13 @@ function createCompatibleRandomId() {
 
 const CODEX_RELEASE_NOTES = [
   {
+    version: "2026-09-01-07",
+    timestamp: "2026-09-01T11:03:00+09:00",
+    title: "비밀번호 인증 방식 서버 검증 추가",
+    summary: "이미 열려 주소의 복구 표시가 사라진 임시 세션도 일반 로그인으로 복원되지 않도록 JWT 인증 방식을 확인합니다. 생산 데이터 서버 정책도 비밀번호로 인증한 승인 계정만 허용해 복구 메일 토큰의 직접 접근까지 차단했습니다.",
+    files: ["app.js", "index.html", "sw.js", "supabase-app-state-auth-rls.sql", "tests/password-recovery-flow.test.js"]
+  },
+  {
     version: "2026-09-01-06",
     timestamp: "2026-09-01T10:51:00+09:00",
     title: "비밀번호 복구 링크 로그인 차단",
@@ -1745,6 +1752,22 @@ function clearPasswordRecoveryUrl() {
   window.history.replaceState(null, document.title, `${window.location.origin}${window.location.pathname}`);
 }
 
+function getSessionAuthenticationMethods(session = {}) {
+  try {
+    const payloadPart = String(session.access_token || "").split(".")[1] || "";
+    const normalizedPayload = payloadPart.replace(/-/g, "+").replace(/_/g, "/");
+    const paddedPayload = normalizedPayload.padEnd(Math.ceil(normalizedPayload.length / 4) * 4, "=");
+    const payload = JSON.parse(window.atob(paddedPayload));
+    return Array.isArray(payload.amr) ? payload.amr.map((item) => String(item?.method || "")) : [];
+  } catch (error) {
+    return [];
+  }
+}
+
+function isPasswordAuthenticatedSession(session = {}) {
+  return getSessionAuthenticationMethods(session).includes("password");
+}
+
 function getSecurityAuthErrorMessage(error, fallback = "회원가입 요청에 실패했습니다. 이메일 형식이나 이미 가입된 계정인지 확인해 주세요.") {
   const rawMessage = String(error?.message || error?.msg || error?.error_description || error?.error || "").trim();
   const errorCode = String(error?.code || error?.error_code || "").trim().toLowerCase();
@@ -2152,6 +2175,13 @@ async function restoreAdminSession() {
       }
       return;
     }
+    if (data?.session && !isPasswordAuthenticatedSession(data.session)) {
+      setAdminSession("");
+      await supabaseAuthClient.auth.signOut({ scope: "local" });
+      switchSecurityAuthMode("login");
+      setSecurityAuthMessage("비밀번호로 다시 로그인해 주세요. 메일 링크의 임시 접속은 사용할 수 없습니다.", "error");
+      return;
+    }
     const sessionUser = await getFreshSessionUser(data?.session?.user || {});
     const sessionEmail = sessionUser.email || "";
     const sessionRole = getSessionRole(sessionUser, sessionEmail);
@@ -2181,6 +2211,13 @@ function bindAdminAuthListener() {
     if (isPasswordRecoveryMode && event !== "SIGNED_OUT") {
       setAdminSession("");
       renderSecurityLoginGate();
+      return;
+    }
+
+    if (session && !isPasswordAuthenticatedSession(session)) {
+      setAdminSession("");
+      renderSecurityLoginGate("비밀번호로 다시 로그인해 주세요. 메일 링크의 임시 접속은 사용할 수 없습니다.");
+      setTimeout(() => supabaseAuthClient.auth.signOut({ scope: "local" }).catch(() => {}), 0);
       return;
     }
 

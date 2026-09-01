@@ -16,6 +16,8 @@ assert(indexHtml.includes('name="confirmNewPassword"'), "the recovery form shoul
 assert(appJs.includes("let isPasswordRecoveryMode = hasPasswordRecoveryRequest()"), "recovery mode should be detected before session restoration");
 assert(appJs.includes("hasStoredPasswordRecoveryRequest()"), "recovery mode should survive a refresh in the same browser tab");
 assert(appJs.includes('writeBrowserStorage("sessionStorage", AUTH_RECOVERY_KEY, "true")'), "recovery mode should be stored only for the current tab");
+assert(appJs.includes("function isPasswordAuthenticatedSession"), "restored sessions should verify their authentication method");
+assert(appJs.includes('includes("password")'), "only password-authenticated sessions should open the application");
 assert(appJs.includes('event === "PASSWORD_RECOVERY"'), "Supabase password recovery events should be handled separately");
 assert(appJs.includes("!isPasswordRecoveryMode && currentAdminEmail && currentAdminRole"), "a recovery session must not satisfy the app login gate");
 assert(appJs.includes('const activeMode = isPasswordRecoveryMode ? "update" : requestedMode'), "recovery users should remain on the update form");
@@ -36,9 +38,10 @@ assert(appJs.includes("Authorization: `Bearer ${accessToken || APP_CONFIG.supaba
 assert(appJs.includes("authenticated Supabase session required"), "protected database requests should reject missing sessions");
 assert.match(rlsSql, /revoke all on table public\.app_state from anon/i, "anonymous users must not access production state");
 assert.match(rlsSql, /to authenticated[\s\S]*jhint_role/i, "RLS should require an approved account role");
+assert.match(rlsSql, /auth\.jwt\(\) -> 'amr'[\s\S]*method' = 'password'/i, "RLS should reject recovery and magic-link sessions");
 
 assert(styleCss.includes(".security-login-gate.password-recovery-mode .security-auth-tabs"), "normal login tabs should be hidden during recovery");
-assert(indexHtml.includes("app.js?v=20260901-06"), "the recovery fix should use a fresh app cache version");
-assert(swJs.includes("jhint-production-app-v20260901-06"), "the service worker cache should refresh for the recovery fix");
+assert(indexHtml.includes("app.js?v=20260901-07"), "the recovery fix should use a fresh app cache version");
+assert(swJs.includes("jhint-production-app-v20260901-07"), "the service worker cache should refresh for the recovery fix");
 
 console.log("password recovery flow test passed");
