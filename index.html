@@ -15,7 +15,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="style.css?v=20260701-09" />
+<link rel="stylesheet" href="style.css?v=20260901-08" />
+  <link rel="stylesheet" href="chat.css?v=20260901-12" />
 </head>
 <body>
   <section id="securityLoginGate" class="security-login-gate" hidden aria-live="polite">
@@ -129,6 +130,7 @@
       <button type="button" class="tab-btn" data-view-target="shippingView">&#52636;&#54616;</button>
       <button type="button" class="tab-btn" data-view-target="sopView">작업표준서</button>
       <button type="button" class="tab-btn" data-view-target="adminView">&#44288;&#47532;&#51088; &#54168;&#51060;&#51648;</button>
+      <button type="button" class="tab-btn" data-view-target="chatView">전체대화방 <span class="tab-badge chat-tab-badge" id="chatUnreadBadge" hidden>0</span></button>
     </nav>
 
     <main class="views-wrap">
@@ -736,6 +738,65 @@
         </section>
       </section>
 
+      <section class="view-panel" id="chatView">
+        <section class="panel panel-company-chat">
+          <div class="panel-head company-chat-head">
+            <div>
+              <p class="panel-kicker">Company Chat</p>
+              <h2>전체대화방</h2>
+            </div>
+            <div class="company-chat-head-note">
+              <strong>승인된 전 직원이 참여</strong>
+              <span id="companyChatStatus" class="company-chat-status" aria-live="polite">대화방 연결을 준비하고 있습니다.</span>
+            </div>
+          </div>
+
+          <aside class="company-chat-pinned" id="companyChatPinnedWrap" hidden aria-label="고정 공지">
+            <span class="company-chat-pinned-label">고정 공지</span>
+            <div class="company-chat-pinned-message" id="companyChatPinnedMessage"></div>
+          </aside>
+
+          <section class="company-chat-participants" aria-label="전체대화방 참여 직원">
+            <div class="company-chat-participants-head">
+              <strong id="companyChatParticipantCount">참여 직원 확인 중</strong>
+              <span>등록된 승인 계정 기준 · 이름을 누르면 호출</span>
+            </div>
+            <div class="company-chat-participant-list" id="companyChatParticipantList" aria-live="polite"></div>
+          </section>
+
+          <form class="company-chat-search" id="companyChatSearchForm" role="search" autocomplete="off">
+            <label class="company-chat-search-input">
+              <span class="sr-only">대화 내용 찾기</span>
+              <input type="search" id="companyChatSearchInput" maxlength="60" placeholder="대화 내용 찾기" aria-label="대화 내용 찾기" />
+            </label>
+            <button type="submit" class="company-chat-search-btn" id="companyChatSearchBtn">찾기</button>
+            <button type="button" class="company-chat-search-clear" id="companyChatSearchClearBtn" hidden>전체 보기</button>
+            <span class="company-chat-search-status" id="companyChatSearchStatus" aria-live="polite"></span>
+          </form>
+
+          <div class="company-chat-history-actions">
+            <button type="button" class="company-chat-load-older" id="companyChatLoadOlderBtn" hidden>이전 메시지 보기</button>
+          </div>
+
+          <div class="company-chat-messages" id="companyChatMessages" role="log" aria-live="polite" aria-relevant="additions"></div>
+
+          <form class="company-chat-composer" id="companyChatForm" autocomplete="off">
+            <div class="company-chat-input-wrap">
+              <textarea id="companyChatInput" name="message" rows="3" placeholder="업무 전달을 입력하세요. @를 입력하면 직원을 호출할 수 있습니다." aria-label="전체대화방 메시지" required></textarea>
+              <div class="company-chat-composer-meta">
+                <span class="company-chat-counter" id="companyChatCounter">0/100</span>
+                <label class="company-chat-pin-option" id="companyChatPinOption" hidden>
+                  <input type="checkbox" id="companyChatPinCheckbox" />
+                  공지로 상단 고정
+                </label>
+              </div>
+            </div>
+            <button type="submit" class="primary-btn company-chat-send-btn" id="companyChatSendBtn" disabled>전송</button>
+            <div class="company-chat-mention-list" id="companyChatMentionList" hidden role="listbox" aria-label="호출할 직원 선택"></div>
+          </form>
+        </section>
+      </section>
+
       <section class="view-panel" id="shippingView">
         <section class="panel panel-orders">
           <div class="panel-head">
@@ -823,7 +884,8 @@
   <script src="sop-seed.js?v=20260629-02"></script>
   <script src="sop/identity.js?v=20260721-02"></script>
 <script src="xlsx-export.js?v=20260807-04"></script>
-<script src="app.js?v=20260901-07"></script>
+<script src="chat.js?v=20260901-12"></script>
+<script src="app.js?v=20260901-12"></script>
 </body>
 </html>
 

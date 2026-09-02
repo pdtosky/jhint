@@ -11,7 +11,7 @@ const sql = fs.readFileSync(path.join(root, "supabase-push-notifications.sql"), 
 const packageJson = require(path.join(root, "package.json"));
 
 assert(html.includes('id="pushNotificationBtn"'), "production push settings button should exist");
-assert(app.includes('new Set(["production", "admin"])'), "push settings should allow production and administrator accounts");
+assert(app.includes('new Set(["production", "admin", "sales", "office", "quality", "shipping"])'), "push settings should support chat mentions for every approved employee role");
 assert(app.includes('Notification.requestPermission()'), "client should request device notification permission");
 assert(app.includes('registration.pushManager.subscribe'), "client should create a Web Push subscription");
 assert(app.includes('PUSH_SUBSCRIPTIONS_API_URL'), "client should store subscriptions through the protected API");
@@ -26,7 +26,7 @@ assert(serviceWorker.includes("renotify: true"), "replacement reminders should a
 assert(serviceWorker.includes('type: "JHINT_OPEN_VIEW"'), "notification click should focus the worker input view");
 assert(sql.includes("alter table public.push_subscriptions enable row level security"), "subscription table should enable RLS");
 assert(sql.includes("revoke all on table public.push_subscriptions from anon, authenticated"), "browser roles must not access subscriptions directly");
-assert(sql.includes("role in ('production', 'admin')"), "subscription records should allow production and administrator roles");
+assert(sql.includes("role in ('production', 'admin', 'sales', 'office', 'quality', 'shipping')"), "subscription records should allow chat notifications for every approved employee role");
 assert.strictEqual(packageJson.dependencies["web-push"], "3.6.7", "web-push dependency should be pinned");
 
 const subscriptionApi = fs.readFileSync(path.join(root, "api", "push-subscriptions.js"), "utf8");

@@ -24,7 +24,9 @@ assert(appJs.includes("const ROLE_VIEW_PERMISSIONS"), "app.js should define page
 assert(appJs.includes("function canAccessView"), "app.js should check view access before switching pages");
 assert(appJs.includes("function canAccessAdminSection"), "app.js should check admin section access separately");
 assert(appJs.includes('accounts: ["admin"]'), "account management should be admin-only");
-assert(appJs.includes('production: ["dashboardView", "workerView", "sopView"]'), "production role should access dashboard, worker input, and SOP viewing");
+assert(appJs.includes('production: ["dashboardView", "workerView", "sopView", "chatView"]'), "production role should also access company chat");
+assert(appJs.includes('admin: ["dashboardView", "ordersView", "requisitionView", "workerView", "shippingView", "sopView", "adminView", "chatView"]'), "administrator role should access company chat");
+assert(appJs.includes('office: ["dashboardView", "ordersView", "requisitionView", "workerView", "shippingView", "sopView", "adminView", "chatView"]'), "office role should access company chat");
 assert(appJs.includes("function canManageSopDocuments"), "SOP document editing should have a separate permission check");
 assert(
   appJs.includes('["admin", "office", "quality"].includes(currentAdminRole)'),
@@ -32,13 +34,13 @@ assert(
 );
 assert(appJs.includes("isAdminLoggedIn: () => canManageSopDocuments()"), "embedded Smart SOP should receive document-editor permission, not generic login state");
 assert(appJs.includes("publishedOnly: !canManageSopDocuments()"), "read-only SOP users should only receive published documents");
-assert(appJs.includes('sales: ["dashboardView", "requisitionView", "ordersView", "shippingView", "sopView"]'), "sales role should access sales workflow pages and SOP viewing");
+assert(appJs.includes('sales: ["dashboardView", "requisitionView", "ordersView", "shippingView", "sopView", "chatView"]'), "sales role should also access company chat");
 assert(
   appJs.includes('["admin", "office", "quality"].includes(currentAdminRole)'),
   "sales users should not receive SOP document editing permission"
 );
-assert(appJs.includes('shipping: ["dashboardView", "shippingView"]'), "shipping role should only access dashboard and shipping");
-assert(appJs.includes('quality: ["dashboardView", "ordersView", "requisitionView", "workerView", "shippingView", "sopView"]'), "quality role should access all non-admin pages");
+assert(appJs.includes('shipping: ["dashboardView", "shippingView", "chatView"]'), "shipping role should also access company chat");
+assert(appJs.includes('quality: ["dashboardView", "ordersView", "requisitionView", "workerView", "shippingView", "sopView", "chatView"]'), "quality role should also access company chat");
 assert(appJs.includes("canAccessAdminSection(button.dataset.adminSection"), "admin section clicks should be permission-checked");
 assert(appJs.includes("filterAdminSectionsByRole()"), "admin page should hide inaccessible admin tabs");
 assert(appJs.includes("currentAdminRole"), "app.js should track the current login role");

@@ -5,7 +5,7 @@ const DUE_ALARM_KEY = "production-due-alarm-date-v1";
 const API_STATE_URL = "/api/state";
 const ADMIN_USERS_API_URL = "/api/admin-users";
 const PUSH_SUBSCRIPTIONS_API_URL = "/api/push-subscriptions";
-const PUSH_NOTIFICATION_ROLES = new Set(["production", "admin"]);
+const PUSH_NOTIFICATION_ROLES = new Set(["production", "admin", "sales", "office", "quality", "shipping"]);
 const ADMIN_ACCOUNT_ROLES = [
   { value: "admin", label: "관리자" },
   { value: "production", label: "생산" },
@@ -20,12 +20,12 @@ const LEGACY_ROLE_ALIASES = {
   general: "office"
 };
 const ROLE_VIEW_PERMISSIONS = {
-  admin: ["dashboardView", "ordersView", "requisitionView", "workerView", "shippingView", "sopView", "adminView"],
-  production: ["dashboardView", "workerView", "sopView"],
-  sales: ["dashboardView", "requisitionView", "ordersView", "shippingView", "sopView"],
-  office: ["dashboardView", "ordersView", "requisitionView", "workerView", "shippingView", "sopView", "adminView"],
-  quality: ["dashboardView", "ordersView", "requisitionView", "workerView", "shippingView", "sopView"],
-  shipping: ["dashboardView", "shippingView"]
+  admin: ["dashboardView", "ordersView", "requisitionView", "workerView", "shippingView", "sopView", "adminView", "chatView"],
+  production: ["dashboardView", "workerView", "sopView", "chatView"],
+  sales: ["dashboardView", "requisitionView", "ordersView", "shippingView", "sopView", "chatView"],
+  office: ["dashboardView", "ordersView", "requisitionView", "workerView", "shippingView", "sopView", "adminView", "chatView"],
+  quality: ["dashboardView", "ordersView", "requisitionView", "workerView", "shippingView", "sopView", "chatView"],
+  shipping: ["dashboardView", "shippingView", "chatView"]
 };
 const ROLE_ADMIN_SECTION_PERMISSIONS = {
   admin: ["equipment", "mold", "journal", "worker", "logs", "accounts"],
@@ -45,7 +45,8 @@ const ROLE_VIEW_LABELS = {
   workerView: "작업자입력",
   shippingView: "출하",
   sopView: "작업표준서",
-  adminView: "관리자페이지"
+  adminView: "관리자페이지",
+  chatView: "전체대화방"
 };
 const ROLE_ADMIN_SECTION_LABELS = {
   equipment: "장비",
@@ -86,6 +87,41 @@ function createCompatibleRandomId() {
 }
 
 const CODEX_RELEASE_NOTES = [
+  {
+    version: "2026-09-02-01",
+    timestamp: "2026-09-02T12:20:13+09:00",
+    title: "전체 데이터 최신순 표시",
+    summary: "발주·대시보드·출하·작업이력·발주의뢰·계정 목록과 출하 세부 이력을 최근 등록 또는 수정된 데이터부터 표시하도록 정렬 기준을 통일했습니다. 저장 데이터의 원본 순서는 변경하지 않습니다.",
+    files: ["app.js", "sw.js", "package.json", "tests/data-latest-first.test.js"]
+  },
+  {
+    version: "2026-09-01-11",
+    timestamp: "2026-09-01T15:51:00+09:00",
+    title: "삭제 메시지 화면 정리",
+    summary: "관리자가 메시지를 삭제하면 안내 말풍선을 남기지 않고 이름·시간·내용을 대화 화면에서 즉시 제거합니다. 삭제 이력은 보안 감사용 서버 기록에만 보관합니다.",
+    files: ["index.html", "chat.js", "chat.css", "app.js", "sw.js", "api/chat-messages.js", "tests/company-chat.test.js"]
+  },
+  {
+    version: "2026-09-01-10",
+    timestamp: "2026-09-01T15:42:00+09:00",
+    title: "전체대화방 참여 직원 명단 표시",
+    summary: "대화방 상단에 등록된 승인 계정 전체의 이름·부서와 참여 인원수를 표시합니다. 직원 이름을 누르면 바로 @호출할 수 있고, @입력 목록도 8명 제한 없이 전체 직원이 표시됩니다.",
+    files: ["index.html", "chat.js", "chat.css", "app.js", "sw.js", "api/chat-messages.js", "tests/company-chat.test.js"]
+  },
+  {
+    version: "2026-09-01-09",
+    timestamp: "2026-09-01T15:20:00+09:00",
+    title: "전체대화방 전 직원 확대",
+    summary: "승인된 생산·영업·총무·품질·출하·관리자 계정이 전체대화방에 함께 참여하도록 확대했습니다. 일반 직원은 100자 제한을 유지하고 관리자 공지·상단 고정·@전체 권한은 그대로 보호합니다.",
+    files: ["index.html", "chat.js", "app.js", "sw.js", "api/chat-messages.js", "lib/push-server.js", "supabase-company-chat.sql", "supabase-push-notifications.sql", "tests/company-chat.test.js"]
+  },
+  {
+    version: "2026-09-01-08",
+    timestamp: "2026-09-01T15:30:00+09:00",
+    title: "승인 계정 전용 전체대화방 추가",
+    summary: "관리자와 총무 계정이 문자로 소통하는 전용 대화방을 추가했습니다. 총무는 100자, 관리자는 긴 공지 작성과 상단 고정이 가능하며 @직원 호출은 지정된 사람에게만 알림을 보냅니다.",
+    files: ["index.html", "chat.js", "chat.css", "app.js", "sw.js", "api/chat-messages.js", "lib/push-server.js", "supabase-company-chat.sql", "supabase-push-notifications.sql", "tests/company-chat.test.js"]
+  },
   {
     version: "2026-09-01-07",
     timestamp: "2026-09-01T11:03:00+09:00",
@@ -720,6 +756,18 @@ let pendingStartSnapshot = null;
 let selectedCalendarDateKey = "";
 const supabaseAuthClient = createSupabaseAuthClient();
 
+window.JhintCompanyChat?.initialize({
+  supabaseClient: supabaseAuthClient,
+  getAccessToken: getGlobalAccessToken,
+  getAccount: () => ({
+    email: currentAdminEmail,
+    role: currentAdminRole,
+    displayName: currentAdminDisplayName
+  }),
+  showAlert: showAppAlert,
+  switchView
+});
+
 window.smartSopBridge = createSmartSopBridge();
 
 bindEvents();
@@ -762,6 +810,9 @@ function bindEvents() {
     const requestedView = String(event.data?.view || "");
     if (event.data?.type === "JHINT_OPEN_VIEW" && requestedView && canAccessView(requestedView)) {
       switchView(requestedView);
+      if (requestedView === "chatView") {
+        window.JhintCompanyChat?.openMessage(String(event.data?.messageId || ""));
+      }
     }
   });
 
@@ -2123,7 +2174,8 @@ function showPermissionDenied(targetId = "") {
     workerView: "작업자 입력",
     shippingView: "출하",
     sopView: "작업표준서",
-    adminView: "관리자 페이지"
+    adminView: "관리자 페이지",
+    chatView: "전체대화방"
   };
   const pageName = pageNames[targetId] || "해당 페이지";
   showAppAlert(`${pageName}에 접근할 권한이 없습니다.`);
@@ -2799,6 +2851,7 @@ function switchView(targetId) {
   }
   tabButtons.forEach((item) => item.classList.toggle("active", item.dataset.viewTarget === targetId));
   viewPanels.forEach((panel) => panel.classList.toggle("active", panel.id === targetId));
+  window.JhintCompanyChat?.setActive(targetId === "chatView");
 }
 
 function getTodayKey() {
@@ -3179,8 +3232,26 @@ function getRequisitionStatusClass(request) {
 
 function getFilteredRequisitions() {
   const requests = state.requisitions || [];
-  if (requisitionFilter === "all") return requests;
-  return requests.filter((request) => getEffectiveRequisitionStatus(request) === requisitionFilter);
+  const filteredRequests = requisitionFilter === "all"
+    ? requests
+    : requests.filter((request) => getEffectiveRequisitionStatus(request) === requisitionFilter);
+
+  return [...filteredRequests].sort((left, right) => {
+    const timeGap = getRequisitionLatestSortTime(right) - getRequisitionLatestSortTime(left);
+    if (timeGap) return timeGap;
+    return String(right.requestNo || "").localeCompare(String(left.requestNo || ""), "ko-KR", { numeric: true });
+  });
+}
+
+function getRequisitionLatestSortTime(request = {}) {
+  return Math.max(
+    getSortableTimestamp(request.updatedAt),
+    getSortableTimestamp(request.convertedAt),
+    getSortableTimestamp(request.approvedAt),
+    getSortableTimestamp(request.rejectedAt),
+    getSortableTimestamp(request.createdAt),
+    getSortableTimestamp(request.orderDate)
+  );
 }
 
 function renderRequisitionPage() {
@@ -5151,15 +5222,50 @@ function renderCalendarDetail() {
 
 function getSortedOrders(orders) {
   return [...orders].sort((left, right) => {
-    const paymentGap = Number(Boolean(right.paymentRequested)) - Number(Boolean(left.paymentRequested));
-    if (paymentGap !== 0) return paymentGap;
+    const latestGap = getOrderLatestSortTime(right) - getOrderLatestSortTime(left);
+    if (latestGap) return latestGap;
 
-    const leftDue = new Date(left.dueDate).getTime();
-    const rightDue = new Date(right.dueDate).getTime();
+    const orderDateGap = getSortableTimestamp(right.orderDate) - getSortableTimestamp(left.orderDate);
+    if (orderDateGap) return orderDateGap;
+
+    const dueDateGap = getSortableTimestamp(right.dueDate) - getSortableTimestamp(left.dueDate);
+    if (dueDateGap) return dueDateGap;
+
+    return String(right.id || "").localeCompare(String(left.id || ""));
+  });
+}
+
+function getScheduleSortedOrders(orders) {
+  return [...orders].sort((left, right) => {
+    const paymentGap = Number(Boolean(right.paymentRequested)) - Number(Boolean(left.paymentRequested));
+    if (paymentGap) return paymentGap;
+
+    const leftDue = getSortableTimestamp(left.dueDate) || Number.MAX_SAFE_INTEGER;
+    const rightDue = getSortableTimestamp(right.dueDate) || Number.MAX_SAFE_INTEGER;
     if (leftDue !== rightDue) return leftDue - rightDue;
 
-    return new Date(right.orderDate).getTime() - new Date(left.orderDate).getTime();
+    return getOrderLatestSortTime(right) - getOrderLatestSortTime(left);
   });
+}
+
+function getSortableTimestamp(value) {
+  const timestamp = new Date(value || "").getTime();
+  return Number.isFinite(timestamp) ? timestamp : 0;
+}
+
+function getOrderLatestSortTime(order = {}) {
+  const orderId = String(order.id || "");
+  const latestRegistrationTime = (state.activities || []).reduce((latest, activity) => {
+    if (String(activity?.orderId || "") !== orderId || activity?.type !== "register") return latest;
+    return Math.max(latest, getSortableTimestamp(activity.timestamp));
+  }, 0);
+
+  return Math.max(
+    getSortableTimestamp(order.updatedAt),
+    getSortableTimestamp(order.createdAt),
+    latestRegistrationTime,
+    getSortableTimestamp(order.orderDate)
+  );
 }
 
 function isProductionPushSupported() {
@@ -5269,7 +5375,7 @@ async function toggleProductionPushNotifications() {
     if (currentSubscription) {
       await saveProductionPushSubscription(currentSubscription, "DELETE");
       await currentSubscription.unsubscribe();
-      showAppAlert("이 기기의 생산 작업 알림을 껐습니다.");
+      showAppAlert("이 기기의 업무 알림을 껐습니다.");
     } else {
       const permission = await Notification.requestPermission();
       if (permission !== "granted") throw new Error("기기 알림 권한이 허용되지 않았습니다.");
@@ -5283,8 +5389,7 @@ async function toggleProductionPushNotifications() {
         await subscription.unsubscribe().catch(() => {});
         throw error;
       }
-      const accountLabel = currentAdminRole === "admin" ? "관리자 생산 현황" : "생산 작업";
-      showAppAlert(`${accountLabel} 알림을 설정했습니다. 평일 오전 9시와 오후 9시에 조건을 확인합니다.`);
+      showAppAlert("이 기기의 업무 및 전체대화방 호출 알림을 설정했습니다.");
     }
   } catch (error) {
     showAppAlert(error.message || "알림 설정을 변경하지 못했습니다.");
@@ -5300,6 +5405,7 @@ function renderAdminSession() {
   if (globalSessionUser) {
     globalSessionUser.textContent = isAdminLoggedIn ? `${sessionLabel} · ${getCurrentRoleLabel()}` : "-";
   }
+  void window.JhintCompanyChat?.syncSession();
   scheduleProductionPushButtonSync();
   openRequestedPushView();
   adminLoginPanel.hidden = isAdminLoggedIn;
@@ -6681,7 +6787,8 @@ function renderAdminAccounts(options = {}) {
     return;
   }
 
-  const rows = adminUsersCache
+  const rows = [...adminUsersCache]
+    .sort((left, right) => getSortableTimestamp(right.createdAt) - getSortableTimestamp(left.createdAt))
     .map((user) => {
       const email = user.email || "-";
       const displayName = user.displayName || "";
@@ -7935,7 +8042,8 @@ function renderShippingPageCardOverride() {
       id: createCompatibleRandomId(),
       qty: shipQty,
       date: shipDate,
-      note: String(order.shippingNote || "").trim()
+      note: String(order.shippingNote || "").trim(),
+      createdAt: new Date().toISOString()
     };
 
     order.shipments = replaceExisting ? [shipment] : [...getShipmentRecords(order), shipment];
@@ -8382,7 +8490,8 @@ function saveShippingRecordFinal(order, shipQty, shipDate, replaceExisting = fal
     id: createCompatibleRandomId(),
     qty: shipQty,
     date: shipDate,
-    note: String(order.shippingNote || "").trim()
+    note: String(order.shippingNote || "").trim(),
+    createdAt: new Date().toISOString()
   };
 
   order.shipments = replaceExisting ? [shipment] : [...getShipmentRecords(order), shipment];
@@ -8574,7 +8683,8 @@ function saveShippingRecord(order, shipQty, shipDate, replaceExisting = false) {
     id: createCompatibleRandomId(),
     qty: shipQty,
     date: shipDate,
-    note: String(order.shippingNote || "").trim()
+    note: String(order.shippingNote || "").trim(),
+    createdAt: new Date().toISOString()
   };
 
   order.shipments = replaceExisting ? [shipment] : [...getShipmentRecords(order), shipment];
@@ -10310,7 +10420,8 @@ function normalizeShipmentRecord(record) {
     id: record?.id || createCompatibleRandomId(),
     qty: Number(record?.qty || 0),
     date: record?.date || "",
-    note: String(record?.note || "").trim()
+    note: String(record?.note || "").trim(),
+    createdAt: record?.createdAt || ""
   };
 }
 
@@ -10321,7 +10432,13 @@ function getOrderQuantity(order) {
 function getShipmentRecords(order) {
   const shipments = Array.isArray(order?.shipments) ? order.shipments.map(normalizeShipmentRecord) : [];
   if (shipments.length) {
-    return shipments.filter((item) => item.qty > 0);
+    return shipments
+      .filter((item) => item.qty > 0)
+      .sort((left, right) => {
+        const createdGap = getSortableTimestamp(right.createdAt) - getSortableTimestamp(left.createdAt);
+        if (createdGap) return createdGap;
+        return getSortableTimestamp(right.date) - getSortableTimestamp(left.date);
+      });
   }
 
   if (order?.shipped) {
@@ -10330,7 +10447,8 @@ function getShipmentRecords(order) {
         id: createCompatibleRandomId(),
         qty: getOrderQuantity(order),
         date: order.shippedDate || "",
-        note: String(order.shippingNote || "").trim()
+        note: String(order.shippingNote || "").trim(),
+        createdAt: ""
       }
     ].filter((item) => item.qty > 0);
   }
@@ -12930,7 +13048,8 @@ function renderShippingPage() {
       id: createCompatibleRandomId(),
       qty: shipQty,
       date: shipDate,
-      note: String(order.shippingNote || "").trim()
+      note: String(order.shippingNote || "").trim(),
+      createdAt: new Date().toISOString()
     };
 
     order.shipments = replaceExisting ? [shipment] : [...getShipmentRecords(order), shipment];
@@ -13035,7 +13154,7 @@ function renderProgressMetaGrid(order, includeOrderDate = false) {
 
 
 function getDueAlarmOrders() {
-  return getSortedOrders(
+  return getScheduleSortedOrders(
     state.orders.filter((order) => isDueAlertOrder(order))
   );
 }
@@ -13674,6 +13793,15 @@ function getCleanActivityMessage(activity, order) {
   return "작업 이력이 기록되었습니다.";
 }
 
+function getLatestOrderActivity(orderId) {
+  const targetOrderId = String(orderId || "");
+  return (state.activities || []).reduce((latest, activity) => {
+    if (String(activity?.orderId || "") !== targetOrderId) return latest;
+    if (!latest) return activity;
+    return getSortableTimestamp(activity.timestamp) > getSortableTimestamp(latest.timestamp) ? activity : latest;
+  }, null);
+}
+
 function normalizeHistorySearchText(value) {
   return String(value || "").toLowerCase().replace(/\s+/g, "");
 }
@@ -13698,7 +13826,7 @@ function renderActivities() {
   const keyword = normalizeHistorySearchText(workerHistorySearchKeyword);
   const sortedOrders = getSortedOrders(state.orders).filter((order) => {
     if (!keyword) return true;
-    const latestActivity = state.activities.find((activity) => activity.orderId === order.id);
+    const latestActivity = getLatestOrderActivity(order.id);
     return getWorkerHistorySearchText(order, latestActivity).includes(keyword);
   });
 
@@ -13732,7 +13860,7 @@ function renderActivities() {
     .map(([workerName, orders]) => {
       const items = orders
         .map((order) => {
-          const latestActivity = state.activities.find((activity) => activity.orderId === order.id);
+          const latestActivity = getLatestOrderActivity(order.id);
           const badgeClass = order.status === "complete" ? "status-complete" : order.status === "working" ? "status-working" : order.status === "paused" ? "status-warning" : "status-ready";
           const badgeText = getOrderStatusTextClean(order);
           const activityMessage = getCleanActivityMessage(latestActivity, order);
@@ -13929,7 +14057,7 @@ function getWorkTimeLabel(order) {
 
 function renderOrderOptions() {
   const previousValue = orderSelect.value;
-  const selectableOrders = getSortedOrders(state.orders.filter((order) => order.status === "ready" || order.status === "paused" || order.status === "break"));
+  const selectableOrders = getScheduleSortedOrders(state.orders.filter((order) => order.status === "ready" || order.status === "paused" || order.status === "break"));
 
   if (!selectableOrders.length) {
     orderSelect.innerHTML = `<option value="">선택 가능한 작업이 없습니다.</option>`;

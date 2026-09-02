@@ -41,7 +41,7 @@ assert.match(rlsSql, /to authenticated[\s\S]*jhint_role/i, "RLS should require a
 assert.match(rlsSql, /auth\.jwt\(\) -> 'amr'[\s\S]*method' = 'password'/i, "RLS should reject recovery and magic-link sessions");
 
 assert(styleCss.includes(".security-login-gate.password-recovery-mode .security-auth-tabs"), "normal login tabs should be hidden during recovery");
-assert(indexHtml.includes("app.js?v=20260901-07"), "the recovery fix should use a fresh app cache version");
-assert(swJs.includes("jhint-production-app-v20260901-07"), "the service worker cache should refresh for the recovery fix");
+assert(indexHtml.includes("app.js?v=20260901-12"), "the recovery fix should use a fresh app cache version");
+assert(swJs.includes("jhint-production-app-v20260902-01"), "the service worker cache should refresh for the recovery fix");
 
 console.log("password recovery flow test passed");

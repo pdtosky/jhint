@@ -9,7 +9,7 @@ create table if not exists public.push_subscriptions (
   user_id uuid not null references auth.users(id) on delete cascade,
   email text not null default '',
   display_name text not null,
-  role text not null check (role in ('production', 'admin')),
+  role text not null check (role in ('production', 'admin', 'sales', 'office', 'quality', 'shipping')),
   endpoint text not null unique,
   p256dh text not null,
   auth text not null,
@@ -25,7 +25,9 @@ create table if not exists public.push_subscriptions (
 alter table public.push_subscriptions
   drop constraint if exists push_subscriptions_role_check;
 alter table public.push_subscriptions
-  add constraint push_subscriptions_role_check check (role in ('production', 'admin'));
+  add constraint push_subscriptions_role_check check (
+    role in ('production', 'admin', 'sales', 'office', 'quality', 'shipping')
+  );
 
 create index if not exists push_subscriptions_user_enabled_idx
   on public.push_subscriptions (user_id, enabled);

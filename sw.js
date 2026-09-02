@@ -1,9 +1,11 @@
-const CACHE_NAME = "jhint-production-app-v20260901-07";
+const CACHE_NAME = "jhint-production-app-v20260902-01";
 const CORE_ASSETS = [
   "/",
   "/index.html",
   "/style.css",
+  "/chat.css",
   "/app.js",
+  "/chat.js",
   "/xlsx-export.js",
   "/sop-seed.js",
   "/sop/index.html",
@@ -80,7 +82,8 @@ self.addEventListener("push", (event) => {
       data: {
         url: payload.url || "/",
         view: payload.view || "workerView",
-        kind: payload.kind || ""
+        kind: payload.kind || "",
+        messageId: payload.messageId || ""
       }
     })
   );
@@ -90,11 +93,12 @@ self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   const targetUrl = new URL(event.notification.data?.url || "/", self.location.origin).href;
   const targetView = event.notification.data?.view || "workerView";
+  const targetMessageId = event.notification.data?.messageId || "";
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
       const existing = clients.find((client) => client.url.startsWith(self.location.origin));
       if (existing) {
-        existing.postMessage({ type: "JHINT_OPEN_VIEW", view: targetView });
+        existing.postMessage({ type: "JHINT_OPEN_VIEW", view: targetView, messageId: targetMessageId });
         return existing.focus();
       }
       return self.clients.openWindow(targetUrl);
