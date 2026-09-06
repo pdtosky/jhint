@@ -88,6 +88,13 @@ function createCompatibleRandomId() {
 
 const CODEX_RELEASE_NOTES = [
   {
+    version: "2026-09-07-01",
+    timestamp: "2026-09-07T08:32:22+09:00",
+    title: "로그인 멈춤 현상 수정",
+    summary: "Supabase 인증 상태 변경 중 다시 서버 데이터를 기다리며 로그인이 멈출 수 있던 구조를 제거했습니다. 인증 이벤트는 즉시 종료하고 데이터 로딩은 별도 작업으로 실행하며, 기존 기기도 수정된 로그인 파일을 받도록 앱 캐시를 갱신했습니다.",
+    files: ["app.js", "index.html", "sw.js", "package.json", "tests/global-auth-deadlock.test.js"]
+  },
+  {
     version: "2026-09-02-01",
     timestamp: "2026-09-02T12:20:13+09:00",
     title: "전체 데이터 최신순 표시",
@@ -608,6 +615,7 @@ let isStateSyncing = false;
 let isVisibilitySyncBound = false;
 let isAdminAuthListenerBound = false;
 let isAppDataInitialized = false;
+let appDataInitializationPromise = null;
 let isPasswordRecoveryMode = hasPasswordRecoveryRequest() || hasStoredPasswordRecoveryRequest();
 if (isPasswordRecoveryMode) setPasswordRecoveryMode(true);
 let currentAdminEmail = "";
@@ -1877,12 +1885,33 @@ function renderSecurityLoginGate(message = "") {
 }
 
 async function initializeAppData(options = {}) {
-  if (!isAppDataInitialized || options.force) {
+  const forceReload = options.force === true;
+  if (!forceReload && isAppDataInitialized) {
+    render();
+    startStatePolling();
+    return;
+  }
+
+  if (appDataInitializationPromise) {
+    await appDataInitializationPromise;
+    if (!forceReload) return;
+  }
+
+  const initialization = (async () => {
     await loadRemoteState();
     isAppDataInitialized = true;
+    render();
+    startStatePolling();
+  })();
+  appDataInitializationPromise = initialization;
+
+  try {
+    await initialization;
+  } finally {
+    if (appDataInitializationPromise === initialization) {
+      appDataInitializationPromise = null;
+    }
   }
-  render();
-  startStatePolling();
 }
 
 async function initializeApp() {
@@ -2252,7 +2281,7 @@ async function restoreAdminSession() {
 function bindAdminAuthListener() {
   if (!supabaseAuthClient || isAdminAuthListenerBound) return;
   isAdminAuthListenerBound = true;
-  supabaseAuthClient.auth.onAuthStateChange(async (event, session) => {
+  supabaseAuthClient.auth.onAuthStateChange((event, session) => {
     if (event === "PASSWORD_RECOVERY") {
       setPasswordRecoveryMode(true);
       setAdminSession("");
@@ -2289,7 +2318,12 @@ function bindAdminAuthListener() {
     setAdminSession(sessionEmail, sessionRole, getSessionDisplayName(sessionUser, sessionEmail));
     renderSecurityLoginGate();
     if (REQUIRE_GLOBAL_LOGIN && currentAdminEmail) {
-      await initializeAppData();
+      // Supabase calls inside onAuthStateChange can deadlock the auth client.
+      setTimeout(() => {
+        initializeAppData().catch((error) => {
+          console.error("인증 후 화면 데이터를 불러오지 못했습니다.", error);
+        });
+      }, 0);
       return;
     }
     renderAdminSession();
