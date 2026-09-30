@@ -88,6 +88,13 @@ function createCompatibleRandomId() {
 
 const CODEX_RELEASE_NOTES = [
   {
+    version: "2026-09-30-03",
+    timestamp: "2026-09-30T15:11:33+09:00",
+    title: "작업자 특이사항 강조 및 시작 전 확인",
+    summary: "작업 선택 아래와 진행 중 카드에 특이사항을 큰 글씨로 표시합니다. 특이사항이 있는 작업은 시작·재개 확인창에서 내용을 확인해야 시작되며, 확인 중 내용이 바뀌면 다시 확인합니다. 확인한 내용은 작업 시작 이력에 함께 보관합니다.",
+    files: ["app.js", "index.html", "style.css", "sw.js", "tests/worker-special-instructions.test.js"]
+  },
+  {
     version: "2026-09-30-02",
     timestamp: "2026-09-30T14:38:00+09:00",
     title: "발주의뢰 전량 작업·미터 단위·미정 단가 및 출하 연동",
@@ -1348,12 +1355,22 @@ async function updateWorkState(nextStatus, lockedInput = {}) {
   clearWorkerAlert();
   enableWorkerStartInputs();
 
-  const order = state.orders.find((item) => item.id === orderId);
+  let order = state.orders.find((item) => item.id === orderId);
   if (!order) return;
   let workerUserId = String(order.workerUserId || "").trim();
   if (nextStatus === "working" && currentAdminRole === "production" && supabaseAuthClient) {
     const { data } = await supabaseAuthClient.auth.getSession();
     workerUserId = String(data?.session?.user?.id || "").trim();
+  }
+
+  // Polling can replace order objects while the account session is being read.
+  order = state.orders.find((item) => item.id === orderId);
+  if (!order) return;
+  const specialInstructions = getWorkerSpecialInstructions(order);
+  if (nextStatus === "working" && specialInstructions && (!lockedInput.specialInstructionsAcknowledged || lockedInput.specialInstructions !== specialInstructions)) {
+    showWorkerAlert("작업 시작 전에 최신 특이사항을 확인해 주세요.");
+    showAppAlert("특이사항 확인이 필요합니다. 작업 시작 버튼을 눌러 내용을 확인해 주세요.");
+    return;
   }
 
   if (nextStatus === "working" && !["ready", "paused", "break"].includes(order.status)) {
@@ -1403,6 +1420,7 @@ async function updateWorkState(nextStatus, lockedInput = {}) {
   state.activities.unshift({
     id: createCompatibleRandomId(),
     type: nextStatus === "working" ? "start" : "end",
+    ...(nextStatus === "working" && specialInstructions ? { specialInstructionsAcknowledged: true, acknowledgedSpecialInstructions: specialInstructions } : {}),
     workerName,
     workerUserId,
     machineName,
@@ -1415,6 +1433,9 @@ async function updateWorkState(nextStatus, lockedInput = {}) {
           : TEXT.startMessage
         : TEXT.endMessage
   });
+  if (nextStatus === "working" && specialInstructions) {
+    state.activities[0].message += " / 특이사항 확인 완료";
+  }
 
   try {
     await persist({ throwOnError: true });
@@ -12382,6 +12403,23 @@ function showAppAlert(message) {
   modal.hidden = false;
 }
 
+function getWorkerSpecialInstructions(order) {
+  const note = String(order?.orderNote || "").trim();
+  if (!note.startsWith("발주의뢰 ")) return note;
+  const marker = /(?:^|\s)특이사항\s*/.exec(note);
+  return marker ? note.slice(marker.index + marker[0].length).trim() : "";
+}
+
+function renderWorkerSpecialInstructions(order) {
+  const note = getWorkerSpecialInstructions(order);
+  if (!note) return "";
+  return `<section class="worker-special-instructions" aria-label="작업 특이사항">
+    <strong class="worker-special-title">작업 전 꼭 확인 · 특이사항</strong>
+    <p class="worker-special-product">${escapeHtml(order.product || "")}</p>
+    <div class="worker-special-content">${escapeHtml(note)}</div>
+  </section>`;
+}
+
 function confirmWorkStart() {
   if (!canAccessView("workerView")) {
     showPermissionDenied("workerView");
@@ -12439,13 +12477,21 @@ function confirmWorkStart() {
             <dd id="workStartConfirmMachine"></dd>
           </div>
         </dl>
+        <div id="workStartSpecialInstructions"></div>
+        <label class="work-note-ack" id="workStartNoteAckLabel" hidden>
+          <input type="checkbox" id="workStartNoteAck" />
+          <span>특이사항을 읽고 작업 시 주의할 내용을 확인했습니다.</span>
+        </label>
         <div class="modal-actions work-start-confirm-actions">
-          <button type="button" class="primary-btn" id="workStartConfirmYesBtn">YES</button>
-          <button type="button" class="tab-btn" id="workStartConfirmNoBtn">NO</button>
+          <button type="button" class="primary-btn" id="workStartConfirmYesBtn">작업 시작</button>
+          <button type="button" class="tab-btn" id="workStartConfirmNoBtn">취소</button>
         </div>
       </div>
     `;
     document.body.appendChild(modal);
+    modal.querySelector("#workStartNoteAck").addEventListener("change", (event) => {
+      modal.querySelector("#workStartConfirmYesBtn").disabled = Boolean(pendingStartSnapshot?.specialInstructions) && !event.target.checked;
+    });
     modal.querySelector("#workStartConfirmNoBtn").addEventListener("click", () => {
       modal.hidden = true;
       pendingStartSnapshot = null;
@@ -12460,6 +12506,19 @@ function confirmWorkStart() {
         workerName: modal.dataset.workerName || "",
         machineName: modal.dataset.machineName || ""
       };
+      const currentOrder = state.orders.find((item) => item.id === lockedInput.orderId);
+      const currentNote = getWorkerSpecialInstructions(currentOrder);
+      if (currentNote !== (lockedInput.specialInstructions || "")) {
+        showAppAlert("특이사항이 변경되었습니다. 변경된 내용을 다시 확인해 주세요.");
+        modal.querySelector("#workStartSpecialInstructions").innerHTML = renderWorkerSpecialInstructions(currentOrder);
+        lockedInput.specialInstructions = currentNote;
+        modal.querySelector("#workStartNoteAck").checked = false;
+        modal.querySelector("#workStartNoteAckLabel").hidden = !currentNote;
+        modal.querySelector("#workStartConfirmYesBtn").disabled = Boolean(currentNote);
+        return;
+      }
+      if (currentNote && !modal.querySelector("#workStartNoteAck").checked) return;
+      lockedInput.specialInstructionsAcknowledged = Boolean(currentNote);
       modal.hidden = true;
       pendingStartSnapshot = null;
       setWorkStartConfirmationLocked(false);
@@ -12467,7 +12526,12 @@ function confirmWorkStart() {
     });
   }
 
-  pendingStartSnapshot = { orderId, workerName, machineName };
+  const specialInstructions = getWorkerSpecialInstructions(order);
+  pendingStartSnapshot = { orderId, workerName, machineName, specialInstructions };
+  modal.querySelector("#workStartSpecialInstructions").innerHTML = renderWorkerSpecialInstructions(order);
+  modal.querySelector("#workStartNoteAckLabel").hidden = !specialInstructions;
+  modal.querySelector("#workStartNoteAck").checked = false;
+  modal.querySelector("#workStartConfirmYesBtn").disabled = Boolean(specialInstructions);
   modal.dataset.orderId = orderId;
   modal.dataset.workerName = workerName;
   modal.dataset.machineName = machineName;
@@ -14419,6 +14483,12 @@ function renderOrderOptions() {
 function updateWorkerOrderSelectVisual() {
   if (!orderSelect) return;
   const selectedOrder = state.orders.find((order) => order.id === orderSelect.value);
+  const specialHost = document.getElementById("workerSpecialInstructions");
+  if (specialHost) {
+    const markup = renderWorkerSpecialInstructions(selectedOrder);
+    if (specialHost.innerHTML !== markup) specialHost.innerHTML = markup;
+    specialHost.hidden = !markup;
+  }
   [workQtyInput, productionQtyInput].forEach((input) => {
     if (!input) return;
     input.step = selectedOrder?.quantityUnit === "m" ? "any" : "1";
@@ -14461,6 +14531,7 @@ function renderWorkerLiveStatus() {
             </div>
             <span class="status-badge ${badgeClass}">${badgeLabel}</span>
           </div>
+          ${renderWorkerSpecialInstructions(order)}
           <p class="progress-meta">${getCleanDisplayText(order.workerName, "") ? `작업자 ${escapeHtml(getCleanDisplayText(order.workerName))}` : "작업자 미지정"}</p>
           <p class="progress-meta">${getCleanDisplayText(order.machineName, "") ? `장비 ${escapeHtml(getCleanDisplayText(order.machineName))}` : "장비 미지정"}</p>
           <p class="progress-meta">${getWorkTimeLabel(order)}</p>

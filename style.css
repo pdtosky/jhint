@@ -7014,6 +7014,30 @@ html {
   min-width: 0;
 }
 
+.worker-special-instructions-host { grid-column: 1 / -1; }
+.worker-special-instructions {
+  margin: 12px 0;
+  padding: 18px;
+  border: 2px solid #d58a12;
+  border-left: 7px solid #bd6500;
+  border-radius: 12px;
+  background: #fff4d7;
+  color: #38250b;
+  text-align: left;
+}
+.worker-special-title { display: block; font-size: 1.1rem; color: #854000; }
+.worker-special-product { margin: 6px 0 10px; font-size: 0.85rem; font-weight: 700; }
+.worker-special-content { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.7; font-size: 1.05rem; font-weight: 750; max-height: none; }
+.work-note-ack { display: flex; align-items: flex-start; gap: 12px; padding: 14px; border: 1px solid #d58a12; border-radius: 10px; background: #fffaf0; font-weight: 800; text-align: left; }
+.work-note-ack input { width: 24px; height: 24px; flex: 0 0 24px; margin: 0; accent-color: #0f766e; }
+.work-note-ack[hidden], .worker-special-instructions-host[hidden] { display: none; }
+#workStartConfirmModal .work-start-confirm-card { max-height: 90dvh; overflow-y: auto; }
+#workStartConfirmYesBtn:disabled { opacity: 0.45; cursor: not-allowed; }
+@media (max-width: 480px) {
+  .worker-special-instructions { padding: 14px; }
+  .worker-special-content { font-size: 1rem; }
+}
+
 .commercial-fields {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
