@@ -88,6 +88,13 @@ function createCompatibleRandomId() {
 
 const CODEX_RELEASE_NOTES = [
   {
+    version: "2026-09-30-02",
+    timestamp: "2026-09-30T14:38:00+09:00",
+    title: "발주의뢰 전량 작업·미터 단위·미정 단가 및 출하 연동",
+    summary: "발주의뢰에 원단 전량 작업, 개·미터 단위, 단가 미정·추후 협의를 추가했습니다. 발주와 출하까지 기준을 유지하며 전량 작업은 담당자가 실제 출하량과 완료 여부를 확인합니다. 출력물에서 서로 다른 단위는 분리하고 미정 금액을 0원으로 계산하지 않습니다.",
+    files: ["app.js", "style.css", "index.html", "sw.js", "tests/requisition-commercial-fields.test.js", "tests/shipping-quantity-modes.test.js"]
+  },
+  {
     version: "2026-09-30-01",
     timestamp: "2026-09-30T13:48:00+09:00",
     title: "생산 작업 알림 하루 네 차례로 확대",
@@ -791,6 +798,12 @@ startDashboardClock();
 startDueAlarmClock();
 
 function bindEvents() {
+  setupOrderCommercialControls(orderForm);
+  setupOrderCommercialControls(orderEditForm);
+  [orderForm, orderEditForm].forEach((form) => form.addEventListener("change", (event) => {
+    if (event.target.name === "quantityUnit") form.querySelector('[name="priceUnit"]').value = event.target.value;
+    syncCommercialControls(form);
+  }));
   bindSecurityAuthEvents();
 
   tabButtons.forEach((button) => {
@@ -994,6 +1007,8 @@ function bindEvents() {
       company: String(formData.get("company") || "").trim(),
       product: String(formData.get("product") || "").trim(),
       quantity: String(formData.get("quantity") || "").trim(),
+      ...readCommercialControls(orderForm),
+      sourceUnitPrice: String(formData.get("commercialUnitPrice") || ""),
       paymentRequested: Boolean(formData.get("paymentRequested")),
       deliveryType: String(formData.get("deliveryType") || ""),
       dueDate: String(formData.get("dueDate") || ""),
@@ -1015,6 +1030,9 @@ function bindEvents() {
       shippingNoteLocked: false
     };
 
+    const commercialError = validateCommercialRecord(nextOrder);
+    if (commercialError) { showAppAlert(commercialError); return; }
+    if (nextOrder.quantityMode === "all-material") nextOrder.quantity = "";
     if (pendingRequisitionOrderSource) {
       nextOrder.sourceRequisitionId = pendingRequisitionOrderSource.requestId;
       nextOrder.sourceRequisitionItemId = pendingRequisitionOrderSource.itemId;
@@ -1033,6 +1051,7 @@ function bindEvents() {
     persist();
     pendingRequisitionOrderSource = null;
     orderForm.reset();
+    setupOrderCommercialControls(orderForm);
     render();
   });
 
@@ -1047,9 +1066,20 @@ function bindEvents() {
     const order = state.orders.find((item) => item.id === orderId);
     if (!order) return;
 
+    const commercial = readCommercialControls(orderEditForm);
+    const nextQuantity = commercial.quantityMode === "all-material" ? "" : String(editQuantityInput.value || "").trim();
+    const nextPrice = String(orderEditForm.querySelector('[name="commercialUnitPrice"]')?.value || "");
+    const commercialError = validateCommercialRecord({ ...commercial, quantity: nextQuantity, sourceUnitPrice: nextPrice });
+    if (commercialError) { showAppAlert(commercialError); return; }
+    if (commercial.quantityUnit !== normalizeCommercialFields(order).quantityUnit && (Number(order.productionQty) > 0 || Number(order.workQty) > 0 || getShipmentRecords(order).length)) {
+      showAppAlert("생산 또는 출하 실적이 있는 발주는 단위를 변경할 수 없습니다. 개수와 미터 수가 섞이지 않도록 새 발주로 등록해 주세요.");
+      return;
+    }
+    if (commercial.quantityMode !== normalizeCommercialFields(order).quantityMode) order.allMaterialShipmentComplete = false;
+    Object.assign(order, commercial, { sourceUnitPrice: nextPrice });
     order.product = String(editProductInput.value || "").trim();
     order.dueDate = String(editDueDateInput.value || "");
-    order.quantity = String(editQuantityInput.value || "").trim();
+    order.quantity = nextQuantity;
     order.paymentRequested = editPaymentRequestedInput.checked;
     order.deliveryType = String(editDeliveryTypeInput.value || "");
     order.orderNote = String(new FormData(orderEditForm).get("editOrderNote") || "").trim();
@@ -1119,6 +1149,8 @@ function bindEvents() {
     if (event.target.matches('[name="requestItemName"]')) {
       applyRequisitionProductSuggestion(row);
     }
+    if (event.target.matches('[name="quantityUnit"]')) row.querySelector('[name="priceUnit"]').value = event.target.value;
+    syncCommercialControls(row);
   });
 
   document.querySelectorAll("[data-requisition-filter]").forEach((button) => {
@@ -1563,6 +1595,10 @@ async function finalizePause() {
     resetPauseInputs();
     return;
   }
+  if (workQty !== "" && (!Number.isFinite(Number(workQty)) || Number(workQty) < 0 || (order.quantityUnit !== "m" && !Number.isInteger(Number(workQty))))) {
+    showAppAlert("작업수량을 확인해 주세요. 개 단위는 정수, 미터 단위는 소수 입력이 가능합니다.");
+    return;
+  }
   if (order.status !== "working" || !canCurrentWorkerControlActiveOrder(order, pendingPauseWorkerName, "작업중지")) {
     resetPauseInputs();
     return;
@@ -1590,7 +1626,8 @@ async function finalizePause() {
     timestamp: now.toISOString(),
     performedBy: administrativeActor || pendingPauseWorkerName,
     performedByRole: administrativeActor ? "admin" : currentAdminRole,
-    message: `작업을 중지했습니다. / 사유 ${pauseReason}${workQty ? ` / 작업수량 ${workQty}` : ""}${workHitQty ? ` / 작업타수 ${workHitQty}` : ""}${administrativeActor ? ` / 관리자 처리 ${administrativeActor}` : ""}`
+    quantityUnit: order.quantityUnit || "ea",
+    message: `작업을 중지했습니다. / 사유 ${pauseReason}${workQty ? ` / 작업수량 ${workQty}${getQuantityUnitLabel(order)}` : ""}${workHitQty ? ` / 작업타수 ${workHitQty}` : ""}${administrativeActor ? ` / 관리자 처리 ${administrativeActor}` : ""}`
   });
 
   try {
@@ -1650,6 +1687,10 @@ async function finalizeCompletion() {
     resetCompletionInputs();
     return;
   }
+  if (!Number.isFinite(Number(productionQty)) || Number(productionQty) < 0 || (order.quantityUnit !== "m" && !Number.isInteger(Number(productionQty)))) {
+    showAppAlert("생산수량을 확인해 주세요. 개 단위는 정수, 미터 단위는 소수 입력이 가능합니다.");
+    return;
+  }
   if (!canCompleteWorkOrder(order) || !canCurrentWorkerControlActiveOrder(order, pendingCompletionWorkerName, "작업종료")) {
     resetCompletionInputs();
     return;
@@ -1678,7 +1719,8 @@ async function finalizeCompletion() {
     timestamp: new Date().toISOString(),
     performedBy: administrativeActor || pendingCompletionWorkerName,
     performedByRole: administrativeActor ? "admin" : currentAdminRole,
-    message: `${TEXT.endMessage} / 오늘 작업수량 ${productionQty}${totalHitQty ? ` / 오늘 작업타수 ${totalHitQty}` : ""} / ${TEXT.productionQty} ${order.productionQty}${order.totalHitQty ? ` / ${TEXT.totalHitQty} ${order.totalHitQty}` : ""}${administrativeActor ? ` / 관리자 처리 ${administrativeActor}` : ""}`
+    quantityUnit: order.quantityUnit || "ea",
+    message: `${TEXT.endMessage} / 오늘 작업수량 ${productionQty}${getQuantityUnitLabel(order)}${totalHitQty ? ` / 오늘 작업타수 ${totalHitQty}` : ""} / ${TEXT.productionQty} ${order.productionQty}${getQuantityUnitLabel(order)}${order.totalHitQty ? ` / ${TEXT.totalHitQty} ${order.totalHitQty}` : ""}${administrativeActor ? ` / 관리자 처리 ${administrativeActor}` : ""}`
   });
 
   try {
@@ -2669,9 +2711,96 @@ async function saveSupabaseState(nextState) {
   return stateToSave;
 }
 
+function normalizeCommercialFields(record = {}) {
+  return {
+    quantityMode: record.quantityMode === "all-material" ? "all-material" : "fixed",
+    quantityUnit: record.quantityUnit === "m" ? "m" : "ea",
+    materialLength: String(record.materialLength ?? ""),
+    priceStatus: ["undecided", "negotiable"].includes(record.priceStatus) ? record.priceStatus : "confirmed",
+    priceUnit: record.priceUnit === "m" ? "m" : record.priceUnit === "ea" ? "ea" : record.quantityUnit === "m" ? "m" : "ea"
+  };
+}
+
+function getQuantityUnitLabel(record = {}) {
+  return record.quantityUnit === "m" ? "m" : "개";
+}
+
+function formatRequestedQuantity(record = {}) {
+  const fields = normalizeCommercialFields(record);
+  if (fields.quantityMode === "all-material") {
+    return `원단 전량 작업${fields.materialLength ? ` (원단 ${fields.materialLength}m)` : ""} / 실적 ${getQuantityUnitLabel(fields)}`;
+  }
+  return `${record.quantity || "-"}${getQuantityUnitLabel(fields)}`;
+}
+
+function getCommercialPriceLabel(record = {}) {
+  const fields = normalizeCommercialFields(record);
+  if (fields.priceStatus === "undecided") return "미정";
+  if (fields.priceStatus === "negotiable") return "추후 협의";
+  const value = record.unitPrice ?? record.sourceUnitPrice ?? "";
+  return String(value).trim() === "" ? "미입력" : `${formatUnitPrice(value)}원/${getQuantityUnitLabel({ quantityUnit: fields.priceUnit })}`;
+}
+
+function validateCommercialRecord(record) {
+  const fields = normalizeCommercialFields(record);
+  const qty = Number(record.quantity);
+  if (fields.quantityMode === "fixed" && (!Number.isFinite(qty) || qty <= 0 || (fields.quantityUnit === "ea" && !Number.isInteger(qty)))) {
+    return "수량은 0보다 크게 입력해 주세요. 개 단위는 정수, 미터 단위는 소수 입력이 가능합니다.";
+  }
+  if (fields.materialLength !== "" && (!Number.isFinite(Number(fields.materialLength)) || Number(fields.materialLength) <= 0)) return "원단 길이는 0보다 큰 미터 수로 입력해 주세요.";
+  const price = record.unitPrice ?? record.sourceUnitPrice ?? "";
+  if (fields.priceStatus === "confirmed" && String(price).trim() !== "" && (!Number.isFinite(Number(price)) || Number(price) < 0)) return "단가는 0 이상의 숫자로 입력해 주세요.";
+  if (String(record.sampleFee ?? "").trim() !== "" && (!Number.isFinite(Number(record.sampleFee)) || Number(record.sampleFee) < 0)) return "샘플비는 0 이상의 숫자로 입력해 주세요.";
+  return "";
+}
+
+function renderCommercialControls(record = {}) {
+  const fields = normalizeCommercialFields(record);
+  const options = (entries, selected) => entries.map(([value, label]) => `<option value="${value}"${value === selected ? " selected" : ""}>${label}</option>`).join("");
+  return `<div class="commercial-fields">
+    <label>작업량 기준<select name="quantityMode">${options([["fixed", "수량 지정"], ["all-material", "원단 전량 작업"]], fields.quantityMode)}</select></label>
+    <label>수량·생산·출하 단위<select name="quantityUnit">${options([["ea", "개 (EA)"], ["m", "미터 (m)"]], fields.quantityUnit)}</select></label>
+    <label>원단 길이 (m, 선택)<input name="materialLength" type="number" min="0.001" step="any" value="${escapeHtml(fields.materialLength)}" placeholder="제품 개수와 별도 기록" /></label>
+    <label>단가 상태<select name="priceStatus">${options([["confirmed", "확정 / 숫자 입력"], ["undecided", "미정"], ["negotiable", "추후 협의"]], fields.priceStatus)}</select></label>
+    <label>단가 기준<select name="priceUnit">${options([["ea", "개당"], ["m", "미터당"]], fields.priceUnit)}</select></label>
+    <p class="commercial-help">원단 전량 작업은 목표 수량 없이 등록합니다. 단위가 다른 수량은 자동 환산하지 않으며, 미정 금액은 0원으로 계산하지 않습니다.</p>
+  </div>`;
+}
+
+function readCommercialControls(container) {
+  const value = (name) => container.querySelector(`[name="${name}"]`)?.value || "";
+  return normalizeCommercialFields({ quantityMode: value("quantityMode"), quantityUnit: value("quantityUnit"), materialLength: value("materialLength"), priceStatus: value("priceStatus"), priceUnit: value("priceUnit") });
+}
+
+function syncCommercialControls(container) {
+  const fields = readCommercialControls(container);
+  const qty = container.querySelector('[name="requestItemQty"], [name="quantity"], [name="editQuantity"]');
+  const price = container.querySelector('[name="requestItemUnitPrice"], [name="commercialUnitPrice"]');
+  if (qty) {
+    qty.disabled = fields.quantityMode === "all-material";
+    qty.required = !qty.disabled;
+    qty.step = fields.quantityUnit === "m" ? "any" : "1";
+    qty.min = fields.quantityUnit === "m" ? "0.001" : "1";
+    qty.placeholder = qty.disabled ? "원단 전량 작업" : fields.quantityUnit === "m" ? "미터 수 입력 (예: 100.5)" : "제품 수량 입력";
+  }
+  if (price) price.disabled = fields.priceStatus !== "confirmed";
+}
+
+function setupOrderCommercialControls(form, record = {}) {
+  let host = form.querySelector(".order-commercial-fields");
+  if (!host) {
+    host = document.createElement("div");
+    host.className = "wide-field order-commercial-fields";
+    form.querySelector('button[type="submit"]').before(host);
+  }
+  host.innerHTML = `${renderCommercialControls(record)}<label>단가<input type="number" name="commercialUnitPrice" min="0" step="any" value="${escapeHtml(String(record.unitPrice ?? record.sourceUnitPrice ?? ""))}" placeholder="확정 시 입력" /></label>`;
+  syncCommercialControls(form);
+}
+
 function normalizeOrderRecord(order) {
   return {
     ...order,
+    ...normalizeCommercialFields(order),
     status: order.status || "ready",
     holdPreviousStatus: order.holdPreviousStatus || "",
     holdAt: order.holdAt || "",
@@ -2712,11 +2841,12 @@ function normalizeRequisitionRecord(request) {
     updatedAt: request.updatedAt || "",
     adminMemo: request.adminMemo || "",
     items: items.map((item) => ({
+      ...normalizeCommercialFields(item),
       id: item.id || createCompatibleRandomId(),
       name: item.name || "",
       spec: item.spec || "",
       quantity: item.quantity || "",
-      unitPrice: item.unitPrice || item.price || "",
+      unitPrice: item.unitPrice ?? item.price ?? "",
       sampleFee: item.sampleFee || "",
       status: item.status || "",
       orderId: item.orderId || "",
@@ -2959,7 +3089,8 @@ function getRequisitionProductCatalog(companyValue = getRequisitionCompanyValue(
         company,
         name,
         spec: String(item.spec || "").trim(),
-        unitPrice: String(item.unitPrice || item.price || "").trim(),
+        ...normalizeCommercialFields(item),
+        unitPrice: normalizeCommercialFields(item).priceStatus === "confirmed" ? String(item.unitPrice ?? item.price ?? "").trim() : "",
         sampleFee: String(item.sampleFee || "").trim(),
         updatedAt: item.convertedAt || request.updatedAt || request.createdAt || request.orderDate || ""
       });
@@ -2999,7 +3130,7 @@ function getRequisitionProductCatalog(companyValue = getRequisitionCompanyValue(
 function getRequisitionSuggestionLabel(record) {
   return [
     record.spec ? `규격 ${record.spec}` : "",
-    record.unitPrice ? `단가 ${formatUnitPrice(record.unitPrice)}` : "",
+    record.unitPrice !== "" ? `단가 ${getCommercialPriceLabel(record)}` : "",
     record.sampleFee ? `샘플비 ${formatUnitPrice(record.sampleFee)}` : ""
   ].filter(Boolean).join(" / ");
 }
@@ -3037,6 +3168,8 @@ function applyRequisitionProductSuggestion(row) {
   if (unitPriceInput && record.unitPrice && (!unitPriceInput.value || unitPriceInput.value === row.dataset.autoUnitPrice)) {
     unitPriceInput.value = record.unitPrice;
     row.dataset.autoUnitPrice = record.unitPrice;
+    const priceUnit = row.querySelector('[name="priceUnit"]');
+    if (priceUnit) priceUnit.value = normalizeCommercialFields(record).priceUnit;
   }
 
   if (sampleFeeInput && record.sampleFee && (!sampleFeeInput.value || sampleFeeInput.value === row.dataset.autoSampleFee)) {
@@ -3066,15 +3199,17 @@ function addRequisitionItemRow(values = {}) {
     </label>
     <label>
       단가
-      <input type="number" name="requestItemUnitPrice" min="0" step="0.1" inputmode="decimal" placeholder="예: 1200.5" value="${escapeHtml(values.unitPrice || values.price || "")}" />
+      <input type="number" name="requestItemUnitPrice" min="0" step="any" inputmode="decimal" placeholder="예: 1200.5" value="${escapeHtml(String(values.unitPrice ?? values.price ?? ""))}" />
     </label>
     <label>
       샘플비
       <input type="number" name="requestItemSampleFee" min="0" step="0.1" inputmode="decimal" placeholder="예: 100000" value="${escapeHtml(values.sampleFee || "")}" />
     </label>
     <button type="button" class="tab-btn remove-request-item-btn">삭제</button>
+    ${renderCommercialControls(values)}
   `;
   requisitionItems.appendChild(row);
+  syncCommercialControls(row);
   renderRequisitionProductSuggestions();
   updateRequisitionItemNumbers();
 }
@@ -3096,11 +3231,12 @@ function collectRequisitionItems() {
     .map((row) => {
       const getValue = (selector) => String(row.querySelector(selector)?.value || "").trim();
       return {
+        ...readCommercialControls(row),
         id: row.dataset.itemId || createCompatibleRandomId(),
         name: getValue('[name="requestItemName"]'),
         spec: getValue('[name="requestItemSpec"]'),
-        quantity: getValue('[name="requestItemQty"]'),
-        unitPrice: getValue('[name="requestItemUnitPrice"]'),
+        quantity: readCommercialControls(row).quantityMode === "all-material" ? "" : getValue('[name="requestItemQty"]'),
+        unitPrice: readCommercialControls(row).priceStatus === "confirmed" ? getValue('[name="requestItemUnitPrice"]') : "",
         sampleFee: getValue('[name="requestItemSampleFee"]'),
         status: "",
         orderId: "",
@@ -3145,8 +3281,9 @@ function handleRequisitionSubmit() {
     showAppAlert("품목을 1개 이상 입력해 주세요.");
     return;
   }
-  if (items.some((item) => !item.name || !item.quantity)) {
-    showAppAlert("품목명과 수량은 반드시 입력해 주세요.");
+  const invalidItem = items.find((item) => !item.name || validateCommercialRecord(item));
+  if (invalidItem) {
+    showAppAlert(!invalidItem.name ? "품목명을 입력해 주세요." : validateCommercialRecord(invalidItem));
     return;
   }
 
@@ -3330,7 +3467,7 @@ function renderRequisitionPage() {
 }
 
 function formatUnitPrice(value) {
-  const text = String(value || "").trim();
+  const text = String(value ?? "").trim();
   if (!text) return "";
   const normalizedNumber = Number(text.replace(/,/g, ""));
   return Number.isFinite(normalizedNumber) ? normalizedNumber.toLocaleString() : text;
@@ -3342,6 +3479,9 @@ function parseMoneyValue(value) {
 }
 
 function getRequisitionItemAmount(item) {
+  const fields = normalizeCommercialFields(item);
+  if (fields.priceStatus !== "confirmed" || fields.quantityMode === "all-material"
+    || fields.quantityUnit !== fields.priceUnit || String(item.unitPrice ?? "").trim() === "") return null;
   const quantity = parseMoneyValue(item.quantity);
   const unitPrice = parseMoneyValue(item.unitPrice);
   const sampleFee = parseMoneyValue(item.sampleFee);
@@ -3350,8 +3490,8 @@ function getRequisitionItemAmount(item) {
 
 function getRequisitionItemPriceSummary(item) {
   return [
-    `수량 ${item.quantity || "-"}`,
-    item.unitPrice ? `단가 ${formatUnitPrice(item.unitPrice)}` : "",
+    `수량 ${formatRequestedQuantity(item)}`,
+    `단가 ${getCommercialPriceLabel(item)}`,
     item.sampleFee ? `샘플비 ${formatUnitPrice(item.sampleFee)}` : ""
   ].filter(Boolean).join(" / ");
 }
@@ -3433,9 +3573,14 @@ function getRequisitionPrintFit(request = {}) {
 function renderRequisitionPrintSheet(request) {
   const items = Array.isArray(request.items) ? request.items : [];
   const printFit = getRequisitionPrintFit(request);
-  const totalQty = items.reduce((sum, item) => sum + parseMoneyValue(item.quantity), 0);
+  const totalQty = ["ea", "m"].map((unit) => {
+    const quantity = items.filter((item) => normalizeCommercialFields(item).quantityMode === "fixed" && normalizeCommercialFields(item).quantityUnit === unit)
+      .reduce((sum, item) => sum + parseMoneyValue(item.quantity), 0);
+    return quantity ? `${quantity.toLocaleString()}${getQuantityUnitLabel({ quantityUnit: unit })}` : "";
+  }).filter(Boolean).join(" / ") || "-";
   const totalSampleFee = items.reduce((sum, item) => sum + parseMoneyValue(item.sampleFee), 0);
   const totalAmount = items.reduce((sum, item) => sum + getRequisitionItemAmount(item), 0);
+  const hasUnconfirmedAmount = items.some((item) => getRequisitionItemAmount(item) === null);
   const itemRows = items.length
     ? items.map((item, index) => {
       const sampleFee = parseMoneyValue(item.sampleFee);
@@ -3445,10 +3590,10 @@ function renderRequisitionPrintSheet(request) {
           <td class="print-center">${index + 1}</td>
           <td>${escapeHtml(item.name || "-")}</td>
           <td>${escapeHtml(item.spec || "-")}</td>
-          <td class="print-right">${escapeHtml(item.quantity || "-")}</td>
-          <td class="print-right">${item.unitPrice ? escapeHtml(formatUnitPrice(item.unitPrice)) : "-"}</td>
+          <td class="print-right">${escapeHtml(formatRequestedQuantity(item))}</td>
+          <td class="print-right">${escapeHtml(getCommercialPriceLabel(item))}</td>
           <td class="print-right">${sampleFee ? sampleFee.toLocaleString() : "-"}</td>
-          <td class="print-right">${amount ? amount.toLocaleString() : "-"}</td>
+          <td class="print-right">${amount === null ? "미정" : amount.toLocaleString()}</td>
           <td class="print-center">${item.orderId ? "발주 등록 완료" : "대기"}</td>
         </tr>
       `;
@@ -3519,10 +3664,10 @@ function renderRequisitionPrintSheet(request) {
         <tfoot>
           <tr>
             <th colspan="3">합계</th>
-            <td class="print-right">${totalQty ? totalQty.toLocaleString() : "-"}</td>
+            <td class="print-right">${escapeHtml(totalQty)}${items.some((item) => item.quantityMode === "all-material") ? " / 전량 작업 별도" : ""}</td>
             <td></td>
             <td class="print-right">${totalSampleFee ? totalSampleFee.toLocaleString() : "-"}</td>
-            <td class="print-right">${totalAmount ? totalAmount.toLocaleString() : "-"}</td>
+            <td class="print-right">${hasUnconfirmedAmount ? "미정 포함" : totalAmount.toLocaleString()}</td>
             <td></td>
           </tr>
         </tfoot>
@@ -3994,7 +4139,8 @@ function getRequisitionOrderNote(request, item) {
     `발주의뢰 ${request.requestNo}`,
     request.requesterName ? `작성자 ${request.requesterName}` : "",
     item.spec ? `규격 ${item.spec}` : "",
-    item.unitPrice ? `단가 ${formatUnitPrice(item.unitPrice)}` : "",
+    `작업량 ${formatRequestedQuantity(item)}`,
+    `의뢰 당시 단가 ${getCommercialPriceLabel(item)}`,
     item.sampleFee ? `샘플비 ${formatUnitPrice(item.sampleFee)}` : "",
     request.note ? `특이사항 ${request.note}` : ""
   ].filter(Boolean).join("\n");
@@ -4006,11 +4152,12 @@ function getRequisitionRepairOrderId(request, item) {
 
 function buildOrderFromRequisitionItem(request, item, orderId = createCompatibleRandomId()) {
   return normalizeOrderRecord({
+    ...normalizeCommercialFields(item),
     id: orderId,
     orderDate: request.orderDate || getTodayKey(),
     company: request.company || "",
     product: getRequisitionProductText(item) || item.name || "",
-    quantity: item.quantity || "",
+    quantity: item.quantityMode === "all-material" ? "" : item.quantity || "",
     paymentRequested: Boolean(request.paymentRequested),
     deliveryType: request.deliveryType || "직납",
     dueDate: request.dueDate || "",
@@ -4021,7 +4168,7 @@ function buildOrderFromRequisitionItem(request, item, orderId = createCompatible
     elapsedMs: 0,
     sourceRequisitionId: request.id,
     sourceRequisitionItemId: item.id,
-    sourceUnitPrice: item.unitPrice || "",
+    sourceUnitPrice: item.unitPrice ?? "",
     sourceSampleFee: item.sampleFee || ""
   });
 }
@@ -4159,6 +4306,7 @@ function fillOrderFormFromRequisitionItem(request, item) {
   orderForm.elements.deliveryType.value = request.deliveryType || "직납";
   orderForm.elements.dueDate.value = request.dueDate || "";
   orderForm.elements.orderNote.value = getRequisitionOrderNote(request, item);
+  setupOrderCommercialControls(orderForm, item);
 }
 
 function completeRequisitionSource(order) {
@@ -4391,7 +4539,7 @@ function renderCalendar() {
             <button type="button" class="calendar-list-item ${urgent ? "urgent" : ""}" data-date-key="${order.dueDate}">
               <span class="calendar-list-date">${formatDate(order.dueDate)}</span>
               <strong>${escapeHtml(order.company)}</strong>
-              <span>${escapeHtml(order.product)} / 수량 ${escapeHtml(order.quantity || "-")}</span>
+              <span>${escapeHtml(order.product)} / 수량 ${escapeHtml(formatRequestedQuantity(order))}</span>
               <span>${getOrderStatusTextClean(order)} / ${getDeliveryLabel(order)}</span>
             </button>
           `;
@@ -4421,9 +4569,9 @@ function renderProgressMetaGrid(order, includeOrderDate = false) {
   chips.push(renderProgressChip("납기", formatDate(order.dueDate)));
   chips.push(renderProgressChip("작업자", order.workerName || "미지정"));
   chips.push(renderProgressChip("장비", order.machineName || "미지정"));
-  chips.push(renderProgressChip("수량", order.quantity || "-"));
-  chips.push(renderProgressChip("생산수", order.productionQty || "-"));
-  const overProductionQty = Math.max(Number(order.productionQty || 0) - Number(order.quantity || 0), 0);
+  chips.push(renderProgressChip("수량", formatRequestedQuantity(order)));
+  chips.push(renderProgressChip("생산수", `${order.productionQty || "-"}${order.quantityUnit === "m" ? "m" : ""}`));
+  const overProductionQty = (order.quantityMode === "all-material" ? 0 : Math.max(Number(order.productionQty || 0) - Number(order.quantity || 0), 0));
   if (overProductionQty > 0) {
     chips.push(`<span class="progress-chip over-qty-chip"><strong>초과생산</strong>${overProductionQty.toLocaleString()}</span>`);
   }
@@ -4528,9 +4676,9 @@ function renderProgressMetaGrid(order, includeOrderDate = false) {
   chips.push(renderProgressChip("납기", formatDate(order.dueDate)));
   chips.push(renderProgressChip("작업자", order.workerName || "미지정"));
   chips.push(renderProgressChip("장비", order.machineName || "미지정"));
-  chips.push(renderProgressChip("수량", order.quantity || "-"));
-  chips.push(renderProgressChip("생산수", order.productionQty || "-"));
-  const overProductionQtyFinal = Math.max(Number(order.productionQty || 0) - Number(order.quantity || 0), 0);
+  chips.push(renderProgressChip("수량", formatRequestedQuantity(order)));
+  chips.push(renderProgressChip("생산수", `${order.productionQty || "-"}${order.quantityUnit === "m" ? "m" : ""}`));
+  const overProductionQtyFinal = (order.quantityMode === "all-material" ? 0 : Math.max(Number(order.productionQty || 0) - Number(order.quantity || 0), 0));
   if (overProductionQtyFinal > 0) {
     chips.push(`<span class="progress-chip over-qty-chip"><strong>초과생산</strong>${overProductionQtyFinal.toLocaleString()}</span>`);
   }
@@ -4624,7 +4772,7 @@ function renderProgressMetaGrid(order, includeOrderDate = false) {
   items.push(`납기 ${formatDate(order.dueDate)}`);
   if (order.workerName) items.push(`작업자 ${escapeHtml(order.workerName)}`);
   items.push(order.machineName ? `장비 ${escapeHtml(order.machineName)}` : "장비 미지정");
-  items.push(`수량 ${escapeHtml(order.quantity || "-")}`);
+  items.push(`수량 ${escapeHtml(formatRequestedQuantity(order))}`);
   items.push(getPaymentLabel(order));
   items.push(getDeliveryLabel(order));
   items.push(getWorkTimeLabel(order));
@@ -4773,7 +4921,7 @@ function renderCalendar() {
             <button type="button" class="calendar-list-item ${urgent ? "urgent" : ""}" data-date-key="${order.dueDate}">
               <span class="calendar-list-date">${formatDate(order.dueDate)}</span>
               <strong>${escapeHtml(order.company)}</strong>
-              <span>${escapeHtml(order.product)} / 수량 ${escapeHtml(order.quantity || "-")}</span>
+              <span>${escapeHtml(order.product)} / 수량 ${escapeHtml(formatRequestedQuantity(order))}</span>
               <span>${getOrderStatusTextClean(order)} / ${getDeliveryLabel(order)}</span>
             </button>
           `;
@@ -4845,7 +4993,7 @@ function renderCalendar() {
             <button type="button" class="calendar-list-item ${urgent ? "urgent" : ""}" data-date-key="${order.dueDate}">
               <span class="calendar-list-date">${formatDate(order.dueDate)}</span>
               <strong>${escapeHtml(order.company)}</strong>
-              <span>${escapeHtml(order.product)} / 수량 ${escapeHtml(order.quantity || "-")}</span>
+              <span>${escapeHtml(order.product)} / 수량 ${escapeHtml(formatRequestedQuantity(order))}</span>
               <span>${getOrderStatusTextClean(order)} / ${getDeliveryLabel(order)}</span>
             </button>
           `;
@@ -5249,7 +5397,7 @@ function renderCalendarDetail() {
             <p class="detail-line"><strong>?곹깭</strong> ${getOrderStatusText(order)}</p>
             <p class="detail-line"><strong>?⑷린??/strong> ${formatDate(order.dueDate)}</p>
             <p class="detail-line"><strong>?λ퉬</strong> ${escapeHtml(order.machineName || "-")}</p>
-            <p class="detail-line"><strong>?섎웾</strong> ${escapeHtml(order.quantity || "-")}</p>
+            <p class="detail-line"><strong>?섎웾</strong> ${escapeHtml(formatRequestedQuantity(order))}</p>
             <p class="detail-line"><strong>援щ텇</strong> ${getPaymentLabel(order)} / ${getDeliveryLabel(order)}</p>
             <p class="detail-line"><strong>작업시간</strong> ${getCleanWorkTimeValue(order)}</p>
             <p class="detail-line"><strong>珥앹깮?곗닔</strong> ${getProductionQtyLabel(order).replace(`${TEXT.productionQty} `, "")}</p>
@@ -7159,7 +7307,12 @@ function renderAdminOverview() {
   const rows = getFilteredAdminMonthOrders();
   const completed = rows.filter((order) => order.status === "complete").length;
   const working = rows.filter((order) => order.status === "working").length;
-  const totalProduction = rows.reduce((sum, order) => sum + Number(order.productionQty || 0), 0);
+  const totalProduction = rows.filter((order) => order.quantityUnit !== "m").reduce((sum, order) => sum + Number(order.productionQty || 0), 0);
+  const totalMeters = rows.filter((order) => order.quantityUnit === "m").reduce((sum, order) => sum + Number(order.productionQty || 0), 0);
+  const productionLabel = [
+    rows.some((order) => order.quantityUnit !== "m") || !rows.length ? `${totalProduction.toLocaleString()}개` : "",
+    rows.some((order) => order.quantityUnit === "m") ? `${totalMeters.toLocaleString(undefined, { maximumFractionDigits: 15 })}m` : ""
+  ].filter(Boolean).join(" / ");
   const totalHits = rows.reduce((sum, order) => sum + Number(order.totalHitQty || 0), 0);
   const totalWorkMs = rows.reduce((sum, order) => sum + Number(order.elapsedMs || 0), 0);
   const machines = new Set(rows.map((order) => order.machineName).filter(Boolean)).size;
@@ -7168,7 +7321,7 @@ function renderAdminOverview() {
   adminOverview.innerHTML = [
     { label: "검색 결과", value: `${rows.length}건`, hint: "조건에 맞는 발주" },
     { label: "작업 완료", value: `${completed}건`, hint: `작업 중 ${working}건` },
-    { label: "총생산수", value: totalProduction.toLocaleString(), hint: `총타발수 ${totalHits.toLocaleString()}` },
+    { label: "총생산수", value: productionLabel, hint: `총타발수 ${totalHits.toLocaleString()}` },
     { label: "작업시간", value: formatElapsedMs(totalWorkMs), hint: `장비 ${machines}대 / 작업자 ${workers}명` }
   ]
     .map(
@@ -7256,7 +7409,7 @@ function renderProgress() {
           </div>
           <p class="progress-meta">${TEXT.dueDate} ${formatDate(order.dueDate)}${order.workerName ? ` 쨌 ${TEXT.worker} ${escapeHtml(order.workerName)}` : ""}</p>
           <p class="progress-meta">${order.machineName ? `장비 ${escapeHtml(order.machineName)}` : "장비 미지정"}</p>
-          <p class="progress-meta">수량 ${escapeHtml(order.quantity || "-")}</p>
+          <p class="progress-meta">수량 ${escapeHtml(formatRequestedQuantity(order))}</p>
           <p class="progress-meta">${getPaymentLabel(order)} / ${getDeliveryLabel(order)}</p>
           ${order.status === "paused" ? `<div class="paused-flag">작업 중지 / ${escapeHtml(order.pauseReason || "사유 미입력")}</div>` : ""}
           <p class="progress-meta">${getWorkTimeLabel(order)}</p>
@@ -7296,7 +7449,7 @@ function renderDashboardFilteredList() {
           </div>
           <p class="progress-meta">${TEXT.orderDate} ${formatDate(order.orderDate)} 쨌 ${TEXT.dueDate} ${formatDate(order.dueDate)}</p>
           <p class="progress-meta">${order.machineName ? `장비 ${escapeHtml(order.machineName)}` : "장비 미지정"}</p>
-          <p class="progress-meta">수량 ${escapeHtml(order.quantity || "-")}</p>
+          <p class="progress-meta">수량 ${escapeHtml(formatRequestedQuantity(order))}</p>
           <p class="progress-meta">${getPaymentLabel(order)} / ${getDeliveryLabel(order)}</p>
           ${order.status === "paused" ? `<div class="paused-flag">작업 중지 / ${escapeHtml(order.pauseReason || "사유 미입력")}</div>` : ""}
           <p class="progress-meta">${order.workerName ? `${TEXT.worker} ${escapeHtml(order.workerName)}` : TEXT.unassigned}</p>
@@ -7323,7 +7476,7 @@ function renderOrdersTable() {
           <td>${formatDate(order.orderDate)}</td>
           <td>${escapeHtml(order.company)}</td>
           <td>${escapeHtml(order.product)}</td>
-          <td>${escapeHtml(order.quantity || "-")}</td>
+          <td>${escapeHtml(formatRequestedQuantity(order))}</td>
           <td>${order.paymentRequested ? "?붿껌" : "-"}</td>
           <td>${escapeHtml(order.deliveryType || "-")}</td>
           <td class="${urgent ? "danger-text" : ""}">${formatDate(order.dueDate)}</td>
@@ -7385,7 +7538,7 @@ function renderShippingPage() {
           <td>${escapeHtml(order.company)}</td>
           <td>${escapeHtml(order.product)}</td>
           <td class="${shippingState.dueClass}">${formatDate(order.dueDate)}</td>
-          <td>${escapeHtml(order.quantity || "-")}</td>
+          <td>${escapeHtml(formatRequestedQuantity(order))}</td>
           <td>${statusBadge(order, false)}</td>
           <td><span class="status-badge ${shippingState.badgeClass}">${shippingState.label}</span></td>
           <td>${order.shippedDate ? formatDate(order.shippedDate) : "-"}</td>
@@ -7518,7 +7671,7 @@ function renderCalendarDetail() {
             <p class="detail-line"><strong>상태</strong> ${getOrderStatusTextClean(order)}</p>
             <p class="detail-line"><strong>납기일</strong> ${formatDate(order.dueDate)}</p>
             <p class="detail-line"><strong>장비</strong> ${escapeHtml(order.machineName || "-")}</p>
-            <p class="detail-line"><strong>수량</strong> ${escapeHtml(order.quantity || "-")}</p>
+            <p class="detail-line"><strong>수량</strong> ${escapeHtml(formatRequestedQuantity(order))}</p>
             <p class="detail-line"><strong>구분</strong> ${getPaymentLabel(order)} / ${getDeliveryLabel(order)}</p>
             <p class="detail-line"><strong>작업시간</strong> ${getCleanWorkTimeValue(order) || "-"}</p>
             <p class="detail-line"><strong>총생산수</strong> ${String(order.productionQty || "-")}</p>
@@ -7564,7 +7717,7 @@ function renderProgress() {
           </div>
           <p class="progress-meta">납기일 ${formatDate(order.dueDate)}${order.workerName ? ` / 작업자 ${escapeHtml(order.workerName)}` : ""}</p>
           <p class="progress-meta">${order.machineName ? `장비 ${escapeHtml(order.machineName)}` : "장비 미지정"}</p>
-          <p class="progress-meta">수량 ${escapeHtml(order.quantity || "-")}</p>
+          <p class="progress-meta">수량 ${escapeHtml(formatRequestedQuantity(order))}</p>
           <p class="progress-meta">${getPaymentLabel(order)} / ${getDeliveryLabel(order)}</p>
           ${order.status === "paused" ? `<div class="paused-flag">작업 중지 / ${escapeHtml(order.pauseReason || "사유 미입력")}</div>` : ""}
           <p class="progress-meta">${getWorkTimeLabel(order)}</p>
@@ -7610,7 +7763,7 @@ function renderDashboardFilteredList() {
           </div>
           <p class="progress-meta">발주일 ${formatDate(order.orderDate)} / 납기일 ${formatDate(order.dueDate)}</p>
           <p class="progress-meta">${order.machineName ? `장비 ${escapeHtml(order.machineName)}` : "장비 미지정"}</p>
-          <p class="progress-meta">수량 ${escapeHtml(order.quantity || "-")}</p>
+          <p class="progress-meta">수량 ${escapeHtml(formatRequestedQuantity(order))}</p>
           <p class="progress-meta">${getPaymentLabel(order)} / ${getDeliveryLabel(order)}</p>
           ${order.status === "paused" ? `<div class="paused-flag">작업 중지 / ${escapeHtml(order.pauseReason || "사유 미입력")}</div>` : ""}
           <p class="progress-meta">${order.workerName ? `담당 작업자 ${escapeHtml(order.workerName)}` : "담당 작업자 미지정"}</p>
@@ -7661,7 +7814,7 @@ function renderActivities() {
                 <span class="status-badge ${badgeClass}">${badgeText}</span>
               </div>
               <p class="feed-meta">${escapeHtml(activityMessage)} / ${activityTime}</p>
-              <p class="feed-meta">납기일 ${formatDate(order.dueDate)} / 장비 ${escapeHtml(order.machineName || "-")} / 수량 ${escapeHtml(order.quantity || "-")} / ${getPaymentLabel(order)} / ${getDeliveryLabel(order)}</p>
+              <p class="feed-meta">납기일 ${formatDate(order.dueDate)} / 장비 ${escapeHtml(order.machineName || "-")} / 수량 ${escapeHtml(formatRequestedQuantity(order))} / ${getPaymentLabel(order)} / ${getDeliveryLabel(order)}</p>
               ${order.pauseReason ? `<p class="feed-meta">중지 사유 ${escapeHtml(order.pauseReason)}${order.workQty ? ` / 작업수량 ${escapeHtml(order.workQty)}` : ""}</p>` : ""}
             </article>
           `;
@@ -7937,10 +8090,11 @@ function renderShippingPageCardOverride() {
 
   const orders = getFilteredShippingOrders();
   const allOrders = getSortedOrders(state.orders);
-  const shippedDoneCount = allOrders.filter((order) => getRemainingShippingQuantity(order) === 0 && getShippedQuantity(order) > 0).length;
-  const pendingCount = allOrders.filter((order) => getRemainingShippingQuantity(order) > 0).length;
-  const overdueCount = allOrders.filter((order) => getRemainingShippingQuantity(order) > 0 && daysUntil(order.dueDate) < 0).length;
-  const dueTodayCount = allOrders.filter((order) => getRemainingShippingQuantity(order) > 0 && daysUntil(order.dueDate) === 0).length;
+  const isPending = (order) => getRemainingShippingQuantity(order) === null || getRemainingShippingQuantity(order) > 0;
+  const shippedDoneCount = allOrders.filter((order) => order.shipped).length;
+  const pendingCount = allOrders.filter(isPending).length;
+  const overdueCount = allOrders.filter((order) => isPending(order) && daysUntil(order.dueDate) < 0).length;
+  const dueTodayCount = allOrders.filter((order) => isPending(order) && daysUntil(order.dueDate) === 0).length;
 
   shippingFilterAllBtn.classList.toggle("active", shippingFilter === "all");
   shippingFilterPendingBtn.classList.toggle("active", shippingFilter === "pending");
@@ -7978,26 +8132,29 @@ function renderShippingPageCardOverride() {
     .map((order) => {
       const shippingState = getShippingStatus(order);
       const totalQty = getOrderQuantity(order);
+      const commercial = normalizeCommercialFields(order);
+      const allMaterial = commercial.quantityMode === "all-material";
+      const unitLabel = getQuantityUnitLabel(order);
       const shippedQty = getShippedQuantity(order);
       const remainingQty = getRemainingShippingQuantity(order);
-      const overShippedQty = Math.max(shippedQty - totalQty, 0);
+      const overShippedQty = allMaterial ? 0 : Math.max(shippedQty - totalQty, 0);
       const latestShippedDate = getLatestShipmentDate(order);
       const shipments = getShipmentRecords(order);
       const orderNote = getOrderNoteText(order);
-      const isFullyShipped = remainingQty === 0 && shippedQty > 0;
+      const isFullyShipped = Boolean(order.shipped);
       const historyHtml = shipments.length
-        ? shipments.map((item) => `<span>${formatDate(item.date)} ${Number(item.qty || 0).toLocaleString()}개</span>`).join("")
+        ? shipments.map((item) => `<span>${formatDate(item.date)} ${Number(item.qty || 0).toLocaleString(undefined, { maximumFractionDigits: 15 })}${getQuantityUnitLabel(item)}</span>`).join("")
         : `<span>출하 이력 없음</span>`;
       const qtyValue = isFullyShipped ? "" : "";
       const dateValue = latestShippedDate || new Date().toISOString().slice(0, 10);
       const actionButtons = isFullyShipped
         ? `
             <button type="button" class="tab-btn shipping-action-btn" data-order-id="${order.id}">추가 출하 등록</button>
-            <button type="button" class="tab-btn shipping-edit-btn" data-order-id="${order.id}">출하 수정 저장</button>
+            <button type="button" class="tab-btn ${allMaterial ? "shipping-reopen-btn" : "shipping-edit-btn"}" data-order-id="${order.id}">${allMaterial ? "전량 완료 해제" : "출하 수정 저장"}</button>
           `
         : `
             <button type="button" class="tab-btn shipping-action-btn" data-order-id="${order.id}">부분 출하 등록</button>
-            <button type="button" class="tab-btn shipping-complete-btn" data-order-id="${order.id}">잔량 출하 완료</button>
+            <button type="button" class="tab-btn shipping-complete-btn" data-order-id="${order.id}">${allMaterial ? "전량 출하 완료" : "잔량 출하 완료"}</button>
           `;
 
       return `
@@ -8016,10 +8173,11 @@ function renderShippingPageCardOverride() {
           <div class="shipping-card-detail">
             <div class="shipping-card-facts">
               <span><strong>납기일</strong>${formatDate(order.dueDate)}</span>
-              <span><strong>수량</strong>${totalQty.toLocaleString()}개</span>
-              <span><strong>출하</strong>${shippedQty.toLocaleString()}개</span>
-              <span><strong>잔량</strong>${remainingQty.toLocaleString()}개</span>
-              ${overShippedQty > 0 ? `<span class="over-qty-chip"><strong>초과</strong>${overShippedQty.toLocaleString()}개</span>` : ""}
+              <span><strong>수량</strong>${escapeHtml(formatRequestedQuantity(order))}</span>
+              <span><strong>단가</strong>${escapeHtml(getCommercialPriceLabel(order))}</span>
+              <span><strong>출하</strong>${shippedQty.toLocaleString(undefined, { maximumFractionDigits: 15 })}${unitLabel}</span>
+              <span><strong>잔량</strong>${remainingQty === null ? "미정" : remainingQty.toLocaleString(undefined, { maximumFractionDigits: 15 }) + unitLabel}</span>
+              ${overShippedQty > 0 ? `<span class="over-qty-chip"><strong>초과</strong>${overShippedQty.toLocaleString(undefined, { maximumFractionDigits: 15 })}${unitLabel}</span>` : ""}
               <span><strong>출하일</strong>${latestShippedDate ? formatDate(latestShippedDate) : "-"}</span>
             </div>
 
@@ -8038,7 +8196,7 @@ function renderShippingPageCardOverride() {
               <div class="shipping-manage-area">
                 <label>출하 관리</label>
                 <div class="shipping-manage-wrap">
-                  <input type="number" min="1" value="${qtyValue}" placeholder="출하 수량" data-ship-qty-order-id="${order.id}" />
+                  <input type="number" min="${commercial.quantityUnit === "m" ? "0" : "1"}" step="${commercial.quantityUnit === "m" ? "any" : "1"}" value="${qtyValue}" placeholder="출하 수량 (${unitLabel})" data-ship-qty-order-id="${order.id}" />
                   <input type="date" value="${dateValue}" data-ship-date-order-id="${order.id}" />
                   ${actionButtons}
                 </div>
@@ -8064,17 +8222,20 @@ function renderShippingPageCardOverride() {
     }
   });
 
-  const saveShipmentFromRow = (order, shipQty, shipDate, replaceExisting = false) => {
+  const saveShipmentFromRow = (order, shipQty, shipDate, replaceExisting = false, finalize = false) => {
     if (!canAccessView("shippingView")) {
       showPermissionDenied("shippingView");
       return;
     }
 
-    if (!shipQty || shipQty <= 0) {
-      showAppAlert("출하 수량을 입력해 주세요.");
+    const commercial = normalizeCommercialFields(order);
+    const allMaterial = commercial.quantityMode === "all-material";
+    const markExisting = allMaterial && finalize && shipQty === null;
+    if (markExisting ? getShippedQuantity(order) <= 0 : (!Number.isFinite(shipQty) || shipQty <= 0 || (commercial.quantityUnit === "ea" && !Number.isInteger(shipQty)))) {
+      showAppAlert(commercial.quantityUnit === "ea" ? "출하 수량은 1 이상의 정수로 입력해 주세요." : "실제 출하 수량을 0보다 큰 숫자로 입력해 주세요.");
       return;
     }
-    if (!shipDate) {
+    if (!markExisting && !shipDate) {
       showAppAlert("출하일을 입력해 주세요.");
       return;
     }
@@ -8082,13 +8243,19 @@ function renderShippingPageCardOverride() {
     const shipment = {
       id: createCompatibleRandomId(),
       qty: shipQty,
+      quantityUnit: commercial.quantityUnit,
       date: shipDate,
       note: String(order.shippingNote || "").trim(),
       createdAt: new Date().toISOString()
     };
 
-    order.shipments = replaceExisting ? [shipment] : [...getShipmentRecords(order), shipment];
-    order.shippedDate = shipDate;
+    const previousShipments = (Array.isArray(order.shipments) ? order.shipments : getShipmentRecords(order)).map((record) => ({ ...record }));
+    const wasComplete = order.allMaterialShipmentComplete === true;
+    if (!markExisting) {
+      order.shipments = replaceExisting && !allMaterial ? [shipment] : [...previousShipments, shipment];
+      order.shippedDate = shipDate;
+    }
+    if (allMaterial) order.allMaterialShipmentComplete = finalize;
     syncOrderShippingState(order);
     order.shippingNoteLocked = Boolean(order.shipped);
 
@@ -8098,16 +8265,20 @@ function renderShippingPageCardOverride() {
       workerName: "출하",
       orderId: order.id,
       timestamp: new Date().toISOString(),
-      message: replaceExisting
-        ? `출하 기록이 ${getShippedQuantity(order).toLocaleString()}개로 수정되었습니다.`
+      ...(replaceExisting ? { previousShipments } : {}),
+      ...(allMaterial ? { allMaterialShipmentComplete: finalize, previousAllMaterialShipmentComplete: wasComplete } : {}),
+      message: allMaterial && finalize
+        ? `전량 출하 완료 (실제 출하 ${getShippedQuantity(order).toLocaleString(undefined, { maximumFractionDigits: 15 })}${getQuantityUnitLabel(order)})`
+        : replaceExisting
+        ? `출하 기록이 ${getShippedQuantity(order).toLocaleString(undefined, { maximumFractionDigits: 15 })}${getQuantityUnitLabel(order)}로 수정되었습니다.`
         : order.shipped
-          ? `${shipQty.toLocaleString()}개 출하 완료`
-          : `${shipQty.toLocaleString()}개 부분 출하`
+          ? `${shipQty.toLocaleString(undefined, { maximumFractionDigits: 15 })}${getQuantityUnitLabel(order)} 출하 완료`
+          : `${shipQty.toLocaleString(undefined, { maximumFractionDigits: 15 })}${getQuantityUnitLabel(order)} 부분 출하${wasComplete && allMaterial ? " (전량 완료 해제)" : ""}`
     });
 
     persist().catch(handlePersistError);
     renderShippingPage();
-    renderDashboard();
+    render();
   };
 
   shippingTableBody.querySelectorAll(".shipping-action-btn").forEach((button) => {
@@ -8121,11 +8292,52 @@ function renderShippingPageCardOverride() {
   });
 
   shippingTableBody.querySelectorAll(".shipping-complete-btn").forEach((button) => {
-    button.addEventListener("click", () => {
+    button.addEventListener("click", async () => {
       const order = state.orders.find((item) => item.id === button.dataset.orderId);
       if (!order) return;
       const dateInput = shippingTableBody.querySelector(`input[data-ship-date-order-id="${order.id}"]`);
+      if (normalizeCommercialFields(order).quantityMode === "all-material") {
+        if (!canAccessView("shippingView")) {
+          showPermissionDenied("shippingView");
+          return;
+        }
+        if (button.disabled || order.allMaterialShipmentComplete === true) return;
+        const qtyInput = shippingTableBody.querySelector(`input[data-ship-qty-order-id="${order.id}"]`);
+        const rawQty = String(qtyInput?.value || "").trim();
+        const qty = rawQty ? Number(rawQty) : null;
+        const date = String(dateInput?.value || "");
+        button.disabled = true;
+        try {
+          const confirmed = await showAppConfirm(rawQty
+            ? "입력한 실제 수량을 추가 등록하고 전량 출하를 완료하시겠습니까?"
+            : "새 출하 기록 없이 기존 출하 이력으로 전량 출하를 완료하시겠습니까?", { title: "전량 출하 완료", yesText: "완료" });
+          if (confirmed && state.orders.includes(order) && order.allMaterialShipmentComplete !== true) {
+            saveShipmentFromRow(order, qty, date, false, true);
+          }
+        } finally {
+          button.disabled = false;
+        }
+        return;
+      }
       saveShipmentFromRow(order, getRemainingShippingQuantity(order), String(dateInput?.value || ""), false);
+    });
+  });
+
+  shippingTableBody.querySelectorAll(".shipping-reopen-btn").forEach((button) => {
+    button.addEventListener("click", async () => {
+      if (!canAccessView("shippingView")) return showPermissionDenied("shippingView");
+      const order = state.orders.find((item) => item.id === button.dataset.orderId);
+      if (!order || order.allMaterialShipmentComplete !== true) return;
+      if (!await showAppConfirm("출하 이력은 유지하고 전량 출하 완료를 해제하시겠습니까?", { title: "전량 완료 해제", yesText: "해제" })) return;
+      if (!canAccessView("shippingView")) return showPermissionDenied("shippingView");
+      if (!state.orders.includes(order) || order.allMaterialShipmentComplete !== true) return;
+      order.allMaterialShipmentComplete = false;
+      syncOrderShippingState(order);
+      order.shippingNoteLocked = false;
+      state.activities.unshift({ id: createCompatibleRandomId(), type: "ship", workerName: "출하", orderId: order.id, timestamp: new Date().toISOString(), message: "전량 출하 완료 해제 (출하 이력 유지)", allMaterialShipmentComplete: false });
+      persist().catch(handlePersistError);
+      renderShippingPage();
+      render();
     });
   });
 
@@ -8555,7 +8767,7 @@ function saveShippingRecordFinal(order, shipQty, shipDate, replaceExisting = fal
 
   persist().catch(handlePersistError);
   renderShippingPage();
-  renderDashboard();
+  render();
 }
 
 function renderShippingPage() {
@@ -8751,7 +8963,7 @@ function saveShippingRecord(order, shipQty, shipDate, replaceExisting = false) {
 
   persist().catch(handlePersistError);
   renderShippingPage();
-  renderDashboard();
+  render();
 }
 
 function renderShippingPage() {
@@ -9028,7 +9240,7 @@ function renderShippingPage() {
 
     persist().catch(handlePersistError);
     renderShippingPage();
-    renderDashboard();
+    render();
   };
 
   orders.forEach((order) => {
@@ -9141,7 +9353,7 @@ function renderActivities() {
                 <span class="status-badge ${badgeClass}">${badgeText}</span>
               </div>
               <p class="feed-meta">${escapeHtml(activityMessage)} 쨌 ${activityTime}</p>
-              <p class="feed-meta">?⑷린??${formatDate(order.dueDate)} 쨌 ?λ퉬 ${escapeHtml(order.machineName || "-")} 쨌 수량 ${escapeHtml(order.quantity || "-")} 쨌 ${getPaymentLabel(order)} / ${getDeliveryLabel(order)}</p>
+              <p class="feed-meta">?⑷린??${formatDate(order.dueDate)} 쨌 ?λ퉬 ${escapeHtml(order.machineName || "-")} 쨌 수량 ${escapeHtml(formatRequestedQuantity(order))} 쨌 ${getPaymentLabel(order)} / ${getDeliveryLabel(order)}</p>
               ${order.pauseReason ? `<p class="feed-meta">중지 사유 ${escapeHtml(order.pauseReason)}${order.workQty ? ` / 작업수량 ${escapeHtml(order.workQty)}` : ""}</p>` : ""}
             </article>
           `;
@@ -9646,7 +9858,7 @@ function getWorkTimeLabel(order) {
 
 function getProductionQtyLabel(order) {
   if (order.productionQty !== undefined && order.productionQty !== null && order.productionQty !== "") {
-    return `${TEXT.productionQty} ${escapeHtml(order.productionQty)}`;
+    return `${TEXT.productionQty} ${escapeHtml(order.productionQty)}${order.quantityUnit === "m" ? "m" : ""}`;
   }
   return `${TEXT.productionQty} -`;
 }
@@ -9956,7 +10168,7 @@ function renderCalendarDetail() {
             <p class="detail-line"><strong>?곹깭</strong> ${getOrderStatusText(order)}</p>
             <p class="detail-line"><strong>?⑷린??/strong> ${formatDate(order.dueDate)}</p>
             <p class="detail-line"><strong>?λ퉬</strong> ${escapeHtml(order.machineName || "-")}</p>
-            <p class="detail-line"><strong>?섎웾</strong> ${escapeHtml(order.quantity || "-")}</p>
+            <p class="detail-line"><strong>?섎웾</strong> ${escapeHtml(formatRequestedQuantity(order))}</p>
             <p class="detail-line"><strong>援щ텇</strong> ${getPaymentLabel(order)} / ${getDeliveryLabel(order)}</p>
             <p class="detail-line"><strong>?묒뾽?쒓컙</strong> ${getCleanWorkTimeValue(order)}</p>
             <p class="detail-line"><strong>珥앹깮?곗닔</strong> ${getProductionQtyLabel(order).replace(`${TEXT.productionQty} `, "")}</p>
@@ -9995,7 +10207,7 @@ function renderProgress() {
           </div>
           <p class="progress-meta">${TEXT.dueDate} ${formatDate(order.dueDate)}${order.workerName ? ` 쨌 ${TEXT.worker} ${escapeHtml(order.workerName)}` : ""}</p>
           <p class="progress-meta">${order.machineName ? `장비 ${escapeHtml(order.machineName)}` : "장비 미지정"}</p>
-          <p class="progress-meta">수량 ${escapeHtml(order.quantity || "-")}</p>
+          <p class="progress-meta">수량 ${escapeHtml(formatRequestedQuantity(order))}</p>
           <p class="progress-meta">${getPaymentLabel(order)} / ${getDeliveryLabel(order)}</p>
           ${order.status === "paused" ? `<div class="paused-flag">작업 중지 / ${escapeHtml(order.pauseReason || "사유 미입력")}</div>` : ""}
           <p class="progress-meta">${getWorkTimeLabel(order)}</p>
@@ -10035,7 +10247,7 @@ function renderDashboardFilteredList() {
           </div>
           <p class="progress-meta">${TEXT.orderDate} ${formatDate(order.orderDate)} 쨌 ${TEXT.dueDate} ${formatDate(order.dueDate)}</p>
           <p class="progress-meta">${order.machineName ? `장비 ${escapeHtml(order.machineName)}` : "장비 미지정"}</p>
-          <p class="progress-meta">수량 ${escapeHtml(order.quantity || "-")}</p>
+          <p class="progress-meta">수량 ${escapeHtml(formatRequestedQuantity(order))}</p>
           <p class="progress-meta">${getPaymentLabel(order)} / ${getDeliveryLabel(order)}</p>
           ${order.status === "paused" ? `<div class="paused-flag">작업 중지 / ${escapeHtml(order.pauseReason || "사유 미입력")}</div>` : ""}
           <p class="progress-meta">${order.workerName ? `${TEXT.worker} ${escapeHtml(order.workerName)}` : TEXT.unassigned}</p>
@@ -10062,7 +10274,7 @@ function renderOrdersTable() {
           <td>${formatDate(order.orderDate)}</td>
           <td>${escapeHtml(order.company)}</td>
           <td>${escapeHtml(order.product)}</td>
-          <td>${escapeHtml(order.quantity || "-")}</td>
+          <td>${escapeHtml(formatRequestedQuantity(order))}</td>
           <td>${order.paymentRequested ? "?붿껌" : "-"}</td>
           <td>${escapeHtml(order.deliveryType || "-")}</td>
           <td class="${urgent ? "danger-text" : ""}">${formatDate(order.dueDate)}</td>
@@ -10124,7 +10336,7 @@ function renderShippingPage() {
           <td>${escapeHtml(order.company)}</td>
           <td>${escapeHtml(order.product)}</td>
           <td class="${shippingState.dueClass}">${formatDate(order.dueDate)}</td>
-          <td>${escapeHtml(order.quantity || "-")}</td>
+          <td>${escapeHtml(formatRequestedQuantity(order))}</td>
           <td>${statusBadge(order, false)}</td>
           <td><span class="status-badge ${shippingState.badgeClass}">${shippingState.label}</span></td>
           <td>${order.shippedDate ? formatDate(order.shippedDate) : "-"}</td>
@@ -10239,7 +10451,7 @@ function renderActivities() {
                 <span class="status-badge ${badgeClass}">${badgeText}</span>
               </div>
               <p class="feed-meta">${escapeHtml(activityMessage)} 쨌 ${activityTime}</p>
-              <p class="feed-meta">?⑷린??${formatDate(order.dueDate)} 쨌 ?λ퉬 ${escapeHtml(order.machineName || "-")} 쨌 수량 ${escapeHtml(order.quantity || "-")} 쨌 ${getPaymentLabel(order)} / ${getDeliveryLabel(order)}</p>
+              <p class="feed-meta">?⑷린??${formatDate(order.dueDate)} 쨌 ?λ퉬 ${escapeHtml(order.machineName || "-")} 쨌 수량 ${escapeHtml(formatRequestedQuantity(order))} 쨌 ${getPaymentLabel(order)} / ${getDeliveryLabel(order)}</p>
               ${order.pauseReason ? `<p class="feed-meta">중지 사유 ${escapeHtml(order.pauseReason)}${order.workQty ? ` / 작업수량 ${escapeHtml(order.workQty)}` : ""}</p>` : ""}
             </article>
           `;
@@ -10456,10 +10668,13 @@ function getWorkTimeLabel(order) {
   return "?묒뾽?쒓컙 ?놁쓬";
 }
 
-function normalizeShipmentRecord(record) {
+function normalizeShipmentRecord(record, order) {
   return {
+    ...record,
     id: record?.id || createCompatibleRandomId(),
     qty: Number(record?.qty || 0),
+    quantityUnit: record?.quantityUnit === "m" || record?.quantityUnit === "ea"
+      ? record.quantityUnit : normalizeCommercialFields(order || {}).quantityUnit,
     date: record?.date || "",
     note: String(record?.note || "").trim(),
     createdAt: record?.createdAt || ""
@@ -10467,14 +10682,16 @@ function normalizeShipmentRecord(record) {
 }
 
 function getOrderQuantity(order) {
-  return Math.max(0, Number(order?.quantity || 0));
+  if (normalizeCommercialFields(order || {}).quantityMode === "all-material") return null;
+  const quantity = Number(order?.quantity || 0);
+  return Number.isFinite(quantity) ? Math.max(0, quantity) : 0;
 }
 
 function getShipmentRecords(order) {
-  const shipments = Array.isArray(order?.shipments) ? order.shipments.map(normalizeShipmentRecord) : [];
+  const shipments = Array.isArray(order?.shipments) ? order.shipments.map((record) => normalizeShipmentRecord(record, order)) : [];
   if (shipments.length) {
     return shipments
-      .filter((item) => item.qty > 0)
+      .filter((item) => Number.isFinite(item.qty) && item.qty > 0)
       .sort((left, right) => {
         const createdGap = getSortableTimestamp(right.createdAt) - getSortableTimestamp(left.createdAt);
         if (createdGap) return createdGap;
@@ -10482,11 +10699,12 @@ function getShipmentRecords(order) {
       });
   }
 
-  if (order?.shipped) {
+  if (order?.shipped && normalizeCommercialFields(order).quantityMode !== "all-material") {
     return [
       {
         id: createCompatibleRandomId(),
         qty: getOrderQuantity(order),
+        quantityUnit: normalizeCommercialFields(order).quantityUnit,
         date: order.shippedDate || "",
         note: String(order.shippingNote || "").trim(),
         createdAt: ""
@@ -10498,11 +10716,20 @@ function getShipmentRecords(order) {
 }
 
 function getShippedQuantity(order) {
-  return getShipmentRecords(order).reduce((sum, item) => sum + Number(item.qty || 0), 0);
+  const total = getShipmentRecords(order).reduce((sum, item) => sum + Number(item.qty || 0), 0);
+  return normalizeCommercialFields(order).quantityUnit === "m" ? Number(total.toPrecision(15)) : total;
 }
 
 function getRemainingShippingQuantity(order) {
-  return Math.max(getOrderQuantity(order) - getShippedQuantity(order), 0);
+  if (normalizeCommercialFields(order || {}).quantityMode === "all-material") {
+    return order?.allMaterialShipmentComplete === true ? 0 : null;
+  }
+  const total = getOrderQuantity(order);
+  const shipped = getShippedQuantity(order);
+  const remaining = total - shipped;
+  if (normalizeCommercialFields(order).quantityUnit !== "m") return Math.max(remaining, 0);
+  return remaining <= Number.EPSILON * Math.max(total, shipped, 1) * 4
+    ? 0 : Number(remaining.toPrecision(15));
 }
 
 function getLatestShipmentDate(order) {
@@ -10513,10 +10740,12 @@ function getLatestShipmentDate(order) {
 }
 
 function syncOrderShippingState(order) {
-  const shippedQty = getShippedQuantity(order);
   const totalQty = getOrderQuantity(order);
-  order.shipments = getShipmentRecords(order);
-  order.shipped = totalQty > 0 && shippedQty >= totalQty;
+  order.shipments = Array.isArray(order.shipments) && order.shipments.length
+    ? order.shipments.map((record) => normalizeShipmentRecord(record, order)) : getShipmentRecords(order);
+  order.shipped = normalizeCommercialFields(order).quantityMode === "all-material"
+    ? order.allMaterialShipmentComplete === true
+    : totalQty > 0 && getRemainingShippingQuantity(order) === 0;
   order.shippedDate = getLatestShipmentDate(order);
 }
 
@@ -10528,14 +10757,14 @@ function getShippingStatus(order) {
   const dueTime = new Date(order.dueDate).getTime();
   const latestShippedTime = latestShippedDate ? new Date(latestShippedDate).getTime() : 0;
 
-  if (totalQty > 0 && shippedQty >= totalQty) {
+  if (remainingQty === 0 && (totalQty > 0 || order.allMaterialShipmentComplete === true)) {
     if (latestShippedDate && latestShippedTime > dueTime) {
       return { label: "지연 출하", badgeClass: "status-warning", rowClass: "", dueClass: "" };
     }
     return { label: "출하 완료", badgeClass: "status-complete", rowClass: "", dueClass: "" };
   }
 
-  if (shippedQty > 0 && remainingQty > 0) {
+  if (shippedQty > 0 && (remainingQty === null || remainingQty > 0)) {
     if (daysUntil(order.dueDate) < 0) {
       return { label: "부분 출하 · 납기 경과", badgeClass: "status-warning", rowClass: "danger-row", dueClass: "danger-text" };
     }
@@ -10556,11 +10785,11 @@ function getFilteredShippingOrders() {
     const remainingQty = getRemainingShippingQuantity(order);
     const matchesFilter =
       shippingFilter === "done"
-        ? remainingQty === 0 && getShippedQuantity(order) > 0
+        ? remainingQty === 0 && (getShippedQuantity(order) > 0 || order.allMaterialShipmentComplete === true)
         : shippingFilter === "pending"
-          ? remainingQty > 0
+          ? remainingQty === null || remainingQty > 0
           : shippingFilter === "today"
-            ? remainingQty > 0 && daysUntil(order.dueDate) <= 0
+            ? (remainingQty === null || remainingQty > 0) && daysUntil(order.dueDate) <= 0
             : true;
 
     const keyword = shippingSearchKeyword.trim();
@@ -10863,7 +11092,7 @@ function renderCalendarDetail() {
             <p class="detail-line"><strong>상태</strong> ${getOrderStatusTextClean(order)}</p>
             <p class="detail-line"><strong>납기일</strong> ${formatDate(order.dueDate)}</p>
             <p class="detail-line"><strong>장비</strong> ${escapeHtml(order.machineName || "-")}</p>
-            <p class="detail-line"><strong>수량</strong> ${escapeHtml(order.quantity || "-")}</p>
+            <p class="detail-line"><strong>수량</strong> ${escapeHtml(formatRequestedQuantity(order))}</p>
             <p class="detail-line"><strong>구분</strong> ${getPaymentLabel(order)} / ${getDeliveryLabel(order)}</p>
             <p class="detail-line"><strong>작업시간</strong> ${getCleanWorkTimeValue(order) || "-"}</p>
             <p class="detail-line"><strong>총생산수</strong> ${String(order.productionQty || "-")}</p>
@@ -10908,7 +11137,7 @@ function renderProgress() {
           </div>
           <p class="progress-meta">납기일 ${formatDate(order.dueDate)}${order.workerName ? ` / 작업자 ${escapeHtml(order.workerName)}` : ""}</p>
           <p class="progress-meta">${order.machineName ? `장비 ${escapeHtml(order.machineName)}` : "장비 미지정"}</p>
-          <p class="progress-meta">수량 ${escapeHtml(order.quantity || "-")}</p>
+          <p class="progress-meta">수량 ${escapeHtml(formatRequestedQuantity(order))}</p>
           <p class="progress-meta">${getPaymentLabel(order)} / ${getDeliveryLabel(order)}</p>
           ${order.status === "paused" ? `<div class="paused-flag">작업 중지 / ${escapeHtml(order.pauseReason || "사유 미입력")}</div>` : ""}
           <p class="progress-meta">${getWorkTimeLabel(order)}</p>
@@ -10954,7 +11183,7 @@ function renderDashboardFilteredList() {
           </div>
           <p class="progress-meta">발주일 ${formatDate(order.orderDate)} / 납기일 ${formatDate(order.dueDate)}</p>
           <p class="progress-meta">${order.machineName ? `장비 ${escapeHtml(order.machineName)}` : "장비 미지정"}</p>
-          <p class="progress-meta">수량 ${escapeHtml(order.quantity || "-")}</p>
+          <p class="progress-meta">수량 ${escapeHtml(formatRequestedQuantity(order))}</p>
           <p class="progress-meta">${getPaymentLabel(order)} / ${getDeliveryLabel(order)}</p>
           ${order.status === "paused" ? `<div class="paused-flag">작업 중지 / ${escapeHtml(order.pauseReason || "사유 미입력")}</div>` : ""}
           <p class="progress-meta">${order.workerName ? `담당 작업자 ${escapeHtml(order.workerName)}` : "담당 작업자 미지정"}</p>
@@ -11005,7 +11234,7 @@ function renderActivities() {
                 <span class="status-badge ${badgeClass}">${badgeText}</span>
               </div>
               <p class="feed-meta">${escapeHtml(activityMessage)} / ${activityTime}</p>
-              <p class="feed-meta">납기일 ${formatDate(order.dueDate)} / 장비 ${escapeHtml(order.machineName || "-")} / 수량 ${escapeHtml(order.quantity || "-")} / ${getPaymentLabel(order)} / ${getDeliveryLabel(order)}</p>
+              <p class="feed-meta">납기일 ${formatDate(order.dueDate)} / 장비 ${escapeHtml(order.machineName || "-")} / 수량 ${escapeHtml(formatRequestedQuantity(order))} / ${getPaymentLabel(order)} / ${getDeliveryLabel(order)}</p>
               ${order.pauseReason ? `<p class="feed-meta">중지 사유 ${escapeHtml(order.pauseReason)}${order.workQty ? ` / 작업수량 ${escapeHtml(order.workQty)}` : ""}</p>` : ""}
             </article>
           `;
@@ -11113,6 +11342,9 @@ function buildEquipmentSummary() {
         jobCount: 0,
         workerSet: new Set(),
         productionQty: 0,
+        productionMeters: 0,
+        hasPieces: false,
+        hasMeters: false,
         hitQty: 0,
         orders: []
       });
@@ -11127,7 +11359,13 @@ function buildEquipmentSummary() {
     if (order.workerName) {
       row.workerSet.add(order.workerName);
     }
-    row.productionQty += Number(order.productionQty || 0);
+    if (order.quantityUnit === "m") {
+      row.productionMeters += Number(order.productionQty || 0);
+      row.hasMeters = true;
+    } else {
+      row.productionQty += Number(order.productionQty || 0);
+      row.hasPieces = true;
+    }
     row.hitQty += Number(order.totalHitQty || order.hitQty || 0);
   });
 
@@ -11155,6 +11393,11 @@ function buildEquipmentSummary() {
         workerCount: item.workerSet.size,
         workingDayCount: monthlyReport ? monthlyReport.days.length : workingDayCount,
         productionQty: item.productionQty,
+        productionMeters: item.productionMeters,
+        productionLabel: [
+          item.hasPieces ? `${item.productionQty.toLocaleString()}개` : "",
+          item.hasMeters ? `${item.productionMeters.toLocaleString(undefined, { maximumFractionDigits: 15 })}m` : ""
+        ].filter(Boolean).join(" / "),
         hitQty: item.hitQty,
         orders: getSortedOrders(item.orders)
       };
@@ -11578,7 +11821,7 @@ function getPauseReasonFromActivity(activity) {
 
 function getWorkNumberFromActivity(activity, label) {
   const message = String(activity?.message || "");
-  const match = message.match(new RegExp(`${label}\\s*([\\d,]+)`));
+  const match = message.match(new RegExp(`${label}\\s*([\\d,]+(?:\\.\\d+)?|\\.\\d+)`));
   return match ? Number(match[1].replaceAll(",", "")) || 0 : 0;
 }
 
@@ -11593,6 +11836,7 @@ function buildJournalOrderRow(order) {
     workerName: order.workerName || "작업자 미지정",
     machineName: order.machineName || "",
     qty: Number(order.productionQty || order.workQty || 0),
+    quantityUnit: order.quantityUnit === "m" ? "m" : "ea",
     hitQty: Number(order.totalHitQty || order.hitQty || order.workHitQty || 0),
     elapsedMs: Number(order.elapsedMs || 0),
     statusKey: order.status || "",
@@ -11639,6 +11883,8 @@ function buildPauseJournalRows(order) {
         workerName: activity.workerName || order.workerName || "작업자 미지정",
         machineName: activity.machineName || order.machineName || "",
         qty,
+        quantityUnit: activity.quantityUnit === "m" || activity.quantityUnit === "ea"
+          ? activity.quantityUnit : order.quantityUnit === "m" ? "m" : "ea",
         hitQty,
         elapsedMs: 0,
         statusKey: isTemporaryPause ? "break" : "paused",
@@ -11673,6 +11919,8 @@ function buildStartJournalRows(order) {
         hitQty: 0,
         elapsedMs: 0,
         statusKey: "started",
+        quantityUnit: activity.quantityUnit === "m" || activity.quantityUnit === "ea"
+          ? activity.quantityUnit : order.quantityUnit === "m" ? "m" : "ea",
         statusText: "작업 시작",
         pauseReason: "",
         countInTotals: false,
@@ -11751,7 +11999,7 @@ function renderEquipmentList() {
           <span><strong>${formatElapsedMs(item.actualMs)}</strong><em>작업시간</em></span>
           <span><strong>${item.jobCount.toLocaleString()}건</strong><em>작업건수</em></span>
           <span><strong>${item.workerCount.toLocaleString()}명</strong><em>작업자</em></span>
-          <span><strong>${item.productionQty.toLocaleString()}</strong><em>생산수</em></span>
+          <span><strong>${item.productionLabel}</strong><em>생산수</em></span>
           <span><strong>${item.hitQty.toLocaleString()}</strong><em>타발수</em></span>
           <span><strong>${item.workingDayCount}일</strong><em>근무일</em></span>
         </div>
@@ -11807,7 +12055,12 @@ function renderJournalSummary(rows) {
 
   const workerCount = new Set(rows.map((item) => item.workerName).filter(Boolean)).size;
   const totalRows = rows.filter((item) => item.countInTotals !== false);
-  const totalQty = totalRows.reduce((sum, item) => sum + Number(item.qty || 0), 0);
+  const totalQty = totalRows.filter((item) => item.quantityUnit !== "m").reduce((sum, item) => sum + Number(item.qty || 0), 0);
+  const totalMeters = totalRows.filter((item) => item.quantityUnit === "m").reduce((sum, item) => sum + Number(item.qty || 0), 0);
+  const quantityLabel = [
+    totalRows.some((item) => item.quantityUnit !== "m") || !totalRows.length ? `${totalQty.toLocaleString()}개` : "",
+    totalRows.some((item) => item.quantityUnit === "m") ? `${totalMeters.toLocaleString(undefined, { maximumFractionDigits: 15 })}m` : ""
+  ].filter(Boolean).join(" / ");
   const totalHitQty = totalRows.reduce((sum, item) => sum + Number(item.hitQty || 0), 0);
   const totalMs = totalRows.reduce((sum, item) => sum + Number(item.elapsedMs || 0), 0);
   const title = adminJournalDateFilter
@@ -11825,7 +12078,7 @@ function renderJournalSummary(rows) {
       <dl class="journal-summary-metrics">
         <div><dt>작업자</dt><dd>${workerCount}명</dd></div>
         <div><dt>작업</dt><dd>${rows.length}건</dd></div>
-        <div><dt>생산</dt><dd>${totalQty.toLocaleString()}</dd></div>
+        <div><dt>생산</dt><dd>${quantityLabel}</dd></div>
         <div><dt>타발</dt><dd>${totalHitQty.toLocaleString()}</dd></div>
         <div><dt>작업시간</dt><dd>${formatElapsedMs(totalMs)}</dd></div>
       </dl>
@@ -11856,7 +12109,12 @@ function renderJournalList() {
     .map(([dateKey, items]) => {
       const workerCount = new Set(items.map((item) => item.workerName).filter(Boolean)).size;
       const totalItems = items.filter((item) => item.countInTotals !== false);
-      const totalQty = totalItems.reduce((sum, item) => sum + Number(item.qty || 0), 0);
+      const totalQty = totalItems.filter((item) => item.quantityUnit !== "m").reduce((sum, item) => sum + Number(item.qty || 0), 0);
+      const totalMeters = totalItems.filter((item) => item.quantityUnit === "m").reduce((sum, item) => sum + Number(item.qty || 0), 0);
+      const quantityLabel = [
+        totalItems.some((item) => item.quantityUnit !== "m") || !totalItems.length ? `${totalQty.toLocaleString()}개` : "",
+        totalItems.some((item) => item.quantityUnit === "m") ? `${totalMeters.toLocaleString(undefined, { maximumFractionDigits: 15 })}m` : ""
+      ].filter(Boolean).join(" / ");
       const totalHitQty = totalItems.reduce((sum, item) => sum + Number(item.hitQty || 0), 0);
       const totalMs = totalItems.reduce((sum, item) => sum + Number(item.elapsedMs || 0), 0);
 
@@ -11867,7 +12125,7 @@ function renderJournalList() {
               <strong>${formatDate(dateKey)}</strong>
               <span>${getKoreanWeekday(dateKey)}</span>
             </div>
-            <p>작업자 ${workerCount}명 · 작업 ${items.length}건 · 생산 ${totalQty.toLocaleString()} · 타발 ${totalHitQty.toLocaleString()} · ${formatElapsedMs(totalMs)}</p>
+            <p>작업자 ${workerCount}명 · 작업 ${items.length}건 · 생산 ${quantityLabel} · 타발 ${totalHitQty.toLocaleString()} · ${formatElapsedMs(totalMs)}</p>
           </div>
           <div class="journal-report-table" role="table" aria-label="${escapeHtml(formatDate(dateKey))} 생산일지 상세">
             <div class="journal-report-head" role="row">
@@ -11905,7 +12163,7 @@ function renderJournalList() {
                     <small>납기 ${item.dueDate ? formatDate(item.dueDate) : "-"}</small>
                   </div>
                   <div class="journal-cell" role="cell">${escapeHtml(item.machineName || "-")}</div>
-                  <div class="journal-cell number" role="cell">${Number(item.qty || 0).toLocaleString()}</div>
+                  <div class="journal-cell number" role="cell">${Number(item.qty || 0).toLocaleString(undefined, { maximumFractionDigits: 15 })}${item.quantityUnit === "m" ? "m" : "개"}</div>
                   <div class="journal-cell number" role="cell">${Number(item.hitQty || 0).toLocaleString()}</div>
                   <div class="journal-cell" role="cell">${formatElapsedMs(item.elapsedMs || 0)}</div>
                   <div class="journal-cell" role="cell">${escapeHtml(item.endText || "-")}</div>
@@ -11938,6 +12196,11 @@ function renderWorkerEfficiency() {
       workerMap.set(order.workerName, {
         workerName: order.workerName,
         totalQty: 0,
+        totalMeters: 0,
+        pieceMs: 0,
+        meterMs: 0,
+        hasPieces: false,
+        hasMeters: false,
         totalHitQty: 0,
         totalMs: 0,
         pausedCount: 0,
@@ -11947,7 +12210,15 @@ function renderWorkerEfficiency() {
     }
 
     const worker = workerMap.get(order.workerName);
-    worker.totalQty += Number(order.productionQty || 0);
+    if (order.quantityUnit === "m") {
+      worker.totalMeters += Number(order.productionQty || 0);
+      worker.meterMs += Number(order.elapsedMs || 0);
+      worker.hasMeters = true;
+    } else {
+      worker.totalQty += Number(order.productionQty || 0);
+      worker.pieceMs += Number(order.elapsedMs || 0);
+      worker.hasPieces = true;
+    }
     worker.totalHitQty += Number(order.totalHitQty || order.hitQty || 0);
     worker.totalMs += Number(order.elapsedMs || 0);
     worker.jobCount += 1;
@@ -11962,26 +12233,33 @@ function renderWorkerEfficiency() {
   }
 
   workerEfficiencyList.innerHTML = rows
-    .sort((a, b) => b.totalQty - a.totalQty)
+    .sort(rows.some((item) => item.hasMeters)
+      ? (a, b) => b.totalMs - a.totalMs || a.workerName.localeCompare(b.workerName, "ko-KR")
+      : (a, b) => b.totalQty - a.totalQty)
     .map((item) => {
-      const actualHours = item.totalMs / (1000 * 60 * 60);
-      const basisHours = Math.max(actualHours, 1);
-      const hourlyQty = Math.round(item.totalQty / basisHours);
-      const avgMs = item.jobCount > 0 ? item.totalMs / item.jobCount : 0;
-      const reliabilityText = actualHours < 1 ? "작업시간 1시간 미만으로 참고용" : "작업시간 기준";
+      const pieceHours = item.pieceMs / (1000 * 60 * 60);
+      const meterHours = item.meterMs / (1000 * 60 * 60);
+      const hourlyQty = Math.round(item.totalQty / Math.max(pieceHours, 1));
+      const hourlyMeters = item.totalMeters / Math.max(meterHours, 1);
+      const formatMeters = (value) => value.toLocaleString(undefined, { maximumFractionDigits: 15 });
+      const productionLabel = [item.hasPieces ? `${item.totalQty.toLocaleString()}개` : "", item.hasMeters ? `${formatMeters(item.totalMeters)}m` : ""].filter(Boolean).join(" / ");
+      const hourlyLabel = [item.hasPieces ? `${hourlyQty.toLocaleString()}개` : "", item.hasMeters ? `${formatMeters(hourlyMeters)}m` : ""].filter(Boolean).join(" / ");
+      const shortHours = (item.hasPieces && pieceHours < 1) || (item.hasMeters && meterHours < 1);
+      const reliabilityText = shortHours ? "작업시간 1시간 미만으로 참고용" : "작업시간 기준";
       return `
         <article class="progress-card admin-compact-card">
           <div class="progress-top admin-compact-top">
             <strong>${escapeHtml(item.workerName)}</strong>
-            <span class="status-badge status-working">시간당 ${hourlyQty.toLocaleString()}개</span>
+            <span class="status-badge status-working">시간당 ${hourlyLabel}</span>
           </div>
           <div class="admin-compact-meta">
-            <span>생산 ${item.totalQty.toLocaleString()}</span>
+            <span>생산 ${productionLabel}</span>
             <span>타발 ${item.totalHitQty.toLocaleString()}</span>
             <span>작업 ${item.jobCount}건</span>
             <span>완료 ${item.completeCount}건</span>
             <span>${formatElapsedMs(item.totalMs)}</span>
             <span>${reliabilityText}</span>
+            ${item.hasMeters ? "<span>단위별 작업시간 기준 · 작업시간순</span>" : ""}
           </div>
         </article>
       `;
@@ -12214,7 +12492,7 @@ function renderOrdersTable() {
           <td data-label="발주일">${formatDate(order.orderDate)}</td>
           <td data-label="업체명">${escapeHtml(order.company)}</td>
           <td data-label="제품명">${escapeHtml(order.product)}</td>
-          <td data-label="수량">${escapeHtml(order.quantity || "-")}</td>
+          <td data-label="수량">${escapeHtml(formatRequestedQuantity(order))}</td>
           <td data-label="지급요청">${order.paymentRequested ? "요청" : "-"}</td>
           <td data-label="구분">${escapeHtml(order.deliveryType || "-")}</td>
           <td data-label="납기일" class="${urgent ? "danger-text" : ""}">${formatDate(order.dueDate)}</td>
@@ -12333,7 +12611,7 @@ function renderCalendar() {
             <button type="button" class="calendar-list-item ${urgent ? "urgent" : ""}" data-date-key="${order.dueDate}">
               <span class="calendar-list-date">${formatDate(order.dueDate)}</span>
               <strong>${escapeHtml(order.company)}</strong>
-              <span>${escapeHtml(order.product)} / 수량 ${escapeHtml(order.quantity || "-")}</span>
+              <span>${escapeHtml(order.product)} / 수량 ${escapeHtml(formatRequestedQuantity(order))}</span>
               <span>${getOrderStatusTextClean(order)} / ${getDeliveryLabel(order)}</span>
             </button>
           `;
@@ -12363,8 +12641,8 @@ function renderProgressMetaGrid(order, includeOrderDate = false) {
   chips.push(renderProgressChip("납기", formatDate(order.dueDate)));
   chips.push(renderProgressChip("작업자", order.workerName || "미지정"));
   chips.push(renderProgressChip("장비", order.machineName || "미지정"));
-  chips.push(renderProgressChip("수량", order.quantity || "-"));
-  chips.push(renderProgressChip("생산수", order.productionQty || "-"));
+  chips.push(renderProgressChip("수량", formatRequestedQuantity(order)));
+  chips.push(renderProgressChip("생산수", `${order.productionQty || "-"}${order.quantityUnit === "m" ? "m" : ""}`));
   chips.push(renderProgressChip("총타수", order.totalHitQty || "-"));
   chips.push(renderProgressChip("작업시간", getCleanWorkTimeValue(order) || "-"));
   chips.push(renderProgressChip("지급", order.paymentRequested ? "요청" : "없음"));
@@ -12798,7 +13076,7 @@ function renderCalendarDetail() {
             <p class="detail-line"><strong>상태</strong> ${getOrderStatusTextClean(order)}</p>
             <p class="detail-line"><strong>납기일</strong> ${formatDate(order.dueDate)}</p>
             <p class="detail-line"><strong>장비</strong> ${escapeHtml(order.machineName || "-")}</p>
-            <p class="detail-line"><strong>수량</strong> ${escapeHtml(order.quantity || "-")}</p>
+            <p class="detail-line"><strong>수량</strong> ${escapeHtml(formatRequestedQuantity(order))}</p>
             <p class="detail-line"><strong>구분</strong> ${getPaymentLabel(order)} / ${getDeliveryLabel(order)}</p>
             <p class="detail-line"><strong>작업시간</strong> ${getCleanWorkTimeValue(order) || "-"}</p>
             <p class="detail-line"><strong>총생산수</strong> ${String(order.productionQty || "-")}</p>
@@ -12843,7 +13121,8 @@ function statusBadgeClean(order, urgent = false) {
 }
 
 function getOrderNoteText(order) {
-  return String(order.orderNote || "").trim();
+  const note = String(order.orderNote || "").trim();
+  return [note, (order.priceStatus && order.priceStatus !== "confirmed") || String(order.sourceUnitPrice ?? "").trim() !== "" ? `현재 단가 ${getCommercialPriceLabel(order)}` : ""].filter(Boolean).join("\n");
 }
 
 function renderOrdersTable() {
@@ -12861,7 +13140,7 @@ function renderOrdersTable() {
           <td data-label="발주일">${formatDate(order.orderDate)}</td>
           <td data-label="업체명">${escapeHtml(order.company)}</td>
           <td data-label="제품명">${escapeHtml(order.product)}</td>
-          <td data-label="수량">${escapeHtml(order.quantity || "-")}</td>
+          <td data-label="수량">${escapeHtml(formatRequestedQuantity(order))}</td>
           <td data-label="지급요청">${order.paymentRequested ? "요청" : "-"}</td>
           <td data-label="구분">${escapeHtml(order.deliveryType || "-")}</td>
           <td data-label="납기일" class="${urgent ? "danger-text" : ""}">${formatDate(order.dueDate)}</td>
@@ -12892,8 +13171,8 @@ function renderProgressMetaGrid(order, includeOrderDate = false) {
   chips.push(renderProgressChip("납기", formatDate(order.dueDate)));
   chips.push(renderProgressChip("작업자", order.workerName || "미지정"));
   chips.push(renderProgressChip("장비", order.machineName || "미지정"));
-  chips.push(renderProgressChip("수량", order.quantity || "-"));
-  chips.push(renderProgressChip("생산수", order.productionQty || "-"));
+  chips.push(renderProgressChip("수량", formatRequestedQuantity(order)));
+  chips.push(renderProgressChip("생산수", `${order.productionQty || "-"}${order.quantityUnit === "m" ? "m" : ""}`));
   chips.push(renderProgressChip("총타수", order.totalHitQty || "-"));
   chips.push(renderProgressChip("작업시간", getCleanWorkTimeValue(order) || "-"));
   chips.push(renderProgressChip("지급", order.paymentRequested ? "요청" : "없음"));
@@ -12912,6 +13191,7 @@ function openOrderEditPanel(orderId) {
   }
 
   const editOrderNoteInput = document.getElementById("editOrderNote");
+  setupOrderCommercialControls(orderEditForm, order);
   editOrderIdInput.value = order.id;
   editProductInput.value = order.product || "";
   editDueDateInput.value = order.dueDate || "";
@@ -12919,7 +13199,7 @@ function openOrderEditPanel(orderId) {
   editPaymentRequestedInput.checked = Boolean(order.paymentRequested);
   editDeliveryTypeInput.value = order.deliveryType || "직납";
   if (editOrderNoteInput) {
-    editOrderNoteInput.value = getOrderNoteText(order);
+    editOrderNoteInput.value = String(order.orderNote || "");
   }
   orderEditPanel.hidden = false;
 
@@ -12954,7 +13234,7 @@ function renderCalendarDetail() {
             <p class="detail-line"><strong>상태</strong> ${getOrderStatusTextClean(order)}</p>
             <p class="detail-line"><strong>납기일</strong> ${formatDate(order.dueDate)}</p>
             <p class="detail-line"><strong>장비</strong> ${escapeHtml(order.machineName || "-")}</p>
-            <p class="detail-line"><strong>수량</strong> ${escapeHtml(order.quantity || "-")}</p>
+            <p class="detail-line"><strong>수량</strong> ${escapeHtml(formatRequestedQuantity(order))}</p>
             <p class="detail-line"><strong>구분</strong> ${getPaymentLabel(order)} / ${getDeliveryLabel(order)}</p>
             <p class="detail-line"><strong>비고</strong> ${note ? escapeHtml(note) : "-"}</p>
             <p class="detail-line"><strong>작업시간</strong> ${getCleanWorkTimeValue(order) || "-"}</p>
@@ -13113,7 +13393,7 @@ function renderShippingPage() {
 
     persist().catch(handlePersistError);
     renderShippingPage();
-    renderDashboard();
+    render();
   };
 
   shippingTableBody.querySelectorAll(".shipping-action-btn").forEach((button) => {
@@ -13171,9 +13451,9 @@ function renderProgressMetaGrid(order, includeOrderDate = false) {
   chips.push(renderProgressChip("납기", formatDate(order.dueDate)));
   chips.push(renderProgressChip("작업자", order.workerName || "미지정"));
   chips.push(renderProgressChip("장비", order.machineName || "미지정"));
-  chips.push(renderProgressChip("수량", order.quantity || "-"));
-  chips.push(renderProgressChip("생산수", order.productionQty || "-"));
-  const overProductionQtyActive = Math.max(Number(order.productionQty || 0) - Number(order.quantity || 0), 0);
+  chips.push(renderProgressChip("수량", formatRequestedQuantity(order)));
+  chips.push(renderProgressChip("생산수", `${order.productionQty || "-"}${order.quantityUnit === "m" ? "m" : ""}`));
+  const overProductionQtyActive = (order.quantityMode === "all-material" ? 0 : Math.max(Number(order.productionQty || 0) - Number(order.quantity || 0), 0));
   if (overProductionQtyActive > 0) {
     chips.push(`<span class="progress-chip over-qty-chip"><strong>초과생산</strong>${overProductionQtyActive.toLocaleString()}</span>`);
   }
@@ -13612,7 +13892,7 @@ function renderOrderTableRows(orders, emptyMessage) {
           <td data-label="발주일">${formatDate(order.orderDate)}</td>
           <td data-label="업체명">${escapeHtml(getCleanDisplayText(order.company))}</td>
           <td data-label="제품명">${escapeHtml(getCleanDisplayText(order.product))}</td>
-          <td data-label="수량">${escapeHtml(getCleanDisplayText(order.quantity))}</td>
+          <td data-label="수량">${escapeHtml(formatRequestedQuantity(order))}</td>
           <td data-label="지급요청">${order.paymentRequested ? "요청" : "-"}</td>
           <td data-label="구분">${escapeHtml(getCleanDisplayText(order.deliveryType))}</td>
           <td data-label="납기일" class="${urgent ? "danger-text" : ""}">${formatDate(order.dueDate)}</td>
@@ -13726,7 +14006,7 @@ function renderCalendarDetail() {
             <div class="calendar-mobile-meta">
               <span><strong>상태</strong>${getOrderStatusTextClean(order)}</span>
               <span><strong>납기</strong>${formatCompactDate(order.dueDate)}</span>
-              <span><strong>수량</strong>${escapeHtml(getCleanDisplayText(order.quantity, "-"))}</span>
+              <span><strong>수량</strong>${escapeHtml(formatRequestedQuantity(order))}</span>
               <span class="calendar-mobile-work-start"><strong>시작</strong>${formatDetailDateTime(workStartedAt)}</span>
               <span class="calendar-mobile-work-end"><strong>완료</strong>${formatDetailDateTime(workEndedAt)}</span>
             </div>
@@ -13739,11 +14019,11 @@ function renderCalendarDetail() {
             <p class="detail-line detail-ended"><strong>작업완료</strong><span>${formatDetailDateTime(workEndedAt)}</span></p>
             <p class="detail-line detail-worker"><strong>작업자</strong><span>${escapeHtml(getCleanDisplayText(order.workerName, "미지정"))}</span></p>
             <p class="detail-line detail-machine"><strong>장비명</strong><span>${escapeHtml(getCleanDisplayText(order.machineName, "미지정"))}</span></p>
-            <p class="detail-line detail-quantity"><strong>수량</strong><span>${escapeHtml(getCleanDisplayText(order.quantity))}</span></p>
+            <p class="detail-line detail-quantity"><strong>수량</strong><span>${escapeHtml(formatRequestedQuantity(order))}</span></p>
             <p class="detail-line detail-type"><strong>구분</strong><span>${getPaymentLabel(order)} / ${getDeliveryLabel(order)}</span></p>
             <p class="detail-line detail-note"><strong>비고</strong><span>${note ? escapeHtml(note) : "-"}</span></p>
             <p class="detail-line detail-time"><strong>작업시간</strong><span>${getCleanWorkTimeValue(order) || "-"}</span></p>
-            <p class="detail-line detail-production"><strong>총생산수</strong><span>${String(order.productionQty || "-")}</span></p>
+            <p class="detail-line detail-production"><strong>총생산수</strong><span>${escapeHtml(String(order.productionQty || "-"))}${order.quantityUnit === "m" ? "m" : ""}</span></p>
             <p class="detail-line detail-hit"><strong>총타발수</strong><span>${String(order.totalHitQty || "-")}</span></p>
           </div>
         </article>
@@ -13913,7 +14193,7 @@ function renderActivities() {
                 <span class="status-badge ${badgeClass}">${badgeText}</span>
               </div>
               <p class="feed-meta">${escapeHtml(activityMessage)} / ${activityTime}</p>
-              <p class="feed-meta">납기일 ${formatDate(order.dueDate)} / 장비 ${escapeHtml(getCleanDisplayText(order.machineName))} / 수량 ${escapeHtml(getCleanDisplayText(order.quantity))} / ${getPaymentLabel(order)} / ${getDeliveryLabel(order)}</p>
+              <p class="feed-meta">납기일 ${formatDate(order.dueDate)} / 장비 ${escapeHtml(getCleanDisplayText(order.machineName))} / 수량 ${escapeHtml(formatRequestedQuantity(order))} / ${getPaymentLabel(order)} / ${getDeliveryLabel(order)}</p>
               ${getCleanDisplayText(order.pauseReason, "") ? `<p class="feed-meta">중지 사유 ${escapeHtml(getCleanDisplayText(order.pauseReason, ""))}${order.workQty ? ` / 작업수량 ${escapeHtml(order.workQty)}` : ""}${order.workHitQty ? ` / 작업타수 ${escapeHtml(order.workHitQty)}` : ""}</p>` : ""}
               <div class="feed-actions">
                 <button type="button" class="tab-btn history-edit-btn" data-order-id="${order.id}">작업 수정</button>
@@ -14024,6 +14304,8 @@ function openWorkerHistoryEdit(orderId) {
   form.elements.machineName.value = order.machineName || "";
   form.elements.status.value = order.status || "ready";
   form.elements.productionQty.value = order.productionQty || "";
+  form.elements.productionQty.step = order.quantityUnit === "m" ? "any" : "1";
+  form.elements.productionQty.placeholder = order.quantityUnit === "m" ? "미터 (m)" : "개 (EA)";
   form.elements.totalHitQty.value = order.totalHitQty || "";
   form.elements.pauseReason.value = order.pauseReason || "";
   modal.hidden = false;
@@ -14040,6 +14322,11 @@ function saveWorkerHistoryEdit(formData) {
   if (!order) return;
 
   const nextStatus = String(formData.get("status") || "ready");
+  const nextProductionQty = String(formData.get("productionQty") || "").trim();
+  if (!Number.isFinite(Number(nextProductionQty)) || Number(nextProductionQty) < 0 || (order.quantityUnit !== "m" && !Number.isInteger(Number(nextProductionQty)))) {
+    showAppAlert("생산수량의 단위와 값을 확인해 주세요. 개 단위는 정수만 입력할 수 있습니다.");
+    return;
+  }
   const now = new Date().toISOString();
   order.workerName = String(formData.get("workerName") || "").trim();
   order.machineName = String(formData.get("machineName") || "").trim();
@@ -14114,7 +14401,7 @@ function renderOrderOptions() {
       const statusText = isBreak ? "일시정지" : isPaused ? "작업 중지" : "작업 대기";
       const labelPrefix = isBreak ? "[일시정지] " : isPaused ? "[작업 중지] " : "";
       const dueLabel = order.dueDate ? order.dueDate.slice(5).replace("-", ".") : "-";
-      const quantityLabel = getCleanDisplayText(order.quantity, "-");
+      const quantityLabel = formatRequestedQuantity(order);
       const optionText = `${labelPrefix}${getCleanDisplayText(order.company)} / ${getCleanDisplayText(order.product)} / 납기 ${dueLabel} / 수량 ${quantityLabel} / ${statusText}`;
       const optionClass = isBreak ? "break-option" : isPaused ? "paused-option" : "";
       return `<option value="${order.id}" data-status="${order.status}" class="${optionClass}">${escapeHtml(optionText)}</option>`;
@@ -14131,6 +14418,13 @@ function renderOrderOptions() {
 
 function updateWorkerOrderSelectVisual() {
   if (!orderSelect) return;
+  const selectedOrder = state.orders.find((order) => order.id === orderSelect.value);
+  [workQtyInput, productionQtyInput].forEach((input) => {
+    if (!input) return;
+    input.step = selectedOrder?.quantityUnit === "m" ? "any" : "1";
+    input.placeholder = selectedOrder?.quantityUnit === "m" ? "실제 작업한 미터 수 (m)" : "실제 제품 수량 (개)";
+    input.setAttribute("aria-label", `작업 수량 (${getQuantityUnitLabel(selectedOrder || {})})`);
+  });
   const selectedOption = orderSelect.options[orderSelect.selectedIndex];
   const isPaused = selectedOption?.dataset?.status === "paused";
   const isBreak = selectedOption?.dataset?.status === "break";

@@ -40,8 +40,8 @@ assert(
   listenerBody.includes("setTimeout(() =>") && listenerBody.includes("initializeAppData().catch"),
   "post-auth data loading should be deferred outside the auth callback"
 );
-assert(indexHtml.includes("app.js?v=20260930-01"), "clients should request the fixed app script");
-assert(swJs.includes("jhint-production-app-v20260930-01"), "service worker cache should refresh");
+assert(indexHtml.includes("app.js?v=20260930-02"), "clients should request the fixed app script");
+assert(swJs.includes("jhint-production-app-v20260930-02"), "service worker cache should refresh");
 
 async function run() {
   const listenerContext = {

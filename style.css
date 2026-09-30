@@ -7014,6 +7014,34 @@ html {
   min-width: 0;
 }
 
+.commercial-fields {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #cbdde9;
+  border-radius: 10px;
+  background: #f1f7fb;
+}
+
+.request-item-row > .commercial-fields {
+  grid-column: 1 / -1;
+}
+
+.commercial-fields label { min-width: 0; display: grid; gap: 5px; }
+.commercial-fields input, .commercial-fields select { width: 100%; min-width: 0; }
+.commercial-help { grid-column: 1 / -1; margin: 0; font-size: 0.78rem; color: #526b80; }
+.order-commercial-fields { grid-column: 1 / -1; display: grid; gap: 10px; }
+
+@media (max-width: 900px) {
+  .commercial-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .request-item-row .commercial-fields label { grid-column: auto; }
+}
+
+@media (max-width: 480px) {
+  .commercial-fields { grid-template-columns: minmax(0, 1fr); }
+}
+
 .request-item-number {
   display: inline-flex;
   align-items: center;
