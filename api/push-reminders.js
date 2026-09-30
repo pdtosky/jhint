@@ -244,7 +244,7 @@ async function disableSubscription(id, statusCode) {
   });
 }
 
-async function sendToUser({ user, subscriptions, kind, dateKey, orders, workerDirectory = {}, config }) {
+async function sendToUser({ user, subscriptions, kind, deliveryKind = kind, dateKey, orders, workerDirectory = {}, config }) {
   const displayName = getDisplayName(user);
   const role = String(user.app_metadata?.jhint_role || "").trim().toLowerCase();
   const isAdmin = role === "admin";
@@ -260,6 +260,7 @@ async function sendToUser({ user, subscriptions, kind, dateKey, orders, workerDi
   const detail = {
     displayName,
     role,
+    deliveryKind,
     orderIds: orders.map((order) => order.id).filter(Boolean),
     subscriptionCount: subscriptions.length,
     ...(adminMessage ? {
@@ -274,7 +275,7 @@ async function sendToUser({ user, subscriptions, kind, dateKey, orders, workerDi
     } : {})
   };
 
-  if (!(await reserveDelivery(user.id, kind, dateKey, detail))) return { skipped: true };
+  if (!(await reserveDelivery(user.id, deliveryKind, dateKey, detail))) return { skipped: true };
 
   let successCount = 0;
   const failures = [];
@@ -288,7 +289,7 @@ async function sendToUser({ user, subscriptions, kind, dateKey, orders, workerDi
         {
           title,
           body,
-          tag: `jhint-${role}-${kind}-${dateKey}`,
+          tag: `jhint-${role}-${deliveryKind}-${dateKey}`,
           icon: "/app-icon.png",
           badge: "/app-icon.png",
           url: `/?view=${targetView}`,
@@ -306,7 +307,7 @@ async function sendToUser({ user, subscriptions, kind, dateKey, orders, workerDi
   }
 
   const status = successCount > 0 ? "success" : "failed";
-  await finishDelivery(user.id, kind, dateKey, status, { ...detail, successCount, failures });
+  await finishDelivery(user.id, deliveryKind, dateKey, status, { ...detail, successCount, failures });
   return { successCount, failureCount: failures.length };
 }
 
@@ -356,11 +357,14 @@ module.exports = async function pushRemindersHandler(request, response) {
 
   try {
     const url = new URL(request.url, "https://jhint.vercel.app");
-    const kind = String(url.searchParams.get("kind") || "").trim().toLowerCase();
-    if (!['morning', 'evening', 'admin-test'].includes(kind)) {
+    const deliveryKind = String(url.searchParams.get("kind") || "").trim().toLowerCase();
+    if (!['morning-early', 'morning', 'evening-early', 'evening', 'admin-test'].includes(deliveryKind)) {
       sendJson(response, 400, { message: "알림 종류가 올바르지 않습니다." });
       return;
     }
+
+    // Each scheduled time has its own deduplication key; eligibility stays shared.
+    const kind = deliveryKind.replace(/-early$/, "");
 
     const config = await getPushServerConfig();
     if (getBearerToken(request) !== config.cronSecret) {
@@ -438,6 +442,7 @@ module.exports = async function pushRemindersHandler(request, response) {
         user,
         subscriptions,
         kind,
+        deliveryKind,
         dateKey,
         orders: kind === "evening" ? activeOrders : pendingOrders,
         workerDirectory,
@@ -446,7 +451,7 @@ module.exports = async function pushRemindersHandler(request, response) {
       results.push({ userId: user.id, displayName, ...result });
     }
 
-    sendJson(response, 200, { ok: true, kind, dateKey, checkedUsers: reminderUsers.length, results });
+    sendJson(response, 200, { ok: true, kind, deliveryKind, dateKey, checkedUsers: reminderUsers.length, results });
   } catch (error) {
     sendJson(response, error.status || 500, { message: error.message || "작업 알림 발송에 실패했습니다." });
   }

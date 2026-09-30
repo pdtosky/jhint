@@ -35,7 +35,7 @@ create index if not exists push_subscriptions_user_enabled_idx
 create table if not exists public.push_delivery_log (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
-  kind text not null check (kind in ('morning', 'evening')),
+  kind text not null check (kind in ('morning-early', 'morning', 'evening-early', 'evening')),
   delivery_date date not null,
   status text not null check (status in ('pending', 'success', 'failed')),
   attempts integer not null default 1,
@@ -45,6 +45,13 @@ create table if not exists public.push_delivery_log (
   updated_at timestamptz not null default now(),
   unique (user_id, kind, delivery_date)
 );
+
+alter table public.push_delivery_log
+  drop constraint if exists push_delivery_log_kind_check;
+alter table public.push_delivery_log
+  add constraint push_delivery_log_kind_check check (
+    kind in ('morning-early', 'morning', 'evening-early', 'evening')
+  );
 
 alter table public.push_subscriptions enable row level security;
 alter table public.push_delivery_log enable row level security;
@@ -103,7 +110,7 @@ as $$
 declare
   claimed_id uuid;
 begin
-  if p_kind not in ('morning', 'evening') then
+  if p_kind not in ('morning-early', 'morning', 'evening-early', 'evening') then
     raise exception 'invalid push delivery kind';
   end if;
 
@@ -132,18 +139,57 @@ revoke all on function public.claim_jhint_push_delivery(uuid, text, date, jsonb)
 grant execute on function public.claim_jhint_push_delivery(uuid, text, date, jsonb) to service_role;
 
 -- Secrets must be created in Supabase Vault before scheduling these jobs.
--- Cron uses UTC: 00:00 UTC = 09:00 KST, 12:00 UTC = 21:00 KST.
+-- KST weekdays: 08:40 (previous UTC day), 09:00, 20:10, 21:00.
 do $$
 declare
   existing_job record;
 begin
   for existing_job in
-    select jobid from cron.job where jobname in ('jhint-production-start-reminder', 'jhint-production-end-reminder')
+    select jobid from cron.job where jobname in (
+      'jhint-production-start-reminder', 'jhint-production-end-reminder',
+      'jhint-production-start-early-reminder', 'jhint-production-end-early-reminder'
+    )
   loop
     perform cron.unschedule(existing_job.jobid);
   end loop;
 end
 $$;
+
+select cron.schedule(
+  'jhint-production-start-early-reminder',
+  '40 23 * * 0-4',
+  $$
+    select net.http_post(
+      url := 'https://jhint.vercel.app/api/push-reminders?kind=morning-early',
+      headers := jsonb_build_object(
+        'Content-Type', 'application/json',
+        'Authorization', 'Bearer ' || (
+          select decrypted_secret from vault.decrypted_secrets where name = 'jhint_push_cron_secret'
+        )
+      ),
+      body := '{"source":"supabase-cron"}'::jsonb,
+      timeout_milliseconds := 10000
+    );
+  $$
+);
+
+select cron.schedule(
+  'jhint-production-end-early-reminder',
+  '10 11 * * 1-5',
+  $$
+    select net.http_post(
+      url := 'https://jhint.vercel.app/api/push-reminders?kind=evening-early',
+      headers := jsonb_build_object(
+        'Content-Type', 'application/json',
+        'Authorization', 'Bearer ' || (
+          select decrypted_secret from vault.decrypted_secrets where name = 'jhint_push_cron_secret'
+        )
+      ),
+      body := '{"source":"supabase-cron"}'::jsonb,
+      timeout_milliseconds := 10000
+    );
+  $$
+);
 
 select cron.schedule(
   'jhint-production-start-reminder',

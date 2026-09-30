@@ -88,6 +88,13 @@ function createCompatibleRandomId() {
 
 const CODEX_RELEASE_NOTES = [
   {
+    version: "2026-09-30-01",
+    timestamp: "2026-09-30T13:48:00+09:00",
+    title: "생산 작업 알림 하루 네 차례로 확대",
+    summary: "한국시간 평일 오전 8시 40분·9시, 오후 8시 10분·9시에 작업 미시작·미종료 상태를 확인합니다. 시간대별로 발송 이력을 구분해 두 번째 알림도 전달하며, 그사이 작업 시작 또는 완료·중지 처리한 사람은 해당 알림 대상에서 제외합니다. 관리자 미처리 현황 알림에도 같은 시간을 적용합니다.",
+    files: ["api/push-reminders.js", "supabase-push-notifications.sql", "tests/push-reminder-slots.test.js", "app.js", "index.html", "sw.js"]
+  },
+  {
     version: "2026-09-07-01",
     timestamp: "2026-09-07T08:32:22+09:00",
     title: "로그인 멈춤 현상 수정",
