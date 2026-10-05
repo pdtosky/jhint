@@ -88,6 +88,13 @@ function createCompatibleRandomId() {
 
 const CODEX_RELEASE_NOTES = [
   {
+    version: "2026-10-05-01",
+    timestamp: "2026-10-05T09:25:51+09:00",
+    title: "실행 시 예시 작업 노출 방지",
+    summary: "초기 상태의 예시 발주·작업 이력을 제거하고 로그인과 데이터 로딩 완료 전에는 안내 화면만 표시합니다. 서버 데이터가 없거나 불러오기에 실패하면 빈 상태로 초기화·저장하지 않고 재시도를 안내합니다.",
+    files: ["app.js", "index.html", "sw.js", "tests/startup-state.test.js", "tests/commercial-browser-smoke.cjs"]
+  },
+  {
     version: "2026-09-30-03",
     timestamp: "2026-09-30T15:11:33+09:00",
     title: "작업자 특이사항 강조 및 시작 전 확인",
@@ -1781,22 +1788,13 @@ function resetPauseInputs() {
 
 function createEmptyState() {
   return {
-    orders: seedOrders.map(normalizeOrderRecord),
+    orders: [],
     orderDeletedIds: [],
     requisitions: [],
     sops: [],
     sopWorkRecords: [],
     sopDeletedIds: [],
-    activities: [
-      {
-        id: createCompatibleRandomId(),
-        type: "start",
-        workerName: "\uC774\uBBFC\uC218",
-        orderId: seedOrders[1].id,
-        timestamp: "2026-04-22T08:30:00",
-        message: TEXT.startMessage
-      }
-    ]
+    activities: []
   };
 }
 
@@ -1954,29 +1952,49 @@ function renderSecurityLoginGate(message = "") {
   }
 }
 
+function setStartupState(status) {
+  document.body.classList.toggle("app-loading", status !== "ready");
+  const screen = document.getElementById("appStartupScreen");
+  const message = document.getElementById("appStartupMessage");
+  if (screen) screen.hidden = status === "ready";
+  if (message) message.textContent = status === "error"
+    ? "데이터를 불러오지 못했습니다. 연결을 확인한 뒤 새로고침해 주세요."
+    : "로그인과 최신 데이터를 확인하고 있습니다.";
+}
+
 async function initializeAppData(options = {}) {
   const forceReload = options.force === true;
   if (!forceReload && isAppDataInitialized) {
     render();
     startStatePolling();
-    return;
+    setStartupState("ready");
+    return true;
   }
 
   if (appDataInitializationPromise) {
-    await appDataInitializationPromise;
-    if (!forceReload) return;
+    const loaded = await appDataInitializationPromise;
+    if (!forceReload) return loaded;
   }
 
+  setStartupState("loading");
   const initialization = (async () => {
-    await loadRemoteState();
+    const loaded = await loadRemoteState();
+    if (!loaded) { setStartupState("error"); return false; }
+    if (REQUIRE_GLOBAL_LOGIN && !currentAdminEmail) {
+      renderSecurityLoginGate();
+      setStartupState("ready");
+      return;
+    }
     isAppDataInitialized = true;
     render();
     startStatePolling();
+    setStartupState("ready");
+    return true;
   })();
   appDataInitializationPromise = initialization;
 
   try {
-    await initialization;
+    return await initialization;
   } finally {
     if (appDataInitializationPromise === initialization) {
       appDataInitializationPromise = null;
@@ -1985,24 +2003,32 @@ async function initializeAppData(options = {}) {
 }
 
 async function initializeApp() {
-  await restoreAdminSession();
-  bindAdminAuthListener();
+  try {
+    await restoreAdminSession();
+    bindAdminAuthListener();
 
-  renderSecurityLoginGate();
-  if (REQUIRE_GLOBAL_LOGIN && !currentAdminEmail) {
-    return;
+    renderSecurityLoginGate();
+    if (REQUIRE_GLOBAL_LOGIN && !currentAdminEmail) {
+      setStartupState("ready");
+      return;
+    }
+
+    await initializeAppData();
+  } catch (error) {
+    console.error("Application startup failed", error);
+    setStartupState("error");
   }
-
-  await initializeAppData();
 }
 
 async function loadRemoteState() {
   try {
     const remoteState = isSupabaseBackend() ? await fetchSupabaseState() : await fetchApiState();
+    if (!remoteState || !Array.isArray(remoteState.orders)) throw new Error("Invalid server state");
     if (isSupabaseBackend()) {
       remoteStateLoadedSuccessfully = true;
     }
     applyIncomingState(remoteState);
+    return true;
   } catch (error) {
     if (isSupabaseBackend()) {
       remoteStateLoadedSuccessfully = false;
@@ -2011,6 +2037,7 @@ async function loadRemoteState() {
     if (typeof showAppAlert === "function") {
       showAppAlert("서버 데이터를 불러오지 못했습니다.\n데이터 보호를 위해 빈 화면을 서버에 저장하지 않습니다.");
     }
+    return false;
   }
 }
 
@@ -2470,7 +2497,7 @@ async function fetchSupabaseState() {
 
   const rows = await response.json();
   if (!rows.length || !rows[0].payload) {
-    return createEmptyState();
+    throw new Error("Server state is missing; refusing to initialize with empty data");
   }
 
   return rows[0].payload;
@@ -5070,7 +5097,7 @@ async function handleGlobalLogin() {
     setAdminSession(sessionEmail, sessionRole, getSessionDisplayName(sessionUser, sessionEmail));
     globalLoginForm.reset();
     renderSecurityLoginGate();
-    await initializeAppData();
+    if (await initializeAppData() === false) return;
     await recordSuccessfulLogin({
       email: sessionEmail,
       role: sessionRole,

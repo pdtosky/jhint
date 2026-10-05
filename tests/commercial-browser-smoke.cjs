@@ -8,10 +8,13 @@ const { chromium } = require('playwright');
   try {
     const context = await browser.newContext({ serviceWorkers: 'block' });
     let saved = { orders: [], requisitions: [], activities: [] };
+    let releaseInitialLoad;
+    const initialLoad = new Promise((resolve) => { releaseInitialLoad = resolve; });
     await context.route('**/*', async (route) => {
       const url = new URL(route.request().url());
       if (url.origin !== 'http://127.0.0.1:4789') return route.abort();
       if (url.pathname === '/api/state') {
+        await initialLoad;
         if (route.request().method() !== 'GET') saved = JSON.parse(route.request().postData());
         return route.fulfill({ json: saved });
       }
@@ -26,6 +29,11 @@ const { chromium } = require('playwright');
     const errors = [];
     page.on('pageerror', (error) => errors.push(error.message));
     await page.goto('http://127.0.0.1:4789');
+    assert.equal(await page.locator('#appStartupScreen').isVisible(), true);
+    assert.equal(await page.locator('.page-shell').isVisible(), false);
+    assert.equal(await page.evaluate(() => state.orders.length), 0, 'no demo orders before server load');
+    releaseInitialLoad();
+    await page.locator('#appStartupScreen').waitFor({ state: 'hidden' });
     await page.waitForSelector('#requestItems, #requisitionItems', { state: 'attached' });
     await page.evaluate(() => {
       currentAdminRole = 'admin'; currentAdminEmail = 'synthetic@example.test'; isAdminLoggedIn = true; isRequisitionLoggedIn = true;
