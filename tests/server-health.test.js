@@ -100,6 +100,22 @@ test("healthy metrics use MemAvailable, not free RAM, cache, high commit alone, 
   assert.equal(Object.hasOwn(result.details, "cpuPercent"), false);
 });
 
+test("Supabase hosted connection metric families are preferred without double-counting exporter fallbacks", () => {
+  const labels = 'supabase_project_ref="synthetic",supabase_identifier="synthetic",service_type="postgresql",server="localhost:5432"';
+  const hosted = `max_connections_connection_count{${labels}} 100\n` +
+    `connection_stats_connection_count{${labels},username="authenticator"} 10\n` +
+    `connection_stats_connection_count{${labels},username="other"} 10\n` +
+    `connection_stats_connection_count{${labels},username="supabase_admin"} 65\n`;
+  const result = evaluateMetrics(metrics({}, hosted));
+  assert.equal(result.details.connectionsPercent, 85);
+  assert.deepEqual(result.warnings, ["connection_pressure"]);
+  const partial = evaluateMetrics(metrics({}, hosted.split('\n').filter(line => !line.startsWith('max_connections_')).join('\n')));
+  assert.equal(partial.details.connectionsPercent, null);
+  assert.equal(partial.resources, "unknown");
+  const mismatched = evaluateMetrics(metrics({}, hosted.replace('username="other"', 'username="other",instance="different"')));
+  assert.equal(mismatched.details.connectionsPercent, null);
+});
+
 test("memory warnings require conservative combined evidence and include exact boundaries", () => {
   const check = (available, swapUsed, committed) => evaluateMetrics(metrics({
     node_memory_MemTotal_bytes: 1000 * MIB,
