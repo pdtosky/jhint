@@ -15,6 +15,8 @@ function setup(phase) {
   const response = { ok: true, json: () => phase === 'body' ? pending : Promise.resolve([{ payload }]) };
   const ctx = {
     AbortController, Promise, pending, payload, response, phase,
+    stateReadGeneration: 0, stateDisplayReadPromise: null,
+    canReadRemoteState: () => true, normalizeAppState: (value) => value,
     fetchCalls: 0, applied: 0, cleared: 0, deadline: null,
     console: { error() {} },
     setTimeout(fn, ms) { assert.equal(ms, 25000); ctx.deadline = fn; return 7; },
@@ -34,7 +36,10 @@ function setup(phase) {
   vm.createContext(ctx);
   vm.runInContext(`let remoteStateLoadedSuccessfully = false;
     ${extract('waitForServerRead')}
+    ${extract('fetchSupabaseStateRow')}
+    ${extract('normalizeStateRevision')}
     ${extract('fetchSupabaseState')}
+    ${extract('readRemoteStateForDisplay')}
     ${extract('loadRemoteState')}
   `, ctx);
   return { ctx, release, response, payload };

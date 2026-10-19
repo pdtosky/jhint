@@ -27,9 +27,15 @@ async function check() {
     assert.equal(ctx.statuses.at(-1), success ? 'ready' : 'error');
   }
   for (const remote of [null, {}, {orders: 'invalid'}]) {
-    const ctx = { remote, applied: 0, console: {error(){}}, isSupabaseBackend:()=>false, fetchApiState:async()=>remote, applyIncomingState:()=>ctx.applied++, showAppAlert:()=>{} };
+    const ctx = {
+      remote, applied: 0, stateReadGeneration: 0, stateDisplayReadPromise: null,
+      AbortController, isSupabaseBackend:()=>false, canReadRemoteState:()=>true,
+      waitForServerRead:async(value)=>value, fetchApiState:async()=>remote,
+      normalizeAppState:(value)=>value, console: {error(){}},
+      applyIncomingState:()=>ctx.applied++, showAppAlert:()=>{}
+    };
     vm.createContext(ctx);
-    vm.runInContext(`${extract('loadRemoteState')}; globalThis.run=loadRemoteState();`, ctx);
+    vm.runInContext(`${extract('readRemoteStateForDisplay')}\n${extract('loadRemoteState')}; globalThis.run=loadRemoteState();`, ctx);
     assert.equal(await ctx.run, false);
     assert.equal(ctx.applied, 0);
   }

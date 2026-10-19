@@ -59,6 +59,8 @@ const ROLE_ADMIN_SECTION_LABELS = {
 const APP_CONFIG = window.APP_CONFIG || {};
 const REQUIRE_GLOBAL_LOGIN = APP_CONFIG.requireGlobalLogin === true;
 const POLL_INTERVAL_MS = Number(APP_CONFIG.pollIntervalMs || 60000);
+const DASHBOARD_POLL_INTERVAL_MS = Number(APP_CONFIG.dashboardPollIntervalMs || 120000);
+const VISIBILITY_POLL_COOLDOWN_MS = 60000;
 const HOLIDAY_POLL_INTERVAL_MS = Number(
   APP_CONFIG.holidayPollIntervalMs || APP_CONFIG.weekendPollIntervalMs || 300000
 );
@@ -87,6 +89,20 @@ function createCompatibleRandomId() {
 }
 
 const CODEX_RELEASE_NOTES = [
+  {
+    version: "2026-10-19-04",
+    timestamp: "2026-10-19T12:35:21+09:00",
+    title: "서버 사용량·오류 정기 감시 추가",
+    summary: "GitHub에서 10분 간격으로 서버 연결과 메모리·스왑·연결수·디스크·부하 경고를 점검하도록 구성했습니다. 일시 지연은 재확인하며 실제 업무 내용은 읽거나 공개하지 않습니다. 이 채팅의 15분 간격 감시는 새 이상과 복구 때만 알리며, 채팅 알림은 Codex 실행 환경이 동작 중일 때 전달됩니다.",
+    files: ["api/server-health.js", "lib/server-health.js", "tools/check-server-health.mjs", ".github/workflows/server-health.yml", "tests/server-health.test.js", "tests/server-health-checker.test.mjs"]
+  },
+  {
+    version: "2026-10-19-03",
+    timestamp: "2026-10-19T12:23:33+09:00",
+    title: "변경 버전 확인으로 화면 자동 조회 부담 축소",
+    summary: "화면에 반영된 데이터 버전이 있을 때는 버전만 조회하고 변경된 경우에만 전체 데이터를 불러옵니다. 작업 화면은 1분, 대시보드는 2분, 휴일은 5분 간격을 기본으로 하며 숨김·오프라인 탭과 빠른 화면 복귀의 중복 조회를 막습니다. 연결 실패 시 최대 10분까지 조회 간격을 늘리고 계정 변경·로그아웃 시 이전 조회를 취소합니다. 저장 전 최신 전체 데이터 확인과 기존 병합·저장 보호는 유지합니다.",
+    files: ["app.js", "config.js", "supabase-state-revision.sql", "tests/state-read-load.test.js", "tests/startup-state.test.js", "tests/server-read-timeout.test.js"]
+  },
   {
     version: "2026-10-19-02",
     timestamp: "2026-10-19T12:17:14+09:00",
@@ -655,6 +671,16 @@ let remoteStateLoadedSuccessfully = BACKEND_MODE !== "supabase";
 let syncTimerId = null;
 let isStateSyncing = false;
 let isVisibilitySyncBound = false;
+let lastAppliedStateRevision = null;
+let stateReadGeneration = 0;
+let stateDisplayReadPromise = null;
+let stateDisplayReadController = null;
+let isStatePolling = false;
+let statePollingGeneration = 0;
+let isStatePollRunning = false;
+let statePollFailureCount = 0;
+let statePollRetryAt = 0;
+let lastStatePollAt = -Infinity;
 let isAdminAuthListenerBound = false;
 let isAppDataInitialized = false;
 let appDataInitializationPromise = null;
@@ -1982,6 +2008,7 @@ function setStartupState(status) {
 
 async function initializeAppData(options = {}) {
   const forceReload = options.force === true;
+  const authGeneration = REQUIRE_GLOBAL_LOGIN ? stateReadGeneration : 0;
   if (!forceReload && isAppDataInitialized) {
     render();
     startStatePolling();
@@ -1991,12 +2018,14 @@ async function initializeAppData(options = {}) {
 
   if (appDataInitializationPromise) {
     const loaded = await appDataInitializationPromise;
+    if (REQUIRE_GLOBAL_LOGIN && authGeneration !== stateReadGeneration) return false;
     if (!forceReload) return loaded;
   }
 
   setStartupState("loading");
   const initialization = (async () => {
     const loaded = await loadRemoteState();
+    if (REQUIRE_GLOBAL_LOGIN && authGeneration !== stateReadGeneration) return false;
     if (!loaded) { setStartupState("error"); return false; }
     if (REQUIRE_GLOBAL_LOGIN && !currentAdminEmail) {
       renderSecurityLoginGate();
@@ -2039,15 +2068,12 @@ async function initializeApp() {
 }
 
 async function loadRemoteState() {
+  const generation = stateReadGeneration;
   try {
-    const remoteState = isSupabaseBackend() ? await fetchSupabaseState() : await fetchApiState();
-    if (!remoteState || !Array.isArray(remoteState.orders)) throw new Error("Invalid server state");
-    if (isSupabaseBackend()) {
-      remoteStateLoadedSuccessfully = true;
-    }
-    applyIncomingState(remoteState);
-    return true;
+    const loaded = await readRemoteStateForDisplay({ full: true });
+    return generation === stateReadGeneration && loaded;
   } catch (error) {
+    if (generation !== stateReadGeneration) return false;
     if (isSupabaseBackend()) {
       remoteStateLoadedSuccessfully = false;
     }
@@ -2349,6 +2375,12 @@ function setAdminSession(email, role = "", displayName = "") {
   const normalizedEmail = String(email || "").trim().toLowerCase();
   const normalizedRole = normalizeAccountRole(role, normalizedEmail && isAllowedAdminEmail(normalizedEmail) ? "admin" : "");
   const isLoggedIn = Boolean(normalizedEmail && normalizedRole);
+  if (!isLoggedIn || currentAdminEmail !== normalizedEmail || currentAdminRole !== normalizedRole) {
+    stopStatePolling();
+    isAppDataInitialized = false;
+    appDataInitializationPromise = null;
+    remoteStateLoadedSuccessfully = BACKEND_MODE !== "supabase";
+  }
   currentAdminRole = isLoggedIn ? normalizedRole : "";
   currentAdminDisplayName = isLoggedIn ? String(displayName || "").trim() : "";
   isAdminLoggedIn = isLoggedIn;
@@ -2470,11 +2502,11 @@ async function saveApiState(payload) {
   return response;
 }
 
-function getSupabaseStateUrl() {
+function getSupabaseStateUrl(fields = "payload,sync_revision") {
   const baseUrl = String(APP_CONFIG.supabaseUrl || "").replace(/\/$/, "");
   const table = APP_CONFIG.supabaseTable || "app_state";
   const rowId = encodeURIComponent(APP_CONFIG.supabaseRowId || "main");
-  return `${baseUrl}/rest/v1/${table}?id=eq.${rowId}&select=payload`;
+  return `${baseUrl}/rest/v1/${table}?id=eq.${rowId}&select=${fields}`;
 }
 
 function getSupabaseTableUrl() {
@@ -2517,16 +2549,21 @@ function waitForServerRead(operation, signal) {
   });
 }
 
-async function fetchSupabaseState() {
+async function fetchSupabaseStateRow(fields, options = {}) {
   if (!hasSupabaseConfig()) {
     throw new Error("missing supabase config");
   }
 
   const controller = new AbortController();
+  const cancel = () => controller.abort();
+  options.signal?.addEventListener("abort", cancel, { once: true });
+  if (options.signal?.aborted) controller.abort();
   const deadline = setTimeout(() => controller.abort(), 25000);
   try {
+    if (controller.signal.aborted) throw new Error("Server data read cancelled");
     const headers = await waitForServerRead(getSupabaseHeaders(), controller.signal);
-    const response = await waitForServerRead(fetch(getSupabaseStateUrl(), {
+    if (controller.signal.aborted) throw new Error("Server data read cancelled");
+    const response = await waitForServerRead(fetch(getSupabaseStateUrl(fields), {
       headers,
       cache: "no-store",
       signal: controller.signal
@@ -2536,13 +2573,37 @@ async function fetchSupabaseState() {
     }
 
     const rows = await waitForServerRead(response.json(), controller.signal);
-    if (!rows.length || !rows[0].payload) {
-      throw new Error("Server state is missing; refusing to initialize with empty data");
-    }
-    return rows[0].payload;
+    return rows?.[0] || null;
   } finally {
     clearTimeout(deadline);
+    options.signal?.removeEventListener("abort", cancel);
   }
+}
+
+function normalizeStateRevision(value) {
+  if (typeof value === "number") {
+    return Number.isSafeInteger(value) && value >= 0 ? String(value) : null;
+  }
+  if (typeof value !== "string" || !/^\d+$/.test(value)) return null;
+  const revision = value.replace(/^0+(?=\d)/, "");
+  if (revision.length > 19 || (revision.length === 19 && revision > "9223372036854775807")) return null;
+  return revision;
+}
+
+async function fetchSupabaseState(options = {}) {
+  // This always reads the full latest payload, including the pre-save safety read.
+  const row = await fetchSupabaseStateRow("payload,sync_revision", options);
+  if (!row?.payload) {
+    throw new Error("Server state is missing; refusing to initialize with empty data");
+  }
+  return options.withRevision
+    ? { payload: row.payload, revision: normalizeStateRevision(row.sync_revision) }
+    : row.payload;
+}
+
+async function fetchSupabaseStateRevision(options = {}) {
+  const row = await fetchSupabaseStateRow("sync_revision", options);
+  return normalizeStateRevision(row?.sync_revision);
 }
 
 function getStateRecordId(record) {
@@ -4476,22 +4537,82 @@ function persist(options = {}) {
     });
 }
 
-async function syncStateFromRemote(options = {}) {
-  if (isStateSyncing) return;
-  if (!options.force && document.visibilityState === "hidden") return;
+function canReadRemoteState() {
+  if (isPasswordRecoveryMode) return false;
+  if (!REQUIRE_GLOBAL_LOGIN && !isSupabaseBackend()) return true;
+  return Boolean(currentAdminEmail && currentAdminRole);
+}
 
-  isStateSyncing = true;
-  try {
-    const remoteState = normalizeAppState(isSupabaseBackend() ? await fetchSupabaseState() : await fetchApiState());
-    const snapshot = JSON.stringify(remoteState);
-    if (snapshot === lastStateSnapshot) return;
-    if (isSupabaseBackend()) {
-      remoteStateLoadedSuccessfully = true;
+async function readRemoteStateForDisplay(options = {}) {
+  const generation = stateReadGeneration;
+  while (stateDisplayReadPromise) {
+    if (!options.full) return stateDisplayReadPromise;
+    await stateDisplayReadPromise.catch(() => {});
+  }
+  if (generation !== stateReadGeneration || !canReadRemoteState()) return false;
+
+  const controller = new AbortController();
+  const isCurrent = () => generation === stateReadGeneration && canReadRemoteState() && !controller.signal.aborted;
+  lastStatePollAt = Date.now();
+  const read = (async () => {
+    const supabase = isSupabaseBackend();
+    if (supabase && !options.full && lastAppliedStateRevision !== null) {
+      const revision = await fetchSupabaseStateRevision({ signal: controller.signal });
+      if (!isCurrent()) return false;
+      if (revision !== null && revision === lastAppliedStateRevision) return true;
     }
-    applyIncomingState(remoteState);
-    render();
+
+    if (!options.full && (document.visibilityState === "hidden" || navigator.onLine === false)) return false;
+    const result = supabase
+      ? await fetchSupabaseState({ withRevision: true, signal: controller.signal })
+      : { payload: await waitForServerRead(fetchApiState(), controller.signal) };
+    if (!isCurrent()) return false;
+    if (!result.payload || !Array.isArray(result.payload.orders)) throw new Error("Invalid server state");
+    const remoteState = normalizeAppState(result.payload);
+    const changed = options.full || JSON.stringify(remoteState) !== lastStateSnapshot;
+    if (supabase) remoteStateLoadedSuccessfully = true;
+    if (changed) applyIncomingState(remoteState);
+    if (changed && options.render) render();
+    // Only a successfully applied (or already identical) payload establishes a revision.
+    if (supabase) lastAppliedStateRevision = result.revision;
+    statePollFailureCount = 0;
+    statePollRetryAt = 0;
+    return true;
+  })();
+  stateDisplayReadPromise = read;
+  stateDisplayReadController = controller;
+  try {
+    return await read;
+  } finally {
+    if (stateDisplayReadPromise === read) {
+      stateDisplayReadPromise = null;
+      stateDisplayReadController = null;
+    }
+  }
+}
+
+async function syncStateFromRemote(options = {}) {
+  if (isStateSyncing) return stateDisplayReadPromise?.catch(() => false) || false;
+  if (!canReadRemoteState() || document.visibilityState === "hidden" || navigator.onLine === false) return false;
+  if (Date.now() < statePollRetryAt) return false;
+
+  const generation = stateReadGeneration;
+  isStateSyncing = true;
+  lastStatePollAt = Date.now();
+  try {
+    const loaded = await readRemoteStateForDisplay({ render: true });
+    if (loaded && generation === stateReadGeneration) {
+      statePollFailureCount = 0;
+      statePollRetryAt = 0;
+    }
+    return loaded;
   } catch {
-    // Keep current UI state if the network is temporarily unavailable.
+    if (generation === stateReadGeneration && canReadRemoteState()) {
+      statePollFailureCount = Math.min(statePollFailureCount + 1, 5);
+      const backoff = Math.min(600000, 60000 * (2 ** (statePollFailureCount - 1)));
+      statePollRetryAt = Date.now() + Math.min(600000, backoff + Math.floor(backoff * Math.random() * 0.2));
+    }
+    return false;
   } finally {
     isStateSyncing = false;
   }
@@ -4508,28 +4629,64 @@ function isWeekendOrHoliday(date = new Date()) {
 }
 
 function getCurrentPollIntervalMs(date = new Date()) {
-  return isWeekendOrHoliday(date) ? HOLIDAY_POLL_INTERVAL_MS : POLL_INTERVAL_MS;
+  if (isWeekendOrHoliday(date)) return HOLIDAY_POLL_INTERVAL_MS;
+  return document.getElementById("dashboardView")?.classList.contains("active")
+    ? DASHBOARD_POLL_INTERVAL_MS
+    : POLL_INTERVAL_MS;
+}
+
+function stopStatePolling() {
+  isStatePolling = false;
+  statePollingGeneration += 1;
+  if (syncTimerId !== null) clearTimeout(syncTimerId);
+  syncTimerId = null;
+  stateReadGeneration += 1;
+  lastAppliedStateRevision = null;
+  statePollFailureCount = 0;
+  statePollRetryAt = 0;
+  lastStatePollAt = -Infinity;
+  stateDisplayReadController?.abort();
+}
+
+function scheduleNextStatePoll(generation) {
+  if (!isStatePolling || generation !== statePollingGeneration) return;
+  if (syncTimerId !== null) clearTimeout(syncTimerId);
+  const interval = getCurrentPollIntervalMs();
+  const normalDelay = statePollFailureCount === 0
+    ? interval + Math.floor(interval * Math.random() * 0.1)
+    : Math.min(interval, 600000);
+  const delay = Math.max(normalDelay, statePollRetryAt - Date.now());
+  const timerId = setTimeout(() => {
+    if (syncTimerId !== timerId || generation !== statePollingGeneration) return;
+    syncTimerId = null;
+    return runStatePoll(generation);
+  }, delay);
+  syncTimerId = timerId;
+}
+
+async function runStatePoll(generation) {
+  if (!isStatePolling || generation !== statePollingGeneration || isStatePollRunning) return;
+  if (syncTimerId !== null) clearTimeout(syncTimerId);
+  syncTimerId = null;
+  isStatePollRunning = true;
+  try {
+    await syncStateFromRemote();
+  } finally {
+    isStatePollRunning = false;
+    scheduleNextStatePoll(generation);
+  }
 }
 
 function startStatePolling() {
-  if (syncTimerId) {
-    clearTimeout(syncTimerId);
-  }
-
-  const scheduleNextSync = () => {
-    syncTimerId = setTimeout(async () => {
-      await syncStateFromRemote();
-      scheduleNextSync();
-    }, getCurrentPollIntervalMs());
-  };
-
-  scheduleNextSync();
+  if (!canReadRemoteState() || isStatePolling) return;
+  isStatePolling = true;
+  scheduleNextStatePoll(statePollingGeneration);
 
   if (!isVisibilitySyncBound) {
     document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState === "visible") {
-        syncStateFromRemote({ force: true });
-      }
+      if (!isStatePolling || document.visibilityState !== "visible" || navigator.onLine === false) return;
+      if (Date.now() - lastStatePollAt < VISIBILITY_POLL_COOLDOWN_MS || Date.now() < statePollRetryAt) return;
+      runStatePoll(statePollingGeneration);
     });
     isVisibilitySyncBound = true;
   }
@@ -5325,6 +5482,7 @@ async function cancelGlobalPasswordRecovery() {
 }
 
 async function handleAdminLogout() {
+  stopStatePolling();
   if (supabaseAuthClient) {
     await supabaseAuthClient.auth.signOut({ scope: "local" });
   }
@@ -5382,6 +5540,7 @@ async function handleRequisitionLogin(formElement) {
 }
 
 async function handleRequisitionLogout() {
+  stopStatePolling();
   if (supabaseAuthClient) {
     await supabaseAuthClient.auth.signOut({ scope: "local" });
   }

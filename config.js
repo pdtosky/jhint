@@ -11,6 +11,7 @@ window.APP_CONFIG = {
   adminEmails: ["tape@jhint.net"],
   requisitionEmails: [],
   pollIntervalMs: 60000,
+  dashboardPollIntervalMs: 120000,
   weekendPollIntervalMs: 300000,
   holidayPollIntervalMs: 300000,
   // 공휴일이나 회사 휴무일은 "YYYY-MM-DD" 형식으로 추가하세요.
