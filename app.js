@@ -88,6 +88,13 @@ function createCompatibleRandomId() {
 
 const CODEX_RELEASE_NOTES = [
   {
+    version: "2026-10-19-01",
+    timestamp: "2026-10-19T12:10:00+09:00",
+    title: "서버 연결 지연 안내 및 재연결 개선",
+    summary: "로그인 또는 서버 데이터 확인이 30초 이상 지연되면 연결 지연 안내와 다시 연결하기 버튼을 표시합니다. 서버 데이터 조회는 인증 확인·응답 본문 수신까지 25초로 제한하고 늦게 도착한 응답은 적용하지 않습니다. 외부 인증 스크립트가 지연돼도 안내를 표시하며 연결이 완료되면 정상 화면으로 전환합니다.",
+    files: ["app.js", "startup.js", "index.html", "sw.js", "tests/startup-watchdog.test.js", "tests/server-read-timeout.test.js"]
+  },
+  {
     version: "2026-10-05-01",
     timestamp: "2026-10-05T09:25:51+09:00",
     title: "실행 시 예시 작업 노출 방지",
@@ -1953,6 +1960,10 @@ function renderSecurityLoginGate(message = "") {
 }
 
 function setStartupState(status) {
+  if (window.ProductionStartup) {
+    window.ProductionStartup.setState(status);
+    return;
+  }
   document.body.classList.toggle("app-loading", status !== "ready");
   const screen = document.getElementById("appStartupScreen");
   const message = document.getElementById("appStartupMessage");
@@ -2482,25 +2493,49 @@ async function getSupabaseHeaders(extra = {}) {
   };
 }
 
+function waitForServerRead(operation, signal) {
+  return new Promise((resolve, reject) => {
+    const onAbort = () => {
+      signal.removeEventListener("abort", onAbort);
+      const error = new Error("Server data read timed out");
+      error.name = "AbortError";
+      reject(error);
+    };
+    signal.addEventListener("abort", onAbort, { once: true });
+    Promise.resolve(operation).then(
+      (result) => { signal.removeEventListener("abort", onAbort); resolve(result); },
+      (error) => { signal.removeEventListener("abort", onAbort); reject(error); }
+    );
+    if (signal.aborted) onAbort();
+  });
+}
+
 async function fetchSupabaseState() {
   if (!hasSupabaseConfig()) {
     throw new Error("missing supabase config");
   }
 
-  const response = await fetch(getSupabaseStateUrl(), {
-    headers: await getSupabaseHeaders(),
-    cache: "no-store"
-  });
-  if (!response.ok) {
-    throw new Error("supabase state fetch failed");
-  }
+  const controller = new AbortController();
+  const deadline = setTimeout(() => controller.abort(), 25000);
+  try {
+    const headers = await waitForServerRead(getSupabaseHeaders(), controller.signal);
+    const response = await waitForServerRead(fetch(getSupabaseStateUrl(), {
+      headers,
+      cache: "no-store",
+      signal: controller.signal
+    }), controller.signal);
+    if (!response.ok) {
+      throw new Error("supabase state fetch failed");
+    }
 
-  const rows = await response.json();
-  if (!rows.length || !rows[0].payload) {
-    throw new Error("Server state is missing; refusing to initialize with empty data");
+    const rows = await waitForServerRead(response.json(), controller.signal);
+    if (!rows.length || !rows[0].payload) {
+      throw new Error("Server state is missing; refusing to initialize with empty data");
+    }
+    return rows[0].payload;
+  } finally {
+    clearTimeout(deadline);
   }
-
-  return rows[0].payload;
 }
 
 function getStateRecordId(record) {

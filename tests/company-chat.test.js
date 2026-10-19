@@ -89,6 +89,6 @@ assert(sql.includes("'worker', 'viewer', 'general'"), "Realtime reception should
 assert(sql.includes("where id = (select auth.uid())"), "Realtime role checks should be bound to the connected account");
 
 assert(serviceWorker.includes('messageId: payload.messageId || ""'), "chat push notifications should retain their target message ID");
-assert(serviceWorker.includes("jhint-production-app-v20261005-01"), "the service worker should refresh chat assets");
+assert(serviceWorker.includes("jhint-production-app-v20261019-01"), "the service worker should refresh chat assets");
 
 console.log("company chat test passed");
