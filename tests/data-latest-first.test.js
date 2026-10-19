@@ -38,7 +38,7 @@ assert(
   "work history should resolve the latest activity by timestamp"
 );
 assert(appJs.includes('version: "2026-09-02-01"'), "the latest-first change should be recorded in the admin log");
-assert(swJs.includes("jhint-production-app-v20261019-01"), "the service worker should publish the latest sorting update");
+assert(swJs.includes("jhint-production-app-v20261019-02"), "the service worker should publish the latest sorting update");
 
 function extractFunction(name) {
   const start = appJs.indexOf(`function ${name}`);

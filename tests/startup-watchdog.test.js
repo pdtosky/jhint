@@ -120,8 +120,8 @@ test("controller loads immediately after the startup section, before any app or 
   assert.match(html, /#appStartupScreen\[hidden\]\s*\{\s*display: none;/);
   assert.match(html, /<p id="appStartupMessage">\uc11c\ubc84\uc5d0 \uc5f0\uacb0\ud574 \ub85c\uadf8\uc778\uacfc \ucd5c\uc2e0 \ub370\uc774\ud130\ub97c \ud655\uc778\ud558\uace0 \uc788\uc2b5\ub2c8\ub2e4\.<\/p>/);
   assert.match(html, /<button type="button" onclick="location\.reload\(\)">\ub2e4\uc2dc \uc5f0\uacb0\ud558\uae30<\/button>/);
-  assert.match(html, /style\.css\?v=20261019-01/);
-  assert.match(html, /app\.js\?v=20261019-01/);
+  assert.match(html, /style\.css\?v=20261019-02/);
+  assert.match(html, /app\.js\?v=20261019-02/);
   assert.doesNotMatch(source, /Promise\.race|\b(?:fetch|setInterval)\s*\(|location\s*\./);
 });
 

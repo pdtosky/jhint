@@ -88,6 +88,13 @@ function createCompatibleRandomId() {
 
 const CODEX_RELEASE_NOTES = [
   {
+    version: "2026-10-19-02",
+    timestamp: "2026-10-19T12:17:14+09:00",
+    title: "공유 데이터베이스 메모리 무료 증설",
+    summary: "접속 장애 재발과 메모리 여유 부족을 확인해 Supabase 서버를 NANO 0.5GB에서 MICRO 1GB로 변경했습니다. 확인창 기준 추가 요금은 0달러이며, 적용 후 실제 조회 응답과 발주 542건·발주의뢰 209건·작업표준서 71건을 확인했습니다. 메모리 부담은 유력한 장애 요인이지만 서버 중단의 최종 원인은 확정되지 않았습니다.",
+    files: []
+  },
+  {
     version: "2026-10-19-01",
     timestamp: "2026-10-19T12:10:00+09:00",
     title: "서버 연결 지연 안내 및 재연결 개선",
