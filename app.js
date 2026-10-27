@@ -90,6 +90,13 @@ function createCompatibleRandomId() {
 
 const CODEX_RELEASE_NOTES = [
   {
+    version: "2026-10-27-01",
+    timestamp: "2026-10-27T09:12:00+09:00",
+    title: "숨김 화면 처리 축소와 작업시간 갱신 경량화",
+    summary: "현재 선택한 화면과 관리자 메뉴만 계산하고 목록을 표시하도록 변경했습니다. 목록 정렬은 등록 이력을 한 번만 읽고 닫힌 작업 이력은 계산하지 않습니다. 작업표준서는 열 때 불러오며, 매초 작업시간은 카드와 입력 버튼을 다시 만들지 않고 시간 표시만 갱신합니다. 숨김 화면과 로그아웃 상태에서는 시간 갱신을 멈춥니다. 기존 작업 기록, 저장 전 최신 데이터 확인과 데이터 손실 방지 규칙은 유지합니다.",
+    files: ["app.js", "index.html", "sw.js", "package.json", "tests/render-performance.test.js", "tests/live-clock.test.js", "tests/data-latest-first.test.js", "tests/performance-browser-smoke.cjs"]
+  },
+  {
     version: "2026-10-19-04",
     timestamp: "2026-10-19T12:35:21+09:00",
     title: "서버 사용량·오류 정기 감시 추가",
@@ -3174,6 +3181,7 @@ function switchView(targetId) {
   tabButtons.forEach((item) => item.classList.toggle("active", item.dataset.viewTarget === targetId));
   viewPanels.forEach((panel) => panel.classList.toggle("active", panel.id === targetId));
   window.JhintCompanyChat?.setActive(targetId === "chatView");
+  renderActiveView(targetId);
 }
 
 function getTodayKey() {
@@ -5556,20 +5564,85 @@ function render() {
 
   renderAdminSession();
   todayChip.textContent = `${formatDate(new Date().toISOString().slice(0, 10))} ${TEXT.baseDate}`;
-  renderStats();
-  renderProgress();
-  renderDashboardFilteredList();
-  renderCalendar();
-  renderOrdersTable();
-  renderOrderSuggestions();
-  renderRequisitionPage();
-  renderOrderOptions();
-  renderWorkerSnapshotBoard();
-  renderActivities();
-  renderWorkerLiveStatus();
-  renderShippingPage();
-  renderAdminPage();
-  renderSopPage();
+  updateRequisitionPendingBadge();
+  renderActiveView();
+  if (!calendarDetailModal.hidden && selectedCalendarDateKey) renderCalendarDetail();
+}
+
+function getActiveViewId() {
+  return Array.from(viewPanels).find((panel) => panel.classList.contains("active"))?.id || "dashboardView";
+}
+
+function updateRequisitionPendingBadge() {
+  if (!requisitionPendingBadge) return;
+  const pending = getRequisitionCounts().pending;
+  requisitionPendingBadge.hidden = pending === 0;
+  requisitionPendingBadge.textContent = String(pending);
+}
+
+function captureShippingDrafts() {
+  const drafts = new Map();
+  shippingTableBody?.querySelectorAll("input[data-note-order-id], input[data-ship-qty-order-id], input[data-ship-date-order-id]").forEach((input) => {
+    if (input.disabled || input.value === input.defaultValue) return;
+    const attribute = ["data-note-order-id", "data-ship-qty-order-id", "data-ship-date-order-id"].find((name) => input.hasAttribute(name));
+    drafts.set(JSON.stringify([attribute, input.getAttribute(attribute)]), {
+      value: input.value, baseline: input.defaultValue, focused: document.activeElement === input
+    });
+  });
+  return drafts;
+}
+
+function restoreShippingDrafts(drafts) {
+  if (!drafts.size) return;
+  shippingTableBody?.querySelectorAll("input[data-note-order-id], input[data-ship-qty-order-id], input[data-ship-date-order-id]").forEach((input) => {
+    const attribute = ["data-note-order-id", "data-ship-qty-order-id", "data-ship-date-order-id"].find((name) => input.hasAttribute(name));
+    const draft = drafts.get(JSON.stringify([attribute, input.getAttribute(attribute)]));
+    // Never reapply a draft over a field whose saved value or lock changed remotely.
+    if (!draft || input.disabled || input.defaultValue !== draft.baseline) return;
+    input.value = draft.value;
+    if (draft.focused) input.focus({ preventScroll: true });
+  });
+}
+
+function renderActiveView(targetId = getActiveViewId()) {
+  if (REQUIRE_GLOBAL_LOGIN && !currentAdminEmail) return;
+  if (!canAccessView(targetId)) return;
+
+  // Hidden panels keep their drafts; their lists refresh when the user opens them.
+  switch (targetId) {
+    case "dashboardView":
+      renderStats();
+      renderProgress();
+      renderDashboardFilteredList();
+      renderCalendar();
+      renderWorkerSnapshotBoard();
+      break;
+    case "ordersView":
+      renderOrdersTable();
+      renderOrderSuggestions();
+      break;
+    case "requisitionView":
+      renderRequisitionPage();
+      renderOrderSuggestions();
+      break;
+    case "workerView":
+      renderOrderOptions();
+      renderActivities();
+      renderWorkerLiveStatus();
+      break;
+    case "shippingView": {
+      const drafts = captureShippingDrafts();
+      renderShippingPage();
+      restoreShippingDrafts(drafts);
+      break;
+    }
+    case "adminView":
+      renderAdminPage();
+      break;
+    case "sopView":
+      renderSopPage();
+      break;
+  }
 }
 
 function renderCalendar() {
@@ -5659,8 +5732,12 @@ function renderCalendarDetail() {
 }
 
 function getSortedOrders(orders) {
-  return [...orders].sort((left, right) => {
-    const latestGap = getOrderLatestSortTime(right) - getOrderLatestSortTime(left);
+  const sorted = [...orders];
+  if (sorted.length < 2) return sorted;
+  const registrationTimes = buildOrderRegistrationTimes();
+  const latestTimes = new Map(sorted.map((order) => [order, getOrderLatestSortTime(order, registrationTimes)]));
+  return sorted.sort((left, right) => {
+    const latestGap = latestTimes.get(right) - latestTimes.get(left);
     if (latestGap) return latestGap;
 
     const orderDateGap = getSortableTimestamp(right.orderDate) - getSortableTimestamp(left.orderDate);
@@ -5674,7 +5751,11 @@ function getSortedOrders(orders) {
 }
 
 function getScheduleSortedOrders(orders) {
-  return [...orders].sort((left, right) => {
+  const sorted = [...orders];
+  if (sorted.length < 2) return sorted;
+  const registrationTimes = buildOrderRegistrationTimes();
+  const latestTimes = new Map(sorted.map((order) => [order, getOrderLatestSortTime(order, registrationTimes)]));
+  return sorted.sort((left, right) => {
     const paymentGap = Number(Boolean(right.paymentRequested)) - Number(Boolean(left.paymentRequested));
     if (paymentGap) return paymentGap;
 
@@ -5682,7 +5763,7 @@ function getScheduleSortedOrders(orders) {
     const rightDue = getSortableTimestamp(right.dueDate) || Number.MAX_SAFE_INTEGER;
     if (leftDue !== rightDue) return leftDue - rightDue;
 
-    return getOrderLatestSortTime(right) - getOrderLatestSortTime(left);
+    return latestTimes.get(right) - latestTimes.get(left);
   });
 }
 
@@ -5691,9 +5772,19 @@ function getSortableTimestamp(value) {
   return Number.isFinite(timestamp) ? timestamp : 0;
 }
 
-function getOrderLatestSortTime(order = {}) {
+function buildOrderRegistrationTimes() {
+  const times = new Map();
+  (state.activities || []).forEach((activity) => {
+    if (activity?.type !== "register") return;
+    const orderId = String(activity.orderId || "");
+    times.set(orderId, Math.max(times.get(orderId) || 0, getSortableTimestamp(activity.timestamp)));
+  });
+  return times;
+}
+
+function getOrderLatestSortTime(order = {}, registrationTimes = null) {
   const orderId = String(order.id || "");
-  const latestRegistrationTime = (state.activities || []).reduce((latest, activity) => {
+  const latestRegistrationTime = registrationTimes ? registrationTimes.get(orderId) || 0 : (state.activities || []).reduce((latest, activity) => {
     if (String(activity?.orderId || "") !== orderId || activity?.type !== "register") return latest;
     return Math.max(latest, getSortableTimestamp(activity.timestamp));
   }, 0);
@@ -5966,25 +6057,25 @@ function renderAdminPage(options = {}) {
   }
   if (adminLogSearchInput) adminLogSearchInput.value = adminLogSearchKeyword;
   renderAdminSections();
-  renderAdminOverview();
-  renderEquipmentList();
-  renderMoldList();
-  renderJournalList();
-  renderWorkerEfficiency();
-  renderAdminLogs();
-  if (shouldRenderAdminAccountsInPageRender(options)) {
+  if (adminActiveSection === "overview") renderAdminOverview();
+  if (adminActiveSection === "equipment") renderEquipmentList();
+  if (adminActiveSection === "mold") renderMoldList();
+  if (adminActiveSection === "journal") renderJournalList();
+  if (adminActiveSection === "worker") renderWorkerEfficiency();
+  if (adminActiveSection === "logs") renderAdminLogs();
+  if (adminActiveSection === "accounts" && shouldRenderAdminAccountsInPageRender(options)) {
     renderAdminAccounts(options.accountOptions || {});
   }
 }
 
 function renderSopPage() {
   if (!sopPageRoot) return;
+  const existingFrame = sopPageRoot.querySelector(".sop-module-frame");
+  if (!existingFrame && getActiveViewId() !== "sopView") return;
   const statusText = canManageSopDocuments()
     ? "작업표준서 문서 작성과 조회가 가능합니다."
     : "배포완료된 작업표준서를 조회할 수 있습니다.";
   const countText = `${getSmartSopRecords().length}건`;
-  const existingFrame = sopPageRoot.querySelector(".sop-module-frame");
-
   if (existingFrame) {
     const statusEl = sopPageRoot.querySelector("[data-sop-module-status]");
     const countEl = sopPageRoot.querySelector("[data-sop-module-count]");
@@ -10146,17 +10237,46 @@ function startDashboardClock() {
   if (dashboardTimerId) {
     clearInterval(dashboardTimerId);
   }
-  dashboardTimerId = setInterval(() => {
-    const hasWorkingOrder = state.orders.some((order) => order.status === "working" && order.startTime);
-    if (!hasWorkingOrder) return;
-    renderProgress();
-    renderDashboardFilteredList();
-    renderWorkerSnapshotBoard();
-    renderWorkerLiveStatus();
-    if (!calendarDetailModal.hidden && selectedCalendarDateKey) {
-      renderCalendarDetail();
-    }
-  }, 1000);
+  dashboardTimerId = setInterval(updateVisibleWorkTimes, 1000);
+}
+
+function getLiveWorkTimeText(order, includeLabel = false) {
+  return includeLabel ? getWorkTimeLabel(order) : getCleanWorkTimeValue(order) || "-";
+}
+
+function renderLiveWorkTime(order, includeLabel = false) {
+  return `<span data-live-work-time-order-id="${escapeHtml(String(order.id || ""))}" data-live-work-time-label="${includeLabel ? "full" : "value"}">${escapeHtml(getLiveWorkTimeText(order, includeLabel))}</span>`;
+}
+
+function updateVisibleWorkTimes() {
+  if (document.visibilityState === "hidden" || !isAdminLoggedIn) return;
+
+  const roots = [];
+  const activeViewId = getActiveViewId();
+  if (activeViewId === "dashboardView") {
+    if (isDashboardProgressOpen) roots.push(progressBoard);
+    roots.push(workerSnapshotBoard);
+  } else if (activeViewId === "workerView") {
+    roots.push(workerLiveStatus);
+  }
+  if (calendarDetailModal && !calendarDetailModal.hidden && selectedCalendarDateKey) {
+    roots.push(calendarDetailBody);
+  }
+
+  const timeNodes = roots.filter(Boolean).flatMap((root) => Array.from(root.querySelectorAll("[data-live-work-time-order-id]")));
+  if (!timeNodes.length) return;
+
+  // Index current running orders once; ticks never sort history or rebuild controls.
+  const workingOrders = new Map();
+  state.orders.forEach((order) => {
+    if (order.status === "working" && order.startTime) workingOrders.set(String(order.id), order);
+  });
+  timeNodes.forEach((node) => {
+    const order = workingOrders.get(node.dataset.liveWorkTimeOrderId);
+    if (!order) return;
+    const text = getLiveWorkTimeText(order, node.dataset.liveWorkTimeLabel === "full");
+    if (node.textContent !== text) node.textContent = text;
+  });
 }
 
 function daysUntil(dateString) {
@@ -13261,7 +13381,7 @@ function renderWorkerSnapshotBoard() {
           <div class="worker-snapshot-detail">
             <p class="worker-snapshot-company"><strong>업체</strong><span>${escapeHtml(getCleanDisplayText(order.company, "미지정"))}</span></p>
             <p class="worker-snapshot-task"><strong>작업</strong><span>${escapeHtml(getCleanDisplayText(order.product))}</span></p>
-            <p><strong>시간</strong><span>${getCleanWorkTimeValue(order) || "-"}</span></p>
+            <p><strong>시간</strong>${renderLiveWorkTime(order)}</p>
             <p><strong>장비</strong><span>${escapeHtml(getCleanDisplayText(order.machineName, "미지정"))}</span></p>
             <p><strong>납기</strong><span>${dueLabel}</span></p>
           </div>
@@ -13750,7 +13870,7 @@ function renderProgressMetaGrid(order, includeOrderDate = false) {
     chips.push(`<span class="progress-chip over-qty-chip"><strong>초과생산</strong>${overProductionQtyActive.toLocaleString()}</span>`);
   }
   chips.push(renderProgressChip("총타수", order.totalHitQty || "-"));
-  chips.push(renderProgressChip("작업시간", getCleanWorkTimeValue(order) || "-"));
+  chips.push(`<span class="progress-chip"><strong>작업시간</strong>${renderLiveWorkTime(order)}</span>`);
   chips.push(renderProgressChip("지급", order.paymentRequested ? "요청" : "없음"));
   chips.push(renderProgressChip("구분", order.deliveryType || "-"));
 
@@ -14314,7 +14434,7 @@ function renderCalendarDetail() {
             <p class="detail-line detail-quantity"><strong>수량</strong><span>${escapeHtml(formatRequestedQuantity(order))}</span></p>
             <p class="detail-line detail-type"><strong>구분</strong><span>${getPaymentLabel(order)} / ${getDeliveryLabel(order)}</span></p>
             <p class="detail-line detail-note"><strong>비고</strong><span>${note ? escapeHtml(note) : "-"}</span></p>
-            <p class="detail-line detail-time"><strong>작업시간</strong><span>${getCleanWorkTimeValue(order) || "-"}</span></p>
+            <p class="detail-line detail-time"><strong>작업시간</strong>${renderLiveWorkTime(order)}</p>
             <p class="detail-line detail-production"><strong>총생산수</strong><span>${escapeHtml(String(order.productionQty || "-"))}${order.quantityUnit === "m" ? "m" : ""}</span></p>
             <p class="detail-line detail-hit"><strong>총타발수</strong><span>${String(order.totalHitQty || "-")}</span></p>
           </div>
@@ -14436,13 +14556,6 @@ function getWorkerHistorySearchText(order, latestActivity) {
 }
 
 function renderActivities() {
-  const keyword = normalizeHistorySearchText(workerHistorySearchKeyword);
-  const sortedOrders = getSortedOrders(state.orders).filter((order) => {
-    if (!keyword) return true;
-    const latestActivity = getLatestOrderActivity(order.id);
-    return getWorkerHistorySearchText(order, latestActivity).includes(keyword);
-  });
-
   historyToggleBtn.textContent = isActivityFeedOpen ? "작업 이력 닫기" : "작업 이력 보기";
   historyToggleBtn.setAttribute("aria-expanded", String(isActivityFeedOpen));
   if (workerHistorySearchPanel) {
@@ -14456,6 +14569,13 @@ function renderActivities() {
     activityFeed.innerHTML = `<div class="empty-state">작업 이력은 버튼을 누르면 표시됩니다.</div>`;
     return;
   }
+
+  const keyword = normalizeHistorySearchText(workerHistorySearchKeyword);
+  const sortedOrders = getSortedOrders(state.orders).filter((order) => {
+    if (!keyword) return true;
+    const latestActivity = getLatestOrderActivity(order.id);
+    return getWorkerHistorySearchText(order, latestActivity).includes(keyword);
+  });
 
   if (sortedOrders.length === 0) {
     activityFeed.innerHTML = `<div class="empty-state">${keyword ? "검색 결과가 없습니다." : TEXT.noActivity}</div>`;
@@ -14762,7 +14882,7 @@ function renderWorkerLiveStatus() {
           ${renderWorkerSpecialInstructions(order)}
           <p class="progress-meta">${getCleanDisplayText(order.workerName, "") ? `작업자 ${escapeHtml(getCleanDisplayText(order.workerName))}` : "작업자 미지정"}</p>
           <p class="progress-meta">${getCleanDisplayText(order.machineName, "") ? `장비 ${escapeHtml(getCleanDisplayText(order.machineName))}` : "장비 미지정"}</p>
-          <p class="progress-meta">${getWorkTimeLabel(order)}</p>
+          <p class="progress-meta">${renderLiveWorkTime(order, true)}</p>
           ${getCleanDisplayText(order.pauseReason, "") ? `<p class="progress-meta">중지 사유 ${escapeHtml(getCleanDisplayText(order.pauseReason, ""))}${order.workQty ? ` / 작업수량 ${escapeHtml(order.workQty)}` : ""}${order.workHitQty ? ` / 작업타수 ${escapeHtml(order.workHitQty)}` : ""}</p>` : ""}
           <div class="feed-actions">
             ${order.status === "working" ? `<button type="button" class="tab-btn live-action-btn" data-order-id="${order.id}" data-action="temporaryPause">일시정지</button>` : ""}

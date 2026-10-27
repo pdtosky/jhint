@@ -13,7 +13,7 @@ const orderSortBody = appJs.slice(orderSortStart, orderSortEnd);
 
 assert(orderSortStart >= 0 && orderSortEnd > orderSortStart, "the shared order sorter should exist");
 assert(
-  orderSortBody.includes("getOrderLatestSortTime(right) - getOrderLatestSortTime(left)"),
+  orderSortBody.includes("latestTimes.get(right) - latestTimes.get(left)"),
   "orders should show the latest registered or updated data first"
 );
 assert(!orderSortBody.includes("leftDue - rightDue"), "orders should no longer show the oldest due date first");
@@ -38,7 +38,7 @@ assert(
   "work history should resolve the latest activity by timestamp"
 );
 assert(appJs.includes('version: "2026-09-02-01"'), "the latest-first change should be recorded in the admin log");
-assert(swJs.includes("jhint-production-app-v20261019-03"), "the service worker should publish the latest sorting update");
+assert(swJs.includes("jhint-production-app-v20261027-01"), "the service worker should publish the latest sorting update");
 
 function extractFunction(name) {
   const start = appJs.indexOf(`function ${name}`);
@@ -76,6 +76,7 @@ const sortingContext = {
 vm.createContext(sortingContext);
 vm.runInContext([
   extractFunction("getSortableTimestamp"),
+  extractFunction("buildOrderRegistrationTimes"),
   extractFunction("getOrderLatestSortTime"),
   extractFunction("getSortedOrders"),
   extractFunction("getScheduleSortedOrders"),
@@ -95,5 +96,45 @@ vm.runInContext([
 
 assert.deepEqual(Array.from(sortingContext.result.latest), ["old-edited", "new", "old"]);
 assert.deepEqual(Array.from(sortingContext.result.schedule), ["old", "new", "old-edited"]);
+
+const orders = Array.from({ length: 80 }, (_, i) => ({
+  id: `order-${i}`, orderDate: i % 5 ? '2026-09-01' : 'invalid',
+  dueDate: i % 7 ? `2026-10-${String(i % 28 + 1).padStart(2, '0')}` : '',
+  createdAt: i % 3 ? `2026-08-${String(i % 28 + 1).padStart(2, '0')}` : '',
+  updatedAt: i % 11 ? '' : '2026-10-01', paymentRequested: i % 4 === 0
+}));
+let activities = Array.from({ length: 300 }, (_, i) => ({
+  orderId: `order-${i % 80}`, type: i % 3 ? 'register' : 'end',
+  timestamp: i % 9 ? `2026-09-${String(i % 28 + 1).padStart(2, '0')}` : 'invalid'
+}));
+let reads = 0;
+Object.defineProperty(sortingContext.state, 'activities', { get() { reads++; return activities; } });
+const legacy = (input, schedule) => [...input].sort((a, b) => {
+  if (schedule) {
+    const payment = Number(Boolean(b.paymentRequested)) - Number(Boolean(a.paymentRequested));
+    if (payment) return payment;
+    const due = (sortingContext.getSortableTimestamp(a.dueDate) || Number.MAX_SAFE_INTEGER) - (sortingContext.getSortableTimestamp(b.dueDate) || Number.MAX_SAFE_INTEGER);
+    if (due) return due;
+  }
+  const latest = sortingContext.getOrderLatestSortTime(b) - sortingContext.getOrderLatestSortTime(a);
+  if (latest || schedule) return latest;
+  return sortingContext.getSortableTimestamp(b.orderDate) - sortingContext.getSortableTimestamp(a.orderDate)
+    || sortingContext.getSortableTimestamp(b.dueDate) - sortingContext.getSortableTimestamp(a.dueDate)
+    || String(b.id || '').localeCompare(String(a.id || ''));
+});
+for (const schedule of [false, true]) {
+  const wanted = legacy(orders, schedule).map(order => order.id);
+  reads = 0;
+  const sorted = (schedule ? sortingContext.getScheduleSortedOrders : sortingContext.getSortedOrders)(orders);
+  assert.deepEqual(Array.from(sorted, order => order.id), wanted, 'optimized sorting retains exact legacy ordering and tie rules');
+  assert.equal(reads, 1, 'registration history is scanned once per sort, not per comparison');
+  assert.equal(orders[0].id, 'order-0', 'input array is not mutated');
+}
+activities = [{ orderId: 'order-0', type: 'register', timestamp: '2026-12-01' }];
+assert.equal(sortingContext.getSortedOrders(orders)[0].id, 'order-0', 'a later sort sees fresh registration history');
+reads = 0;
+sortingContext.getSortedOrders([]);
+sortingContext.getScheduleSortedOrders([orders[0]]);
+assert.equal(reads, 0, 'empty and singleton lists skip history entirely');
 
 console.log("data latest-first test passed");
